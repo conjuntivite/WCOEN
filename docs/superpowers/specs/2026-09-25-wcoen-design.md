@@ -40,7 +40,7 @@ O núcleo (`parser`, `service`) não conhece o WhatsApp. O `repo` é uma interfa
 ### Fluxo de uma mensagem
 
 1. O Baileys recebe a mensagem; `whatsapp.ts` descarta tudo que não for texto do grupo configurado.
-2. Normaliza para `{ msgId, remetente, texto, data }` e chama o `service`.
+2. Normaliza para `{ msgId, remetente, texto, enviadoEm }` e chama o `service`.
 3. O `parser` transforma o texto em comando: despesa, receita, balancete, desfazer, ajuda ou ignorar.
 4. O `service` chama o `repo` e monta a resposta (ex.: `✅ Despesa: mercado R$ 45,90`).
 5. O adaptador envia a resposta ao grupo com um pequeno atraso.
@@ -63,11 +63,12 @@ Coleção `lancamentos` (banco `wcoen`):
   valor: number,          // centavos, inteiro
   remetente: string,      // JID do remetente
   msgId: string,          // ID da mensagem do WhatsApp
-  criadoEm: Date,         // UTC; data original da mensagem
+  data: Date,             // UTC; dia do lançamento: o informado pelo usuário ou, sem ele, a data de envio da mensagem
+  enviadoEm: Date,        // UTC; quando a mensagem foi enviada (ordena o desfazer)
   desfeitoEm: Date | null }
 ```
 
-Índices: `msgId` único (idempotência), `criadoEm`. Desfazer não apaga: marca `desfeitoEm`. O balancete ignora lançamentos desfeitos.
+Índices: `msgId` único (idempotência), `data`. O balancete filtra por `data`; o `desfazer` ordena por `enviadoEm`, então desfaz o último lançamento **enviado** mesmo que sua `data` seja antiga. Desfazer não apaga: marca `desfeitoEm`. O balancete ignora lançamentos desfeitos.
 
 ## Comandos (sem diferença entre maiúsculas e minúsculas)
 
@@ -77,13 +78,16 @@ Coleção `lancamentos` (banco `wcoen`):
 | `+ salário 3000` | Receita. O `+` inicial marca receita (com ou sem espaço depois) |
 | `balancete` | Balancete do mês atual |
 | `balancete tudo` / `balancete 08/2026` | Todo o período / mês específico |
-| `desfazer` | Desfaz o último lançamento não desfeito |
+| `balancete semana` / `balancete semana passada` | Semana atual / anterior (segunda a domingo) |
+| `desfazer` | Desfaz o último lançamento enviado que não foi desfeito |
 | `ajuda` | Lista os comandos |
 | qualquer outra coisa | Ignorada em silêncio |
 
 **Formatos de valor:** `45`, `45,90`, `45.90`, `1.234,56`, `R$ 45,90`. Valor zero, negativo ou ilegível: a mensagem é ignorada.
 
-**Fuso:** limites de mês em `America/Sao_Paulo`; armazenamento em UTC.
+**Fuso:** limites de mês e de semana em `America/Sao_Paulo`; armazenamento em UTC.
+
+**Data do lançamento:** só é considerada quando o usuário a informa. Sem data, vale a data de envio da mensagem. Para informar, escreva no fim do lançamento: `hoje`, `ontem`, `anteontem`, `dd/mm` ou `dd/mm/aaaa` (ex.: `+ plantão 450 ontem`, `mercado 45,90 15/09`). A confirmação de lançamento com data mostra o dia (`✅ Receita: plantão R$ 450,00 (09/09)`); sem data, não mostra. Sem ano, usa o ano da mensagem; se isso cair no futuro, usa o ano anterior. Data futura explícita ou inexistente (`29/02/2026`) é recusada com `⚠️ Data inválida ou no futuro, não lancei`, sem lançar. O lançamento com data fica no meio-dia local do dia informado. Datas relativas contam a partir do dia em que a mensagem foi enviada.
 
 **Risco conhecido:** frases que terminam em número (ex.: "reunião às 15") viram lançamento. Mitigação: toda resposta confirma o que foi lançado e `desfazer` corrige.
 
