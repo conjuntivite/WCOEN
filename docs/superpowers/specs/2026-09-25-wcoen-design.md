@@ -79,6 +79,10 @@ Coleção `lancamentos` (banco `wcoen`):
 | `balancete` | Balancete do mês atual |
 | `balancete tudo` / `balancete 08/2026` | Todo o período / mês específico |
 | `balancete semana` / `balancete semana passada` | Semana atual / anterior (segunda a domingo) |
+| `balancete trimestre` | Os 3 meses **fechados** anteriores ao mês atual (em 20/06: março, abril e maio) |
+| `balancete ano` / `balancete 2025` | Ano do calendário atual / um ano específico |
+| `balancete receitas` / `balancete despesas` | Só receitas / só despesas (mês atual) |
+| `balancete mercado` | Só a conta "mercado" (mês atual): total de receitas e de despesas dessa conta |
 | `desfazer` | Desfaz o último lançamento enviado que não foi desfeito |
 | `ajuda` | Lista os comandos |
 | qualquer outra coisa | Ignorada em silêncio |
@@ -86,6 +90,19 @@ Coleção `lancamentos` (banco `wcoen`):
 **Formatos de valor:** `45`, `45,90`, `45.90`, `1.234,56`, `R$ 45,90`. Valor zero, negativo ou ilegível: a mensagem é ignorada.
 
 **Fuso:** limites de mês e de semana em `America/Sao_Paulo`; armazenamento em UTC.
+
+**Períodos e filtros combinam:** `balancete [período] [filtro]`. Período: nada (mês atual), `tudo`, `semana`, `semana passada`, `trimestre`, `ano`, `AAAA` ou `MM/AAAA`. Filtro: `receitas`, `despesas` ou o nome de uma conta. Exemplos: `balancete semana despesas`, `balancete ano mercado`, `balancete trimestre receitas`. As palavras `tudo`, `semana`, `trimestre`, `ano`, `receitas` e `despesas` não funcionam como nome de conta no filtro. O nome da conta precisa bater com o lançado (sem sugestão de contas parecidas); se não houver lançamentos: `Sem lançamentos no período.`
+
+**Formato do balancete filtrado:**
+
+```
+📊 Balancete 09/2026 · despesas          📊 Balancete 09/2026 · mercado
+Despesas: R$ 512,40                       Despesas: R$ 345,90
+  mercado  345,90
+  luz      166,50
+```
+
+Filtro por natureza mostra só aquele bloco, sem saldo. Filtro por conta mostra só o total (e, se a conta tiver receita e despesa, os dois totais e o saldo). Título do trimestre: `trimestre 06/2026 a 08/2026`; do ano: `2026`.
 
 **Data do lançamento:** só é considerada quando o usuário a informa. Sem data, vale a data de envio da mensagem. Para informar, escreva no fim do lançamento: `hoje`, `ontem`, `anteontem`, `dd/mm` ou `dd/mm/aaaa` (ex.: `+ plantão 450 ontem`, `mercado 45,90 15/09`). A confirmação de lançamento com data mostra o dia (`✅ Receita: plantão R$ 450,00 (09/09)`); sem data, não mostra. Sem ano, usa o ano da mensagem; se isso cair no futuro, usa o ano anterior. Data futura explícita ou inexistente (`29/02/2026`) é recusada com `⚠️ Data inválida ou no futuro, não lancei`, sem lançar. O lançamento com data fica no meio-dia local do dia informado. Datas relativas contam a partir do dia em que a mensagem foi enviada.
 
@@ -128,4 +145,4 @@ Saldo: R$ 2.487,60
 
 ## Fora do escopo (YAGNI)
 
-Iniciar o bot com o Windows, editar lançamentos antigos, categorias, relatórios em PDF, multiusuário, monitoramento externo (ex.: healthchecks.io, útil quando for para um servidor).
+Iniciar o bot com o Windows, editar lançamentos antigos, sugestão de contas parecidas quando o filtro não acha nada, contagem de lançamentos no balancete, categorias, relatórios em PDF, multiusuário, monitoramento externo (ex.: healthchecks.io, útil quando for para um servidor).
