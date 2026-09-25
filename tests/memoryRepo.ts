@@ -1,0 +1,51 @@
+import type { Balancete, Filtro, Intervalo, Lancamento, LinhaConta, NovoLancamento, Repo } from '../src/types'
+
+export class MemoryRepo implements Repo {
+  private itens: Lancamento[] = []
+
+  async add(l: NovoLancamento) {
+    if (this.itens.some((i) => i.msgId === l.msgId)) return 'duplicado' as const
+    this.itens.push({ ...l, desfeitoEm: null })
+    return 'ok' as const
+  }
+
+  async desfazerUltimo() {
+    const vivos = this.itens
+      .map((item, ordem) => ({ item, ordem }))
+      .filter((x) => !x.item.desfeitoEm)
+    if (!vivos.length) return null
+    vivos.sort(
+      (a, b) => b.item.enviadoEm.getTime() - a.item.enviadoEm.getTime() || b.ordem - a.ordem,
+    )
+    const alvo = vivos[0].item
+    alvo.desfeitoEm = new Date()
+    return { ...alvo }
+  }
+
+  async contas(intervalo: Intervalo) {
+    const nomes = this.itens
+      .filter(
+        (i) =>
+          !i.desfeitoEm &&
+          (!intervalo || (i.data.getTime() >= intervalo.de.getTime() && i.data.getTime() < intervalo.ate.getTime())),
+      )
+      .map((i) => i.conta)
+    return [...new Set(nomes)].sort()
+  }
+
+  async balancete(intervalo: Intervalo, filtro?: Filtro): Promise<Balancete> {
+    const somas = { receita: new Map<string, number>(), despesa: new Map<string, number>() }
+    for (const i of this.itens) {
+      if (i.desfeitoEm) continue
+      if (filtro?.tipo === 'natureza' && i.tipo !== filtro.natureza) continue
+      if (filtro?.tipo === 'conta' && i.conta !== filtro.conta) continue
+      if (filtro?.tipo === 'contas' && !filtro.contas.includes(i.conta)) continue
+      if (intervalo && (i.data.getTime() < intervalo.de.getTime() || i.data.getTime() >= intervalo.ate.getTime())) continue
+      const m = somas[i.tipo]
+      m.set(i.conta, (m.get(i.conta) ?? 0) + i.valor)
+    }
+    const linhas = (m: Map<string, number>): LinhaConta[] =>
+      [...m].map(([conta, total]) => ({ conta, total })).sort((a, b) => b.total - a.total)
+    return { receitas: linhas(somas.receita), despesas: linhas(somas.despesa) }
+  }
+}
