@@ -130,6 +130,7 @@ Quando o usuário **pede** com `ia` (`balancete ia carro`, `balancete ano ia car
 - **Só sob pedido:** `balancete carro` (sem `ia`) nunca chama a IA e soma apenas a conta "carro". Período sem nenhuma conta também não chama a IA. Sem OpenRouter configurado, `balancete ia carro` responde que a IA não está configurada.
 - **Privacidade:** só o termo e os **nomes** das contas vão ao OpenRouter. Valores, datas e remetentes nunca saem da máquina.
 - **Configuração:** `OPENROUTER_API_KEY` e `OPENROUTER_MODEL` no `.env` (o usuário escolhe o modelo). Sem chave, o recurso fica desligado e o bot age como antes. Chamada com `fetch` nativo, `temperature: 0`, timeout de 15 s, sem dependência nova. O repositório ganha `contas(intervalo)` (nomes distintos de conta no período).
+- **Fallback:** `OPENROUTER_MODEL` aceita vários modelos separados por vírgula (o primeiro é o preferido, pago); depois deles entram modelos gratuitos de reserva (lista padrão no código, substituível por `OPENROUTER_FALLBACK_MODELS`). Cada modelo é tentado uma vez, com timeout de 15 s e prazo total de 40 s. Conta como falha: erro de rede, HTTP não-OK (inclusive 429 dos gratuitos), timeout, conteúdo ausente ou resposta fora do combinado. Lista vazia **válida** (`{"contas": []}`) é resposta legítima e não aciona o fallback. Modelos gratuitos podem ser menos precisos e seguem as regras de dados do OpenRouter; o que é enviado continua sendo só o termo e os nomes das contas. Cada falha vira um aviso no terminal (sem a chave).
 - **Contrato da resposta:** a IA devolve `{"contas": [...]}`. O bot aceita texto ou cerca de código em volta do JSON e descarta qualquer nome que não esteja na lista enviada (sem diferenciar maiúsculas). O prompt manda a IA ser conservadora: na dúvida, não incluir a conta.
 - **Formato:**
 
@@ -141,7 +142,7 @@ Despesas: R$ 420,00
 ```
 
   Lista as contas incluídas, mostra os blocos que existirem e o saldo quando houver receita e despesa.
-- **Falhas:** erro de rede, HTTP ou timeout responde `Não consegui agrupar agora, tente de novo.`; nenhuma conta relacionada responde `Não achei contas relacionadas a "carro" no período.` Nunca vira exceção para o usuário.
+- **Falhas:** se todos os modelos falharem (rede, HTTP, timeout, resposta fora do combinado), responde `Não consegui agrupar agora, tente de novo.`; nenhuma conta relacionada responde `Não achei contas relacionadas a "carro" no período.` Nunca vira exceção para o usuário.
 - **Limite conhecido:** a IA pode errar (incluir ou esquecer uma conta). O aviso `(agrupado por IA)` e a lista visível permitem conferir; para corrigir, lançar com nome mais claro.
 
 ## Estado do bot: avisos e recuperação
@@ -165,7 +166,7 @@ Despesas: R$ 420,00
 - `parser`: tabela de casos (formatos de valor, `+`, conta com várias palavras, frases ignoradas).
 - `service`: repositório falso em memória; cobre lançar, desfazer, recuperação de mensagens e texto do balancete.
 - `repo` Mongo: teste de integração da agregação, em banco `wcoen_test` no Mongo em Docker.
-- `agrupar`: leitura da resposta da IA (JSON limpo, com texto ou cerca em volta, nomes inventados, lixo) e cliente OpenRouter com `fetch` falso (URL, chave, só nomes no corpo, erro HTTP). Nenhum teste chama a rede.
+- `agrupar`: leitura da resposta da IA (JSON limpo, com texto ou cerca em volta, nomes inventados, lixo) e cliente OpenRouter com `fetch` falso (URL, chave, só nomes no corpo, erro HTTP, fallback entre modelos, lista vazia que não aciona o fallback, aviso sem vazar a chave). Nenhum teste chama a rede.
 - `service`: com um agrupador falso (escolhe, não escolhe, falha, IA desligada, conta comum que nunca chama a IA, período vazio).
 - Adaptador WhatsApp: validação manual no grupo, sem teste automatizado.
 
