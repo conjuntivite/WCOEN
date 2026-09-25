@@ -19,7 +19,7 @@ Registrar despesas e receitas por mensagens de texto num grupo do WhatsApp (só 
 | Stack | Node.js + TypeScript + Baileys |
 | Banco | MongoDB existente do usuário (Docker), banco separado `wcoen` |
 | Comandos | Texto livre, sem prefixo obrigatório |
-| IA (opcional) | OpenRouter, só para agrupar contas por tema (`balancete carro`); chamada via `fetch` nativo; desligada sem chave |
+| IA (opcional) | OpenRouter, só para agrupar contas por tema e **só quando o usuário pede** (`balancete ia carro`); chamada via `fetch` nativo; desligada sem chave |
 | Trocar para número dedicado | Só o adaptador WhatsApp muda: novo QR code, número no grupo, `GROUP_ID` no `.env` |
 
 **Risco aceito:** bibliotecas não-oficiais violam os termos do WhatsApp e há risco de banimento do número. Mitigações: o bot só responde ao que o usuário manda, ignora qualquer outro grupo/conversa, aplica um pequeno atraso antes de responder e reconecta com espera crescente, sem loops agressivos. Os dados ficam no Mongo, independentes do WhatsApp.
@@ -85,6 +85,7 @@ Coleção `lancamentos` (banco `wcoen`):
 | `balancete ano` / `balancete 2025` | Ano do calendário atual / um ano específico |
 | `balancete receitas` / `balancete despesas` | Só receitas / só despesas (mês atual) |
 | `balancete mercado` | Só a conta "mercado" (mês atual): total de receitas e de despesas dessa conta |
+| `balancete ia carro` | Soma, por IA, as contas do período relacionadas a "carro" (opcional: precisa do OpenRouter; ver *Agrupamento por IA*) |
 | `desfazer` | Desfaz o último lançamento enviado que não foi desfeito |
 | `ajuda` | Lista os comandos |
 | qualquer outra coisa | Ignorada em silêncio |
@@ -93,7 +94,7 @@ Coleção `lancamentos` (banco `wcoen`):
 
 **Fuso:** limites de mês e de semana em `America/Sao_Paulo`; armazenamento em UTC.
 
-**Períodos e filtros combinam:** `balancete [período] [filtro]`. Período: nada (mês atual), `tudo`, `semana`, `semana passada`, `trimestre`, `ano`, `AAAA` ou `MM/AAAA`. Filtro: `receitas`, `despesas` ou o nome de uma conta. Exemplos: `balancete semana despesas`, `balancete ano mercado`, `balancete trimestre receitas`. As palavras `tudo`, `semana`, `trimestre`, `ano`, `receitas` e `despesas` não funcionam como nome de conta no filtro. O nome da conta precisa bater com o lançado; se não bater e a IA estiver configurada, ela agrupa as contas relacionadas (seção *Agrupamento por IA*); senão: `Sem lançamentos no período.`
+**Períodos e filtros combinam:** `balancete [período] [filtro]`. Período: nada (mês atual), `tudo`, `semana`, `semana passada`, `trimestre`, `ano`, `AAAA` ou `MM/AAAA`. Filtro: `receitas`, `despesas`, o nome de uma conta ou `ia <termo>`. Exemplos: `balancete semana despesas`, `balancete ano mercado`, `balancete trimestre receitas`, `balancete ano ia carro`. As palavras `tudo`, `semana`, `trimestre`, `ano`, `receitas` e `despesas` não funcionam como nome de conta no filtro, e `ia` como primeira palavra do filtro é reservada. O nome da conta precisa bater com o lançado; se não houver lançamentos: `Sem lançamentos no período.` Para agrupar contas por tema, use `ia` (seção *Agrupamento por IA*).
 
 **Formato do balancete filtrado:**
 
@@ -124,12 +125,12 @@ Saldo: R$ 2.487,60
 
 ## Agrupamento por IA (opcional)
 
-Quando o filtro do balancete é o nome de uma conta que **não existe no período consultado** e o OpenRouter está configurado, o bot pergunta à IA quais das contas existentes no período se relacionam com o termo. Ex.: `balancete carro` soma `gasolina`, `óleo`, `retífica`, `mecânico` e `peças`.
+Quando o usuário **pede** com `ia` (`balancete ia carro`, `balancete ano ia carro`) e o OpenRouter está configurado, o bot pergunta à IA quais das contas existentes no período se relacionam com o termo. Ex.: `balancete ia carro` soma `gasolina`, `óleo`, `retífica`, `mecânico` e `peças`.
 
-- **Automático:** se existir uma conta com o nome exato (ex.: "carro"), soma só ela, sem chamar a IA. Período sem nenhuma conta também não chama a IA.
+- **Só sob pedido:** `balancete carro` (sem `ia`) nunca chama a IA e soma apenas a conta "carro". Período sem nenhuma conta também não chama a IA. Sem OpenRouter configurado, `balancete ia carro` responde que a IA não está configurada.
 - **Privacidade:** só o termo e os **nomes** das contas vão ao OpenRouter. Valores, datas e remetentes nunca saem da máquina.
 - **Configuração:** `OPENROUTER_API_KEY` e `OPENROUTER_MODEL` no `.env` (o usuário escolhe o modelo). Sem chave, o recurso fica desligado e o bot age como antes. Chamada com `fetch` nativo, `temperature: 0`, timeout de 15 s, sem dependência nova. O repositório ganha `contas(intervalo)` (nomes distintos de conta no período).
-- **Contrato da resposta:** a IA devolve `{"contas": [...]}`. O bot aceita texto ou cerca de código em volta do JSON e descarta qualquer nome que não esteja na lista enviada (sem diferenciar maiúsculas).
+- **Contrato da resposta:** a IA devolve `{"contas": [...]}`. O bot aceita texto ou cerca de código em volta do JSON e descarta qualquer nome que não esteja na lista enviada (sem diferenciar maiúsculas). O prompt manda a IA ser conservadora: na dúvida, não incluir a conta.
 - **Formato:**
 
 ```
@@ -165,9 +166,9 @@ Despesas: R$ 420,00
 - `service`: repositório falso em memória; cobre lançar, desfazer, recuperação de mensagens e texto do balancete.
 - `repo` Mongo: teste de integração da agregação, em banco `wcoen_test` no Mongo em Docker.
 - `agrupar`: leitura da resposta da IA (JSON limpo, com texto ou cerca em volta, nomes inventados, lixo) e cliente OpenRouter com `fetch` falso (URL, chave, só nomes no corpo, erro HTTP). Nenhum teste chama a rede.
-- `service`: com um agrupador falso (escolhe, não escolhe, falha, nome exato existente, período vazio).
+- `service`: com um agrupador falso (escolhe, não escolhe, falha, IA desligada, conta comum que nunca chama a IA, período vazio).
 - Adaptador WhatsApp: validação manual no grupo, sem teste automatizado.
 
 ## Fora do escopo (YAGNI)
 
-Iniciar o bot com o Windows, editar lançamentos antigos, sugestão de contas parecidas quando o filtro não acha nada e a IA está desligada, contagem de lançamentos no balancete, categorias, relatórios em PDF, multiusuário, monitoramento externo (ex.: healthchecks.io, útil quando for para um servidor).
+Iniciar o bot com o Windows, editar lançamentos antigos, sugestão de contas parecidas quando o filtro não acha nada, contagem de lançamentos no balancete, categorias, relatórios em PDF, multiusuário, monitoramento externo (ex.: healthchecks.io, útil quando for para um servidor).
