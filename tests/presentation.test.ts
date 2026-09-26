@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { ERRO_DATA, ERRO_GENERICO, ERRO_SALVAR, auditoria, limpar, lancamentoRegistrado, resumoPeriodos } from '../src/presentation'
+import { BOAS_VINDAS, ERRO_DATA, ERRO_GENERICO, ERRO_SALVAR, auditoria, limpar, lancamentoRegistrado, recuperados, resumoPeriodos } from '../src/presentation'
 
 describe('limpar (texto de usuário/IA na saída)', () => {
   it('troca * _ ~ ` por sósias, sem tocar no resto', () => {
@@ -37,5 +37,15 @@ describe('erros', () => {
     expect(ERRO_GENERICO).toBe('⚠️ *NÃO FOI POSSÍVEL CONCLUIR*\n\n_Tente novamente em alguns instantes._')
     expect(ERRO_SALVAR).toBe('⚠️ *NÃO FOI POSSÍVEL SALVAR*\n\n_Tente novamente._')
     expect(ERRO_DATA).toBe('📅 *DATA INVÁLIDA*\n\n_A data informada não existe ou está no futuro._\n\n_Nenhum lançamento foi registrado._')
+  })
+})
+
+describe('mensagens do gerenciador de sessões', () => {
+  it('boas-vindas', () => {
+    expect(BOAS_VINDAS).toBe('✅ *CONECTADO*\n\n_Digite *ajuda* para ver os comandos._')
+  })
+  it('recuperados: singular e plural', () => {
+    expect(recuperados(1)).toBe('📥 *LANÇAMENTOS RECUPERADOS*\n\n_1 lançamento feito enquanto eu estava offline._')
+    expect(recuperados(3)).toBe('📥 *LANÇAMENTOS RECUPERADOS*\n\n_3 lançamentos feitos enquanto eu estava offline._')
   })
 })

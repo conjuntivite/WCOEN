@@ -150,6 +150,11 @@ export const AJUDA = [
   [`↩️ ${bold('CORREÇÃO')}`, `${cmd('desfazer')}\n${italic('desfaz o último lançamento')}`].join('\n\n'),
 ].join(`\n\n${SEP}\n\n`)
 
+export const BOAS_VINDAS = `${cabecalho('✅', 'CONECTADO')}\n\n${italic(`Digite ${bold('ajuda')} para ver os comandos.`)}`
+
+export const recuperados = (n: number) =>
+  `${cabecalho('📥', 'LANÇAMENTOS RECUPERADOS')}\n\n${italic(`${n} lançamento${n > 1 ? 's' : ''} feito${n > 1 ? 's' : ''} enquanto eu estava offline.`)}`
+
 const uso = (...comandos: string[]) => `${erro('⚠️', 'COMANDO INCOMPLETO', 'Use um destes:')}\n\n${comandos.map((c) => `👉 ${cmd(c)}`).join('\n')}`
 export const USO = {
   balancete: uso('balancete', 'balancete mensal', 'balancete semanal', 'balancete anual'),
