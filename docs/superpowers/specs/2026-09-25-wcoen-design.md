@@ -92,7 +92,7 @@ Coleção `lancamentos` (banco `wcoen`):
 
 **Fuso:** limites de mês e de semana em `America/Sao_Paulo`; armazenamento em UTC.
 
-**Relatórios:** `balancete` (= `balancete mensal`), `balancete semanal` e `balancete anual`. Cada um traz, em blocos separados por linha em branco: o **extrato** cronológico do período atual (duas linhas por lançamento para não quebrar no celular: `*dd/mm às HH:mm*` em cima, e `🟢/🔴 R$ valor · conta` embaixo; a data é a do lançamento e a hora é a do **envio** da mensagem), os **totais** (receitas, despesas e saldo) e o **resumo** dos períodos anteriores (só os que têm movimento, do mais recente ao mais antigo; cada período em duas linhas, `*rótulo*` e `🟢 receitas · 🔴 despesas · 💰 saldo`, sem "R$" para caber na tela).
+**Relatórios:** `balancete` (= `balancete mensal`), `balancete semanal` e `balancete anual`. Cada um traz, em blocos separados por linha em branco: o **extrato** cronológico do período atual (duas linhas por lançamento para não quebrar no celular: `*dd/mm às HH:mm*` em cima, e `🟢/🔴 R$ valor · conta` embaixo; a data é a do lançamento e a hora é a do **envio** da mensagem), os **totais** (receitas, despesas e saldo) e o **resumo** dos períodos anteriores (só os que têm movimento, do mais recente ao mais antigo; cada período com o `*rótulo*` e depois `🟢 receitas`, `🔴 despesas` e `💰 saldo`, um por linha, sem "R$" e com o ícone junto do valor, para não quebrar no celular).
 
 - **Mensal:** extrato do mês atual + últimos 12 meses (o atual incluído).
 - **Semanal:** extrato da semana atual (domingo 00:00 a sábado 23:59) + últimas 4 semanas (a atual incluída).
@@ -124,9 +124,13 @@ Coleção `lancamentos` (banco `wcoen`):
 
 📈 *Últimos meses* (até 12, só com movimento)
 *09/2026*
-🟢 3.000,00 · 🔴 512,40 · 💰 2.487,60
+🟢 3.000,00
+🔴 512,40
+💰 2.487,60
 *08/2026*
-🟢 0,00 · 🔴 10,00 · 💰 -10,00
+🟢 0,00
+🔴 10,00
+💰 -10,00
 ```
 
 ## Auditoria com IA (opcional)

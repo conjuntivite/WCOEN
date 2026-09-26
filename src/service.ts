@@ -141,10 +141,11 @@ export class Service {
   private async balancete(rel: Relatorio): Promise<string> {
     const { titulo, atual, janela, cabExtrato, vazio, cabResumo } = this.periodos(rel)
     const extrato = await this.repo.extrato(atual)
-    // valores do resumo sem "R$" (o total acima já mostra a moeda) e em duas linhas, para não quebrar no celular
+    // resumo: valores sem "R$" (o total acima já mostra a moeda) e um item por linha, com o ícone junto do valor
+    // (numa linha só, o celular quebrava logo depois do ícone e o valor descia sozinho)
     const sem = (centavos: number) => formatBRL(centavos).replace('R$ ', '')
     const linhaTotais = (rotulo: string, receitas: number, despesas: number) =>
-      `*${rotulo}*\n🟢 ${sem(receitas)} · 🔴 ${sem(despesas)} · 💰 ${sem(receitas - despesas)}`
+      `*${rotulo}*\n🟢 ${sem(receitas)}\n🔴 ${sem(despesas)}\n💰 ${sem(receitas - despesas)}`
 
     // extrato: uma linha por lançamento; no anual, uma linha por mês com movimento (ordem crescente)
     let linhas: string[]

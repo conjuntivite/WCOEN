@@ -84,9 +84,13 @@ describe('Service: balancete mensal', () => {
     '',
     '📈 *Últimos meses* (até 12, só com movimento)',
     '*09/2026*',
-    '🟢 3.000,00 · 🔴 512,40 · 💰 2.487,60',
+    '🟢 3.000,00',
+    '🔴 512,40',
+    '💰 2.487,60',
     '*08/2026*',
-    '🟢 0,00 · 🔴 10,00 · 💰 -10,00',
+    '🟢 0,00',
+    '🔴 10,00',
+    '💰 -10,00',
   ].join('\n')
 
   it('balancete = balancete mensal: extrato, totais e resumo', async () => {
@@ -109,7 +113,9 @@ describe('Service: balancete mensal', () => {
         '',
         '📈 *Últimos meses* (até 12, só com movimento)',
         '*08/2026*',
-        '🟢 0,00 · 🔴 10,00 · 💰 -10,00',
+        '🟢 0,00',
+        '🔴 10,00',
+        '💰 -10,00',
       ].join('\n'),
     )
   })
@@ -128,7 +134,7 @@ describe('Service: balancete mensal', () => {
     const t = (await s.handle(msg('balancete')))?.texto
     expect(t).not.toContain('luz')
     expect(t).toContain('🔴 *Despesas* — R$ 10,00')
-    expect(t).toContain('*09/2026*\n🟢 0,00 · 🔴 10,00 · 💰 -10,00')
+    expect(t).toContain('*09/2026*\n🟢 0,00\n🔴 10,00\n💰 -10,00')
   })
 
   it('lançamento retroativo aparece no dia informado, com a hora do envio', async () => {
@@ -155,9 +161,13 @@ describe('Service: balancete mensal', () => {
         '',
         '📈 *Últimos meses* (até 12, só com movimento)',
         '*01/2026*',
-        '🟢 0,00 · 🔴 5,00 · 💰 -5,00',
+        '🟢 0,00',
+        '🔴 5,00',
+        '💰 -5,00',
         '*12/2025*',
-        '🟢 0,00 · 🔴 10,00 · 💰 -10,00',
+        '🟢 0,00',
+        '🔴 10,00',
+        '💰 -10,00',
       ].join('\n'),
     )
   })
@@ -167,7 +177,7 @@ describe('Service: balancete mensal', () => {
     await s.handle(msg('mercado 10', '2025-10-10T12:00:00Z')) // 11 meses atrás: entra
     await s.handle(msg('luz 20', '2025-09-10T12:00:00Z')) // 12 meses atrás: fora
     const t = (await s.handle(msg('balancete')))?.texto
-    expect(t).toContain('*10/2025*\n🟢 0,00 · 🔴 10,00')
+    expect(t).toContain('*10/2025*\n🟢 0,00\n🔴 10,00')
     expect(t).not.toContain('09/2025')
   })
 })
@@ -192,11 +202,17 @@ describe('Service: balancete semanal (domingo a sábado)', () => {
         '',
         '📈 *Últimas 4 semanas* (só com movimento)',
         '*13/09 a 19/09*',
-        '🟢 0,00 · 🔴 10,00 · 💰 -10,00',
+        '🟢 0,00',
+        '🔴 10,00',
+        '💰 -10,00',
         '*06/09 a 12/09*',
-        '🟢 0,00 · 🔴 20,00 · 💰 -20,00',
+        '🟢 0,00',
+        '🔴 20,00',
+        '💰 -20,00',
         '*30/08 a 05/09*',
-        '🟢 0,00 · 🔴 30,00 · 💰 -30,00',
+        '🟢 0,00',
+        '🔴 30,00',
+        '💰 -30,00',
       ].join('\n'),
     )
   })
@@ -216,7 +232,9 @@ describe('Service: balancete semanal (domingo a sábado)', () => {
         '',
         '📈 *Últimas 4 semanas* (só com movimento)',
         '*06/09 a 12/09*',
-        '🟢 0,00 · 🔴 20,00 · 💰 -20,00',
+        '🟢 0,00',
+        '🔴 20,00',
+        '💰 -20,00',
       ].join('\n'),
     )
   })
@@ -236,7 +254,9 @@ describe('Service: balancete anual', () => {
         '',
         '📅 *Por mês*',
         '*09/2026*',
-        '🟢 3.000,00 · 🔴 512,40 · 💰 2.487,60',
+        '🟢 3.000,00',
+        '🔴 512,40',
+        '💰 2.487,60',
         '',
         '🟢 *Receitas* — R$ 3.000,00',
         '🔴 *Despesas* — R$ 512,40',
@@ -244,9 +264,13 @@ describe('Service: balancete anual', () => {
         '',
         '📈 *Últimos 5 anos* (só com movimento)',
         '*2026*',
-        '🟢 3.000,00 · 🔴 512,40 · 💰 2.487,60',
+        '🟢 3.000,00',
+        '🔴 512,40',
+        '💰 2.487,60',
         '*2025*',
-        '🟢 0,00 · 🔴 10,00 · 💰 -10,00',
+        '🟢 0,00',
+        '🔴 10,00',
+        '💰 -10,00',
       ].join('\n'),
     )
   })
@@ -256,7 +280,7 @@ describe('Service: balancete anual', () => {
     await s.handle(msg('mercado 10', '2026-03-10T12:00:00Z'))
     await s.handle(msg('luz 20', '2026-01-10T12:00:00Z'))
     const t = (await s.handle(msg('balancete anual')))?.texto
-    expect(t).toContain('📅 *Por mês*\n*01/2026*\n🟢 0,00 · 🔴 20,00 · 💰 -20,00\n*03/2026*\n🟢 0,00 · 🔴 10,00 · 💰 -10,00\n\n')
+    expect(t).toContain('📅 *Por mês*\n*01/2026*\n🟢 0,00\n🔴 20,00\n💰 -20,00\n*03/2026*\n🟢 0,00\n🔴 10,00\n💰 -10,00\n\n')
     expect((await novoService().handle(msg('balancete anual')))?.texto).toBe(
       '📊 *Balancete anual · 2026*\n\n📅 *Por mês*\nSem lançamentos neste ano.',
     )
@@ -280,7 +304,7 @@ describe('Service: data do lançamento', () => {
     expect(r?.texto).toBe('🔴 *Despesa* · mercado · R$ 10,00')
     const b = (await s.handle(msg('balancete')))?.texto
     expect(b).toContain('Sem lançamentos neste mês.')
-    expect(b).toContain('*08/2026*\n🟢 0,00 · 🔴 10,00')
+    expect(b).toContain('*08/2026*\n🟢 0,00\n🔴 10,00')
   })
 
   it('com data informada, lança nela e mostra o dia na confirmação', async () => {
@@ -289,7 +313,7 @@ describe('Service: data do lançamento', () => {
     expect((await s.handle(msg('mercado 10 31/08')))?.texto).toBe('🔴 *Despesa* · mercado · R$ 10,00 · 📅 31/08')
     const b = (await s.handle(msg('balancete')))?.texto
     expect(b).toContain('*09/09 às 09:00*\n🟢 R$ 450,00 · plantão') // data do lançamento, hora do envio
-    expect(b).toContain('*08/2026*\n🟢 0,00 · 🔴 10,00')
+    expect(b).toContain('*08/2026*\n🟢 0,00\n🔴 10,00')
   })
 
   it('sem ano e no futuro assume o ano anterior', async () => {
@@ -529,7 +553,7 @@ describe('Service: ajuda e recuperação', () => {
     expect(await s.handle(msg('ajuda'), { recuperada: true })).toBeNull()
     const r = await s.handle(msg('mercado 10', '2026-08-31T12:00:00Z'), { recuperada: true })
     expect(r?.lancou).toBe(true)
-    expect((await s.handle(msg('balancete')))?.texto).toContain('*08/2026*\n🟢 0,00 · 🔴 10,00')
+    expect((await s.handle(msg('balancete')))?.texto).toContain('*08/2026*\n🟢 0,00\n🔴 10,00')
   })
 })
 
