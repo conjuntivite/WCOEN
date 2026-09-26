@@ -51,3 +51,20 @@ Para ligar, defina no `.env` `OPENROUTER_API_KEY` e `OPENROUTER_MODEL` (um ou ma
 ## Se o WhatsApp desconectar o aparelho
 
 Apague a pasta `auth` e rode `npm start` para escanear o QR de novo.
+
+## Portal (SaaS)
+
+O bot roda como serviço: cada cliente se cadastra no portal, conecta o próprio WhatsApp (QR ou código de pareamento) e escolhe o grupo onde o bot responde. Detalhes em `docs/superpowers/specs/2026-09-26-portal-saas-design.md`.
+
+### Subir em um servidor
+
+1. Copie `.env.example` para `.env` e preencha `CONVITE`, `CHAVE_CRIPTO` e `DOMINIO` (o DNS do domínio deve apontar para o servidor; portas 80 e 443 abertas).
+2. `docker compose up -d`. O Caddy emite o HTTPS sozinho; o Mongo não é exposto fora da rede do compose.
+3. Acesse `https://SEU_DOMINIO`, cadastre-se com o convite e conecte o WhatsApp.
+
+### Operação
+
+- **Migrar lançamentos de antes do portal:** `npm run migrar -- seu@email` (idempotente).
+- **Redefinir senha de um cliente:** `npm run senha -- email@cliente.com nova-senha-123`.
+- **Backup do banco:** `docker compose exec -T mongo mongodump --archive --gzip > backup-$(date +%F).gz`. Guarde `CHAVE_CRIPTO` fora do servidor: sem ela, as sessões do WhatsApp gravadas não abrem.
+- **Testar antes de liberar um piloto:** `docs/roteiro-manual-portal.md`.
