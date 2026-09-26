@@ -19,7 +19,8 @@ Requer Node >= 20.6 (o `npm start` usa `--env-file`).
 | Digite | Efeito |
 |---|---|
 | `mercado 45,90` | despesa |
-| `+ salário 3000` | receita |
+| `+ 70 plantão` ou `+ plantão 70` | receita (o `+` no início marca receita; o valor pode vir antes ou depois) |
+| `- 130 role na avenida` ou `- role 130` | despesa (o `-` no início marca despesa; o valor pode vir antes ou depois) |
 | `balancete` / `balancete tudo` / `balancete 08/2026` | resumo do mês / de tudo / de um mês |
 | `balancete semana` / `balancete semana passada` | resumo da semana (segunda a domingo) |
 | `balancete trimestre` | os 3 meses fechados antes do mês atual (em 20/06: março, abril e maio) |

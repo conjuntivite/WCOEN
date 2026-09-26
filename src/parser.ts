@@ -76,8 +76,9 @@ export function parse(texto: string): Comando | null {
   const b = BALANCETE.exec(t)
   if (b) return lerBalancete(b[1], b[2])
 
-  const receita = t.startsWith('+')
-  const partes = (receita ? t.slice(1).trim() : t).split(' ')
+  // "+" marca receita e "-" marca despesa; sem sinal é despesa (ex.: "mercado 45,90")
+  const sinal = t.startsWith('+') || t.startsWith('-') ? t[0] : null
+  const partes = (sinal ? t.slice(1).trim() : t).split(' ')
   if (partes.length < 2 || RESERVADAS.includes(partes[0])) return null
 
   // data opcional no fim: "ontem", "15/09", "15/09/2026". Sem ela, o service usa a data de envio da mensagem.
@@ -85,10 +86,13 @@ export function parse(texto: string): Comando | null {
   const fim = data ? partes.length - 1 : partes.length
   if (fim < 2) return null
 
-  const valor = parseValor(partes[fim - 1])
-  const conta = partes.slice(0, fim - 1).join(' ')
+  // com sinal o valor pode vir primeiro ("+ 70 plantão") ou por último ("+ plantão 70"); sem sinal, só por último
+  const itens = partes.slice(0, fim)
+  const valorPrimeiro = sinal !== null && parseValor(itens[0]) !== null
+  const valor = parseValor(valorPrimeiro ? itens[0] : itens[itens.length - 1])
+  const conta = (valorPrimeiro ? itens.slice(1) : itens.slice(0, -1)).join(' ')
   // conta começar com letra também barra as respostas do próprio bot (✅, ↩️, ⚠️...)
   if (valor === null || conta.length > MAX_CONTA || !/^\p{L}/u.test(conta)) return null
 
-  return { tipo: 'lancamento', natureza: receita ? 'receita' : 'despesa', conta, valor, ...(data && { data }) }
+  return { tipo: 'lancamento', natureza: sinal === '+' ? 'receita' : 'despesa', conta, valor, ...(data && { data }) }
 }

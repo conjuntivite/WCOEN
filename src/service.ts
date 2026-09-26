@@ -15,7 +15,8 @@ export const IA_DESLIGADA = 'A IA não está configurada (defina OPENROUTER_API_
 const AJUDA = [
   'Comandos:',
   'mercado 45,90 → despesa',
-  '+ salário 3000 → receita',
+  '+ 70 plantão → receita (ou + plantão 70)',
+  '- 130 role na avenida → despesa (ou - role 130)',
   'balancete | balancete tudo | balancete 08/2026',
   'balancete semana | semana passada | trimestre | ano | 2025',
   'balancete receitas | balancete despesas | balancete mercado (uma conta)',

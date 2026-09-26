@@ -77,7 +77,8 @@ Coleção `lancamentos` (banco `wcoen`):
 | Entrada | Resultado |
 |---|---|
 | `mercado 45,90` | Despesa. O último termo é o valor; o resto é a conta (`conta de luz 120` → conta "conta de luz") |
-| `+ salário 3000` | Receita. O `+` inicial marca receita (com ou sem espaço depois) |
+| `+ salário 3000` / `+ 70 plantão` | Receita. O `+` inicial marca receita (com ou sem espaço depois) e o valor pode vir depois ou antes da descrição |
+| `- 130 role na avenida` / `- role 130` | Despesa. O `-` inicial marca despesa, com as mesmas duas ordens. A descrição vira o nome da conta (até 40 caracteres, começando com letra). Sem sinal, `mercado 45,90` continua sendo despesa com o valor no fim |
 | `balancete` | Balancete do mês atual |
 | `balancete tudo` / `balancete 08/2026` | Todo o período / mês específico |
 | `balancete semana` / `balancete semana passada` | Semana atual / anterior (segunda a domingo) |
