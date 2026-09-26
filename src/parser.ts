@@ -56,10 +56,11 @@ export function parse(texto: string): Comando | null {
   // com sinal o valor pode vir primeiro ("+ 70 plantão") ou por último ("+ plantão 70"); sem sinal, só por último
   const itens = partes.slice(0, fim)
   const valorPrimeiro = sinal !== null && parseValor(itens[0]) !== null
+  if (valorPrimeiro && parseValor(itens[itens.length - 1]) !== null) return null // ambíguo ("- 2 cafés 10"): não adivinha dinheiro
   const valor = parseValor(valorPrimeiro ? itens[0] : itens[itens.length - 1])
   const conta = (valorPrimeiro ? itens.slice(1) : itens.slice(0, -1)).join(' ')
   // conta começar com letra também barra as respostas do próprio bot (🟢, 🔴, 🤖, ↩️, ⚠️...)
-  if (valor === null || conta.length > MAX_CONTA || !/^\p{L}/u.test(conta)) return null
+  if (valor === null || conta.length > MAX_CONTA || !/^\p{L}/u.test(conta) || RESERVADAS.includes(conta.split(' ')[0])) return null
 
   return { tipo: 'lancamento', natureza: sinal === '+' ? 'receita' : 'despesa', conta, valor, ...(data && { data }) }
 }

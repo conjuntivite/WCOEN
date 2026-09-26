@@ -180,3 +180,20 @@ describe('parse: ignorados', () => {
     expect(parse(entrada)).toBeNull()
   })
 })
+
+describe('parse: ambiguidade e palavras reservadas na conta', () => {
+  it.each([['- 2 cafés 10'], ['+ 70 plantão 450'], ['- 50 balancete'], ['+ 10 desfazer'], ['- 50 ajuda'], ['- 50 balancete do carro']])(
+    'não registra: %j',
+    (entrada) => {
+      expect(parse(entrada)).toBeNull()
+    },
+  )
+
+  it('continuam valendo', () => {
+    expect(parse('- 130 role 15/09')).toMatchObject({ conta: 'role', valor: 13000, data: { tipo: 'dia', dia: 15, mes: 9 } })
+    expect(parse('- 130 role')).toMatchObject({ conta: 'role', valor: 13000 })
+    expect(parse('- role 130')).toMatchObject({ conta: 'role', valor: 13000 })
+    expect(parse('+ plantão 450')).toMatchObject({ natureza: 'receita', conta: 'plantão', valor: 45000 })
+    expect(parse('mercado 45')).toMatchObject({ conta: 'mercado', valor: 4500 })
+  })
+})

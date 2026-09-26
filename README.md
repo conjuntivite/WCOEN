@@ -29,7 +29,9 @@ Requer Node >= 20.6 (o `npm start` usa `--env-file`).
 | `desfazer` | desfaz o último lançamento |
 | `ajuda` | lista os comandos |
 
-Nos resumos, períodos sem movimento não aparecem. A hora do extrato é a do envio da mensagem; a data é a do lançamento. Qualquer outro uso de `balancete` (`trimestre`, `tudo`, uma conta...) responde com a dica dos três relatórios.
+Nos resumos, períodos sem movimento não aparecem. A hora do extrato é a do envio da mensagem; a data é a do lançamento. Qualquer outro uso de `balancete` (`trimestre`, `tudo`, uma conta...) responde com a dica dos três relatórios. O mesmo vale para `auditoria <outra coisa>`.
+
+A auditoria pode levar até ~45 s (chamada à IA); o bot processa uma mensagem por vez, então o que for digitado nesse intervalo espera (um desligamento nessa janela pode perdê-lo).
 
 ## IA opcional
 

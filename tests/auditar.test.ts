@@ -119,3 +119,16 @@ describe('criarAuditorOpenRouter', () => {
     expect(vi.mocked(console.warn).mock.calls.flat().join(' ')).not.toContain('chave-secreta')
   })
 })
+
+describe('limparSugestoes: marcadores x números', () => {
+  it.each([['1.500 em mercado é muito'], ['10.000 reais guardados']])('número no início fica intacto: %j', (texto) => {
+    expect(limparSugestoes(texto)).toEqual([texto])
+  })
+
+  it.each([['1. Reduza o mercado', 'Reduza o mercado'], ['2) Monte uma reserva', 'Monte uma reserva'], ['- Corte gastos', 'Corte gastos'], ['* Corte gastos', 'Corte gastos'], ['• Corte gastos', 'Corte gastos']])(
+    'marcador %j é removido',
+    (texto, esperado) => {
+      expect(limparSugestoes(texto)).toEqual([esperado])
+    },
+  )
+})

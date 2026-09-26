@@ -18,7 +18,7 @@ export interface Auditor {
 export function limparSugestoes(texto: string): string[] | null {
   const sugestoes = texto
     .split('\n')
-    .map((l) => l.trim().replace(/^(?:[-*•]|\d+[.)])\s*/, '').trim())
+    .map((l) => l.trim().replace(/^(?:[-*•]\s*|\d+[.)]\s+)/, '').trim())
     .filter(Boolean)
     .map((s) => (s.length > 200 ? `${s.slice(0, 199)}…` : s))
     .slice(0, 5)
