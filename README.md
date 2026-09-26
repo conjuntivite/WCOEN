@@ -20,6 +20,7 @@ Requer Node >= 20.6 (o `npm start` usa `--env-file`).
 |---|---|
 | `mercado 45,90` | despesa |
 | `+ 70 plantão` ou `+ plantão 70` | receita (o `+` no início marca receita; o valor pode vir antes ou depois) |
+| `salário 3000`, `plantão 450`, `venda beck 120` | receita **sem precisar do `+`**, quando a descrição começa com uma palavra de receita: salário, décimo terceiro, plantão, freela/freelance, comissão, bônus, venda(s), reembolso, rendimento(s), pró-labore. O sinal `-` sempre vence (`- salário 100` é despesa). Palavras ambíguas (`pix`, `pagamento`, `aluguel`) exigem o `+` |
 | `- 130 role na avenida` ou `- role 130` | despesa (o `-` no início marca despesa; o valor pode vir antes ou depois) |
 | `balancete` / `balancete mensal` | extrato do mês atual (data, hora, receitas e despesas), totais e resumo dos últimos 12 meses |
 | `balancete semanal` | extrato da semana atual (domingo a sábado) e resumo das últimas 4 semanas |

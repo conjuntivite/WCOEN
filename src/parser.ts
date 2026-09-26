@@ -13,6 +13,18 @@ export type Comando =
 
 const RESERVADAS = ['balancete', 'auditoria', 'desfazer', 'ajuda']
 const MAX_CONTA = 40
+
+// Palavras que, no começo da descrição e sem sinal, marcam receita (sem acento, minúsculas).
+// Ambíguas como "pix", "pagamento" e "aluguel" ficam de fora de propósito: para elas vale o "+".
+const RECEITAS = [
+  'salario', 'decimo terceiro', 'plantao', 'freela', 'freelance', 'comissao', 'bonus',
+  'venda', 'vendas', 'reembolso', 'rendimento', 'rendimentos', 'pro-labore', 'prolabore',
+]
+const semAcento = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '')
+const indicaReceita = (conta: string) => {
+  const c = semAcento(conta)
+  return RECEITAS.some((p) => c === p || c.startsWith(p + ' '))
+}
 const RELATIVAS = new Map([['hoje', 0], ['ontem', 1], ['anteontem', 2]])
 const DIA_MES = /^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/
 
@@ -62,5 +74,8 @@ export function parse(texto: string): Comando | null {
   // conta começar com letra também barra as respostas do próprio bot (🟢, 🔴, 🤖, ↩️, ⚠️...)
   if (valor === null || conta.length > MAX_CONTA || !/^\p{L}/u.test(conta) || RESERVADAS.includes(conta.split(' ')[0])) return null
 
-  return { tipo: 'lancamento', natureza: sinal === '+' ? 'receita' : 'despesa', conta, valor, ...(data && { data }) }
+  // o sinal explícito manda; sem sinal, uma palavra de receita no começo da descrição marca receita
+  const natureza = sinal === '+' ? 'receita' : sinal === '-' ? 'despesa' : indicaReceita(conta) ? 'receita' : 'despesa'
+
+  return { tipo: 'lancamento', natureza, conta, valor, ...(data && { data }) }
 }

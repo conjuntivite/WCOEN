@@ -78,6 +78,7 @@ Coleção `lancamentos` (banco `wcoen`):
 |---|---|
 | `mercado 45,90` | Despesa. O último termo é o valor; o resto é a conta (`conta de luz 120` → conta "conta de luz") |
 | `+ salário 3000` / `+ 70 plantão` | Receita. O `+` inicial marca receita (com ou sem espaço depois) e o valor pode vir depois ou antes da descrição |
+| `salário 3000`, `plantão vogue 40`, `venda beck 120` | Receita **sem sinal**: se a descrição começa com uma palavra de receita (sem diferenciar acento nem maiúsculas: salário, décimo terceiro, plantão, freela, freelance, comissão, bônus, venda, vendas, reembolso, rendimento(s), pró-labore), o lançamento é receita. Vale só a palavra inteira no começo (`vendaval 50` e `pix salário 100` seguem despesa). **O sinal explícito sempre vence** (`- salário 100` é despesa, `+ mercado 50` é receita). Palavras ambíguas (`pix`, `pagamento`, `aluguel`) ficam de fora: para elas vale o `+` |
 | `- 130 role na avenida` / `- role 130` | Despesa. O `-` inicial marca despesa, com as mesmas duas ordens. A descrição vira o nome da conta (até 40 caracteres, começando com letra). Sem sinal, `mercado 45,90` continua sendo despesa com o valor no fim |
 | `balancete` / `balancete mensal` | Extrato do mês atual (data e hora, receitas e despesas), totais e resumo dos últimos 12 meses com movimento |
 | `balancete semanal` | Extrato da semana atual (domingo a sábado), totais e resumo das últimas 4 semanas com movimento |

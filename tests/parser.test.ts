@@ -47,6 +47,45 @@ describe('parse: sinal + ou - com o valor primeiro', () => {
   })
 })
 
+describe('parse: palavras que indicam receita (sem sinal)', () => {
+  it.each([
+    ['salário 3243', rec('salário', 324300)],
+    ['Salario 3000', rec('salario', 300000)],
+    ['plantão vogue 40', rec('plantão vogue', 4000)],
+    ['décimo terceiro 1500', rec('décimo terceiro', 150000)],
+    ['decimo terceiro 1500', rec('decimo terceiro', 150000)],
+    ['venda beck 120', rec('venda beck', 12000)],
+    ['vendas 90', rec('vendas', 9000)],
+    ['freelance site 800', rec('freelance site', 80000)],
+    ['freela 300', rec('freela', 30000)],
+    ['comissão 250', rec('comissão', 25000)],
+    ['bônus 500', rec('bônus', 50000)],
+    ['reembolso 60', rec('reembolso', 6000)],
+    ['rendimento 12,50', rec('rendimento', 1250)],
+    ['pró-labore 4000', rec('pró-labore', 400000)],
+    ['freelance site 800 ontem', { ...rec('freelance site', 80000), data: { tipo: 'relativa', diasAtras: 1 } }],
+    // o sinal explícito sempre vence a palavra
+    ['- salário 100', desp('salário', 10000)],
+    ['- 100 salário', desp('salário', 10000)],
+    ['+ mercado 50', rec('mercado', 5000)],
+    ['+ salário 3000', rec('salário', 300000)],
+  ])('%s', (entrada, esperado) => {
+    expect(parse(entrada)).toEqual(esperado)
+  })
+
+  it.each([
+    ['mercado 45'],
+    ['vendaval 50'], // só vale a palavra inteira
+    ['salarial 100'],
+    ['pix salário 100'], // só a primeira palavra da descrição conta
+    ['pagamento 100'], // palavras ambíguas ficam de fora de propósito
+    ['aluguel 800'],
+    ['pix 50'],
+  ])('%s continua sendo despesa', (entrada) => {
+    expect(parse(entrada)).toMatchObject({ tipo: 'lancamento', natureza: 'despesa' })
+  })
+})
+
 describe('parse: outros comandos', () => {
   it.each([
     ['desfazer', { tipo: 'desfazer' }],

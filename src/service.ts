@@ -18,6 +18,7 @@ const AJUDA = [
   '💸 *Lançar*',
   '🔴 mercado 45,90 → despesa',
   '🟢 + 70 plantão → receita',
+  '🟢 salário 3000 → receita também (salário, plantão, venda, freela…)',
   '🔴 - 130 role na avenida → despesa',
   '📅 Data no fim (opcional): ontem · 15/09',
   '',

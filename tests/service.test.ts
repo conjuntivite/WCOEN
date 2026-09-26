@@ -25,6 +25,12 @@ describe('Service: lançamentos', () => {
     expect(r).toEqual({ texto: '🟢 *Receita* · salário · R$ 3.000,00', lancou: true })
   })
 
+  it('palavra de receita sem sinal (salário) registra receita; o sinal "-" força despesa', async () => {
+    const s = novoService()
+    expect((await s.handle(msg('salário 3243')))?.texto).toBe('🟢 *Receita* · salário · R$ 3.243,00')
+    expect((await s.handle(msg('- salário 100')))?.texto).toBe('🔴 *Despesa* · salário · R$ 100,00')
+  })
+
   it('ignora texto que não é comando', async () => {
     expect(await novoService().handle(msg('bom dia pessoal'))).toBeNull()
   })
