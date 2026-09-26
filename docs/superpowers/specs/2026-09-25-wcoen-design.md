@@ -44,7 +44,7 @@ O núcleo (`parser`, `service`) não conhece o WhatsApp. O `repo` é uma interfa
 1. O Baileys recebe a mensagem; `whatsapp.ts` descarta tudo que não for texto do grupo configurado.
 2. Normaliza para `{ msgId, remetente, texto, enviadoEm }` e chama o `service`.
 3. O `parser` transforma o texto em comando: despesa, receita, balancete, desfazer, ajuda ou ignorar.
-4. O `service` chama o `repo` e monta a resposta (ex.: `🔴 Despesa: mercado R$ 45,90`; receita usa `🟢`).
+4. O `service` chama o `repo` e monta a resposta (ex.: `🔴 *Despesa* · mercado · R$ 45,90`; receita usa `🟢`; com data informada termina em ` · 📅 09/09`; desfazer: `↩️ *Desfeito* · mercado · R$ 45,90`).
 5. O adaptador envia a resposta ao grupo com um pequeno atraso.
 
 ### Anti-loop
@@ -100,10 +100,15 @@ Coleção `lancamentos` (banco `wcoen`):
 **Formato do balancete filtrado:**
 
 ```
-📊 Balancete 09/2026 · despesas          📊 Balancete 09/2026 · mercado
-🔴 Despesas: R$ 512,40                     🔴 Despesas: R$ 345,90
-  mercado  345,90
-  luz      166,50
+📊 *Balancete · 09/2026 · despesas*
+
+🔴 *Despesas* — R$ 512,40
+• mercado — 345,90
+• luz — 166,50
+
+📊 *Balancete · 09/2026 · mercado*
+
+🔴 *Despesas* — R$ 345,90
 ```
 
 Filtro por natureza mostra só aquele bloco, sem saldo. Filtro por conta mostra só o total (e, se a conta tiver receita e despesa, os dois totais e o saldo). Título do trimestre: `trimestre 06/2026 a 08/2026`; do ano: `2026`.
@@ -115,13 +120,16 @@ Filtro por natureza mostra só aquele bloco, sem saldo. Filtro por conta mostra 
 **Exemplo de balancete:**
 
 ```
-📊 Balancete 09/2026
-🟢 Receitas: R$ 3.000,00
-  salário  3.000,00
-🔴 Despesas: R$ 512,40
-  mercado  345,90
-  luz      166,50
-💰 Saldo: R$ 2.487,60
+📊 *Balancete · 09/2026*
+
+🟢 *Receitas* — R$ 3.000,00
+• salário — 3.000,00
+
+🔴 *Despesas* — R$ 512,40
+• mercado — 345,90
+• luz — 166,50
+
+💰 *Saldo: R$ 2.487,60*
 ```
 
 ## Agrupamento por IA (opcional)
@@ -136,10 +144,11 @@ Quando o usuário **pede** com `ia` (`balancete ia carro`, `balancete ano ia car
 - **Formato:**
 
 ```
-📊 Balancete 09/2026 · carro (agrupado por IA)
-🔴 Despesas: R$ 420,00
-  gasolina  300,00
-  óleo      120,00
+📊 *Balancete · 09/2026 · carro* (agrupado por IA)
+
+🔴 *Despesas* — R$ 420,00
+• gasolina — 300,00
+• óleo — 120,00
 ```
 
   Lista as contas incluídas, mostra os blocos que existirem e o saldo quando houver receita e despesa.

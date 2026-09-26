@@ -13,16 +13,24 @@ export const ERRO_DATA = '⚠️ Data inválida ou no futuro, não lancei'
 export const IA_DESLIGADA = 'A IA não está configurada (defina OPENROUTER_API_KEY e OPENROUTER_MODEL no .env).'
 
 const AJUDA = [
-  'Comandos:',
-  'mercado 45,90 → despesa',
-  '+ 70 plantão → receita (ou + plantão 70)',
-  '- 130 role na avenida → despesa (ou - role 130)',
-  'balancete | balancete tudo | balancete 08/2026',
-  'balancete semana | semana passada | trimestre | ano | 2025',
-  'balancete receitas | balancete despesas | balancete mercado (uma conta)',
-  'balancete ia carro (agrupa contas por IA, se configurada)',
-  'data opcional no fim: + plantão 450 ontem | mercado 45 15/09',
-  'desfazer → desfaz o último lançamento',
+  '🤖 *WCOEN · Comandos*',
+  '',
+  '💸 *Lançar*',
+  '🔴 mercado 45,90 → despesa',
+  '🟢 + 70 plantão → receita',
+  '🔴 - 130 role na avenida → despesa',
+  '📅 Data no fim (opcional): ontem · 15/09',
+  '',
+  '📊 *Consultar*',
+  '• balancete → mês atual',
+  '• balancete semana · semana passada',
+  '• balancete trimestre · ano · 2025 · tudo',
+  '• balancete receitas · despesas',
+  '• balancete mercado → só uma conta',
+  '• balancete ia carro → agrupa por tema (IA)',
+  '',
+  '↩️ *Corrigir*',
+  '• desfazer → desfaz o último lançamento',
 ].join('\n')
 
 const soma = (linhas: LinhaConta[]) => linhas.reduce((s, l) => s + l.total, 0)
@@ -76,13 +84,13 @@ export class Service {
           enviadoEm: msg.enviadoEm,
         })
         if (r === 'duplicado') return null
-        const rotulo = cmd.natureza === 'receita' ? '🟢 Receita' : '🔴 Despesa'
-        const dia = cmd.data ? ` (${rotuloDia(data)})` : ''
-        return { texto: `${rotulo}: ${cmd.conta} ${formatBRL(cmd.valor)}${dia}`, lancou: true }
+        const rotulo = cmd.natureza === 'receita' ? '🟢 *Receita*' : '🔴 *Despesa*'
+        const dia = cmd.data ? ` · 📅 ${rotuloDia(data)}` : ''
+        return { texto: `${rotulo} · ${cmd.conta} · ${formatBRL(cmd.valor)}${dia}`, lancou: true }
       }
       case 'desfazer': {
         const l = await this.repo.desfazerUltimo()
-        const texto = l ? `↩️ Desfeito: ${l.conta} ${formatBRL(l.valor)}` : 'Nada para desfazer.'
+        const texto = l ? `↩️ *Desfeito* · ${l.conta} · ${formatBRL(l.valor)}` : '↩️ Nada para desfazer.'
         return { texto, lancou: false }
       }
       case 'ajuda':
@@ -112,22 +120,22 @@ export class Service {
       intervalo = intervaloDoMes(ano, mes)
     }
 
-    const base = `📊 Balancete ${titulo}${pedido ? ` · ${rotuloDoFiltro(pedido)}` : ''}`
+    const base = `📊 *Balancete · ${titulo}${pedido ? ` · ${rotuloDoFiltro(pedido)}` : ''}*`
 
     // "ia <termo>": só aqui a IA é chamada, e só porque o usuário pediu. Ela escolhe, entre as contas do período, as relacionadas ao termo.
     let filtro: Filtro | undefined
     if (pedido?.tipo === 'tema') {
-      if (!this.agrupador) return `${base}\n${IA_DESLIGADA}`
+      if (!this.agrupador) return `${base}\n\n${IA_DESLIGADA}`
       const existentes = await this.repo.contas(intervalo)
-      if (existentes.length === 0) return `${base}\nSem lançamentos no período.`
+      if (existentes.length === 0) return `${base}\n\nSem lançamentos no período.`
       let escolhidas: string[]
       try {
         escolhidas = await this.agrupador.agrupar(pedido.termo, existentes)
       } catch (err) {
         console.error('erro ao agrupar contas', err)
-        return `${base}\nNão consegui agrupar agora, tente de novo.`
+        return `${base}\n\nNão consegui agrupar agora, tente de novo.`
       }
-      if (!escolhidas.length) return `${base}\nNão achei contas relacionadas a "${pedido.termo}" no período.`
+      if (!escolhidas.length) return `${base}\n\nNão achei contas relacionadas a "${pedido.termo}" no período.`
       filtro = { tipo: 'contas', contas: escolhidas }
     } else {
       filtro = pedido
@@ -135,24 +143,25 @@ export class Service {
     const cabecalho = pedido?.tipo === 'tema' ? `${base} (agrupado por IA)` : base
 
     const b = await this.repo.balancete(intervalo, filtro)
-    if (!b.receitas.length && !b.despesas.length) return `${cabecalho}\nSem lançamentos no período.`
+    if (!b.receitas.length && !b.despesas.length) return `${cabecalho}\n\nSem lançamentos no período.`
 
     // sem filtro: os dois blocos. Filtro por natureza: só aquele bloco. Filtro por conta(s): só os blocos que existem.
     const mostrar = (nat: Natureza, linhas: LinhaConta[]) =>
       filtro?.tipo === 'natureza' ? filtro.natureza === nat : filtro ? linhas.length > 0 : true
-    const largura = Math.max(...[...b.receitas, ...b.despesas].map((l) => l.conta.length))
-    const bloco = (nome: string, linhas: LinhaConta[]) => [
-      `${nome}: ${formatBRL(soma(linhas))}`,
-      // filtrando por uma conta, o total já é a resposta: sem listar a própria conta
-      ...(filtro?.tipo === 'conta' ? [] : linhas.map((l) => `  ${l.conta.padEnd(largura)}  ${formatValor(l.total)}`)),
-    ]
+    // cada bloco: título em negrito com o total, e uma linha com marcador por conta (o WhatsApp não alinha colunas por espaços)
+    const bloco = (nome: string, linhas: LinhaConta[]) =>
+      [
+        `${nome} — ${formatBRL(soma(linhas))}`,
+        // filtrando por uma conta, o total já é a resposta: sem listar a própria conta
+        ...(filtro?.tipo === 'conta' ? [] : linhas.map((l) => `• ${l.conta} — ${formatValor(l.total)}`)),
+      ].join('\n')
     const comReceitas = mostrar('receita', b.receitas)
     const comDespesas = mostrar('despesa', b.despesas)
     return [
       cabecalho,
-      ...(comReceitas ? bloco('🟢 Receitas', b.receitas) : []),
-      ...(comDespesas ? bloco('🔴 Despesas', b.despesas) : []),
-      ...(comReceitas && comDespesas ? [`💰 Saldo: ${formatBRL(soma(b.receitas) - soma(b.despesas))}`] : []),
-    ].join('\n')
+      ...(comReceitas ? [bloco('🟢 *Receitas*', b.receitas)] : []),
+      ...(comDespesas ? [bloco('🔴 *Despesas*', b.despesas)] : []),
+      ...(comReceitas && comDespesas ? [`💰 *Saldo: ${formatBRL(soma(b.receitas) - soma(b.despesas))}*`] : []),
+    ].join('\n\n')
   }
 }
