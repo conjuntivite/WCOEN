@@ -13,7 +13,7 @@ const novo = (o: Partial<NovoLancamento> = {}): NovoLancamento => ({
   ...o,
 })
 
-export function repoContract(nome: string, criar: () => Promise<Repo>) {
+export function repoContract(nome: string, criar: () => Promise<Repo>, criarPar?: () => Promise<[Repo, Repo]>) {
   describe(`Repo (${nome})`, () => {
     it('add grava uma vez e rejeita msgId repetido', async () => {
       const repo = await criar()
@@ -111,5 +111,22 @@ export function repoContract(nome: string, criar: () => Promise<Repo>) {
         ['despesa', 'luz', 3050, d, e2],
       ])
     })
+
+    if (criarPar) {
+      it('isola contas: mesmo msgId em duas contas não colide e nada se mistura', async () => {
+        const [a, b] = await criarPar()
+        const l = novo({ msgId: 'mesmo' })
+        expect(await a.add(l)).toBe('ok')
+        expect(await b.add(l)).toBe('ok')
+        await b.add(novo({ conta: 'luz', valor: 700 }))
+
+        expect((await a.balancete(null)).despesas).toEqual([{ conta: 'mercado', total: 1000 }])
+        expect((await b.balancete(null)).despesas).toEqual([{ conta: 'mercado', total: 1000 }, { conta: 'luz', total: 700 }])
+
+        expect((await a.desfazerUltimo())?.conta).toBe('mercado')
+        expect(await a.extrato({ de: new Date(0), ate: new Date('2100-01-01') })).toHaveLength(0)
+        expect(await b.extrato({ de: new Date(0), ate: new Date('2100-01-01') })).toHaveLength(2) // b intacta
+      })
+    }
   })
 }

@@ -16,7 +16,7 @@ try {
 
 // auditor só existe com OPENROUTER_API_KEY + OPENROUTER_MODEL; sem ele, o comando auditoria avisa que a IA está desligada
 const auditor = config.openrouter ? criarAuditorOpenRouter(config.openrouter) : undefined
-const service = new Service(mongo.repo, undefined, auditor)
+const service = new Service(mongo.repoDe('legado'), undefined, auditor) // ponytail: provisório até a Task 8 do plano portal-saas
 const wa = await iniciarWhatsApp({
   groupId: config.groupId,
   tratar: (msg, recuperada) => service.handle(msg, { recuperada }),
