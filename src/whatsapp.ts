@@ -2,6 +2,7 @@ import makeWASocket, {
   DisconnectReason,
   fetchLatestBaileysVersion,
   jidNormalizedUser,
+  normalizeMessageContent,
   useMultiFileAuthState,
   type WAMessage,
   type WASocket,
@@ -49,7 +50,13 @@ export async function iniciarWhatsApp({ groupId, tratar, authDir = 'auth' }: Opc
 
   async function aoAbrir() {
     if (!groupId) {
-      const grupos = await sock!.groupFetchAllParticipating()
+      let grupos
+      try {
+        grupos = await sock!.groupFetchAllParticipating()
+      } catch (err) {
+        console.error('Não consegui listar os grupos. Tente de novo.', err)
+        process.exit(1)
+      }
       console.log('Grupos encontrados. Copie o ID do seu grupo para GROUP_ID no .env e reinicie:')
       for (const g of Object.values(grupos)) console.log(`  ${g.id}  ${g.subject}`)
       await dormir(1000) // deixa a sessão terminar de ser salva
@@ -65,7 +72,8 @@ export async function iniciarWhatsApp({ groupId, tratar, authDir = 'auth' }: Opc
     try {
       const id = m.key.id
       if (!id || m.key.remoteJid !== groupId || enviados.has(id)) return
-      const texto = m.message?.conversation ?? m.message?.extendedTextMessage?.text
+      const conteudo = normalizeMessageContent(m.message) // desembrulha mensagens temporárias / visualização única
+      const texto = conteudo?.conversation ?? conteudo?.extendedTextMessage?.text
       if (!texto) return
 
       const ts = Number(m.messageTimestamp) || 0
@@ -78,11 +86,9 @@ export async function iniciarWhatsApp({ groupId, tratar, authDir = 'auth' }: Opc
 
       const r = await tratar({ msgId: id, remetente, texto, enviadoEm }, recuperada)
       if (!r) return
-      if (recuperada) {
-        if (r.lancou) {
-          recuperados++
-          agendarResumo()
-        }
+      if (recuperada && r.lancou) {
+        recuperados++
+        agendarResumo()
         return
       }
       await enviar(r.texto)
@@ -138,6 +144,7 @@ export async function iniciarWhatsApp({ groupId, tratar, authDir = 'auth' }: Opc
   return {
     async desligar() {
       parando = true
+      await Promise.race([fila, dormir(5000)]) // deixa a mensagem em andamento terminar (com prazo)
       try {
         await enviar('🔴 Bot desligando')
       } catch (err) {

@@ -23,7 +23,7 @@ const wa = await iniciarWhatsApp({
 
 let saindo = false
 async function sair() {
-  if (saindo) return
+  if (saindo) process.exit(1) // segundo sinal: sai já
   saindo = true
   await wa.desligar()
   await mongo.close()

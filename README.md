@@ -4,11 +4,13 @@ Bot de WhatsApp (Baileys) que registra despesas e receitas num grupo seu e monta
 
 ## Rodar
 
+Requer Node >= 20.6 (o `npm start` usa `--env-file`).
+
 1. Suba o Mongo do Docker.
 2. `copy .env.example .env` e ajuste `MONGO_URI`.
 3. `npm install`
 4. Crie um grupo no WhatsApp só seu.
-5. `npm start` com `GROUP_ID` vazio: escaneie o QR (WhatsApp > Aparelhos conectados). O bot lista os grupos e sai.
+5. `npm start` com `GROUP_ID` vazio: escaneie o QR (WhatsApp > Aparelhos conectados). O bot lista os grupos e sai. Logo depois de escanear o QR, uma linha como `Conexão caiu (código 515); nova tentativa em 1s` é NORMAL e esperada, não é erro.
 6. Cole o ID do grupo (`...@g.us`) em `GROUP_ID` no `.env`.
 7. `npm start` de novo. O bot avisa `🟢 Bot online` no grupo.
 
@@ -31,11 +33,11 @@ Bot de WhatsApp (Baileys) que registra despesas e receitas num grupo seu e monta
 
 ## IA opcional (agrupar contas)
 
-Com `OPENROUTER_API_KEY` e `OPENROUTER_MODEL` no `.env`, `balancete ia carro` pede à IA para escolher, entre as contas do período, as que se relacionam com "carro" (gasolina, óleo, mecânico...) e soma todas (aceita período: `balancete ano ia carro`). A IA **só é chamada quando você escreve `ia`**: `balancete carro` sempre soma apenas a conta "carro". Só os **nomes** das contas vão para o OpenRouter, nunca valores ou datas. A resposta traz `(agrupado por IA)` e lista o que entrou. Sem a chave, o recurso fica desligado. Se o modelo principal falhar (rede, erro, resposta inválida), o bot tenta o próximo: `OPENROUTER_MODEL` aceita vários modelos separados por vírgula e, depois deles, entram modelos gratuitos de reserva (padrão do código ou `OPENROUTER_FALLBACK_MODELS`).
+Com `OPENROUTER_API_KEY` e `OPENROUTER_MODEL` no `.env`, `balancete ia carro` pede à IA para escolher, entre as contas do período, as que se relacionam com "carro" (gasolina, óleo, mecânico...) e soma todas (aceita período: `balancete ano ia carro`). A IA **só é chamada quando você escreve `ia`**: `balancete carro` sempre soma apenas a conta "carro". Só os **nomes** das contas vão para o OpenRouter, nunca valores ou datas. A resposta traz `(agrupado por IA)` e lista o que entrou. `balancete ia <termo>` pode levar até ~45 s no pior caso (modelos de reserva); como as mensagens são processadas uma de cada vez, o bot só responde às outras depois dele. Sem a chave, o recurso fica desligado. Se o modelo principal falhar (rede, erro, resposta inválida), o bot tenta o próximo: `OPENROUTER_MODEL` aceita vários modelos separados por vírgula e, depois deles, entram modelos gratuitos de reserva (padrão do código ou `OPENROUTER_FALLBACK_MODELS`).
 
 ## Testes
 
-`npm test` (precisa do Mongo de pé; usa o banco `wcoen_test`).
+`npm test` (precisa do Mongo de pé; `TEST_MONGO_URI` define o endereço, padrão `mongodb://localhost:27017`; os testes só mexem no banco `wcoen_test`).
 
 ## Se o WhatsApp desconectar o aparelho
 
