@@ -8,7 +8,7 @@ import type { Sessoes, Visao } from '../src/sessoes'
 
 const URI = process.env.TEST_MONGO_URI ?? 'mongodb://localhost:27017'
 const client = new MongoClient(URI, { serverSelectionTimeoutMS: 5000 })
-const db = client.db('wcoen_test')
+const db = client.db('wcoen_test_web')
 
 function sessoesFalsas() {
   const visoes = new Map<string, Visao>()

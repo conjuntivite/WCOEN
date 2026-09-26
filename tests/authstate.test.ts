@@ -5,7 +5,7 @@ import { apagarAuth, cifrar, criarAuthState, decifrar, garantirIndiceAuth, type 
 
 const URI = process.env.TEST_MONGO_URI ?? 'mongodb://localhost:27017'
 const client = new MongoClient(URI, { serverSelectionTimeoutMS: 5000 })
-const col = client.db('wcoen_test').collection<DocAuth>('wa_auth')
+const col = client.db('wcoen_test_authstate').collection<DocAuth>('wa_auth')
 const chave = randomBytes(32)
 
 beforeEach(async () => {
