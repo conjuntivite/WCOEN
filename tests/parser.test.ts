@@ -164,6 +164,40 @@ describe('parse: balancete (dia, mensal, semanal e anual)', () => {
   })
 })
 
+describe('parse: extrato', () => {
+  it.each([
+    ['extrato', 1],
+    ['EXTRATO', 1],
+    ['  extrato  ', 1],
+    ['extrato 2', 2],
+    ['Extrato   12', 12],
+    ['extrato 500', 500], // página, nunca despesa
+  ])('extrato: %j', (entrada, pagina) => {
+    expect(parse(entrada)).toEqual({ tipo: 'extrato', pagina })
+  })
+
+  it.each([['extrato 0'], ['extrato abc'], ['extrato 2 3'], ['extrato -1'], ['extrato 1.5'], ['extrato mensal'], ['extrato 1234567']])(
+    'uso incorreto de extrato: %j',
+    (entrada) => {
+      expect(parse(entrada)).toEqual({ tipo: 'uso', comando: 'extrato' })
+    },
+  )
+
+  it('extrato é palavra reservada: não vira despesa', () => {
+    expect(parse('- extrato 500')).toBeNull()
+  })
+
+  it.each([
+    ['📒 *Extrato · página 2/3*'],
+    ['➡️ Próxima página: digite *extrato 2*'],
+    ['✅ Fim do extrato'],
+    ['*12/09 às 15:05*'],
+    ['🔴 R$ 166,50 · luz'],
+  ])('linha do próprio extrato nunca vira comando: %j', (entrada) => {
+    expect(parse(entrada)).toBeNull()
+  })
+})
+
 describe('parse: ignorados', () => {
   it.each([
     ['oi'],

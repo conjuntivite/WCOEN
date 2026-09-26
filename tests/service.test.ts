@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { Service, ERRO_SALVAR, ERRO_GENERICO, ERRO_DATA, IA_DESLIGADA, type Mensagem } from '../src/service'
+import { Service, POR_PAGINA, ERRO_SALVAR, ERRO_GENERICO, ERRO_DATA, IA_DESLIGADA, type Mensagem } from '../src/service'
 import type { Auditor, DadosAuditoria } from '../src/auditar'
 import { MemoryRepo } from './memoryRepo'
 import type { Repo } from '../src/types'
@@ -513,11 +513,131 @@ describe('Service: auditoria', () => {
   })
 })
 
+describe('Service: extrato', () => {
+  it('golden: todos os lançamentos, do mais recente ao mais antigo, com totais gerais', async () => {
+    const s = novoService()
+    await s.handle(msg('+ salário 3000', '2026-09-05T12:00:00Z'))
+    await s.handle(msg('mercado 345,90', '2026-09-10T15:30:00Z'))
+    await s.handle(msg('luz 166,50', '2026-09-12T18:05:00Z'))
+    await s.handle(msg('+ plantão 450 01/09', '2026-09-13T12:00:00Z'))
+    const r = await s.handle(msg('extrato'))
+    expect(r).toEqual({
+      texto: [
+        '📒 *Extrato · página 1/1*',
+        '',
+        '🟢 *Receitas* — R$ 3.450,00',
+        '🔴 *Despesas* — R$ 512,40',
+        '💰 *Saldo: R$ 2.937,60*',
+        '',
+        '*12/09 às 15:05*',
+        '🔴 R$ 166,50 · luz',
+        '*10/09 às 12:30*',
+        '🔴 R$ 345,90 · mercado',
+        '*05/09 às 09:00*',
+        '🟢 R$ 3.000,00 · salário',
+        '*01/09 às 09:00*',
+        '🟢 R$ 450,00 · plantão',
+      ].join('\n'),
+      lancou: false,
+    })
+    expect((await s.handle(msg('  EXTRATO 1 ')))?.texto).toBe(r?.texto)
+  })
+
+  it('empate de data: enviadoEm mais recente primeiro; empatando também, o inserido por último primeiro', async () => {
+    const s = novoService()
+    await s.handle(msg('a 1', '2026-09-10T12:00:00Z'))
+    await s.handle(msg('b 2', '2026-09-10T15:00:00Z'))
+    await s.handle(msg('c 3', '2026-09-10T15:00:00Z'))
+    const t = (await s.handle(msg('extrato')))!.texto
+    expect(t.indexOf('· c')).toBeLessThan(t.indexOf('· b'))
+    expect(t.indexOf('· b')).toBeLessThan(t.indexOf('· a'))
+  })
+
+  it('vazio, em qualquer página', async () => {
+    const s = novoService()
+    expect((await s.handle(msg('extrato')))?.texto).toBe('📒 *Extrato*\n\nSem lançamentos.')
+    expect((await s.handle(msg('extrato 3')))?.texto).toBe('📒 *Extrato*\n\nSem lançamentos.')
+  })
+
+  it('desfeito não aparece e não entra nos totais', async () => {
+    const s = novoService()
+    await s.handle(msg('mercado 10', '2026-09-10T12:00:00Z'))
+    await s.handle(msg('luz 20', '2026-09-11T12:00:00Z'))
+    await s.handle(msg('desfazer', '2026-09-11T13:00:00Z'))
+    const t = (await s.handle(msg('extrato')))!.texto
+    expect(t).not.toContain('luz')
+    expect(t).toContain('🔴 *Despesas* — R$ 10,00')
+  })
+
+  describe('paginado', () => {
+    // 45 lançamentos item0..item44 (valor i+1), um por dia; totais gerais = soma de 1..45 = 1035
+    const montar = async () => {
+      const s = novoService()
+      for (let i = 0; i < 45; i++) {
+        const dia = new Date(Date.UTC(2026, 0, 1) + i * 86400000).toISOString()
+        await s.handle(msg(`item${i} ${i + 1}`, dia))
+      }
+      return s
+    }
+    const itens = (texto: string) => [...texto.matchAll(/^🔴 R\$ [\d.,]+ · (item\d+)$/gm)].map((m) => m[1])
+
+    it('3 páginas: 20 + 20 + 5, totais só na 1, rodapé certo, tudo uma vez e em ordem decrescente', async () => {
+      expect(POR_PAGINA).toBe(20)
+      const s = await montar()
+      const p1 = (await s.handle(msg('extrato')))!.texto
+      const p2 = (await s.handle(msg('extrato 2')))!.texto
+      const p3 = (await s.handle(msg('extrato 3')))!.texto
+
+      expect(p1.startsWith('📒 *Extrato · página 1/3*\n\n🟢 *Receitas* — R$ 0,00\n🔴 *Despesas* — R$ 1.035,00\n💰 *Saldo: -R$ 1.035,00*\n\n*')).toBe(true)
+      expect(p1.endsWith('\n\n➡️ Próxima página: digite *extrato 2*')).toBe(true)
+      expect(p2.startsWith('📒 *Extrato · página 2/3*\n\n*')).toBe(true)
+      expect(p2).not.toContain('Receitas')
+      expect(p2.endsWith('\n\n➡️ Próxima página: digite *extrato 3*')).toBe(true)
+      expect(p3.startsWith('📒 *Extrato · página 3/3*\n\n*')).toBe(true)
+      expect(p3).not.toContain('Despesas')
+      expect(p3.endsWith('\n\n✅ Fim do extrato')).toBe(true)
+
+      expect([itens(p1).length, itens(p2).length, itens(p3).length]).toEqual([20, 20, 5])
+      const todos = [...itens(p1), ...itens(p2), ...itens(p3)]
+      expect(todos).toEqual(Array.from({ length: 45 }, (_, i) => `item${44 - i}`))
+    })
+
+    it('página além do fim', async () => {
+      const s = await montar()
+      expect((await s.handle(msg('extrato 4')))?.texto).toBe('⚠️ O extrato tem só 3 páginas. Digite *extrato* para começar.')
+      const um = novoService()
+      await um.handle(msg('mercado 10'))
+      expect((await um.handle(msg('extrato 2')))?.texto).toBe('⚠️ O extrato tem só 1 página. Digite *extrato* para começar.')
+    })
+
+    it('exatamente 20 lançamentos é uma página só, sem rodapé', async () => {
+      const s = novoService()
+      for (let i = 0; i < 20; i++) await s.handle(msg(`item${i} 1`, new Date(Date.UTC(2026, 0, 1 + i)).toISOString()))
+      const t = (await s.handle(msg('extrato')))!.texto
+      expect(t).toContain('página 1/1')
+      expect(t).not.toContain('➡️')
+      expect(t).not.toContain('✅')
+    })
+  })
+
+  it.each([['extrato 0'], ['extrato abc'], ['extrato -1'], ['extrato 2 3']])('uso incorreto: %s', async (texto) => {
+    expect(await novoService().handle(msg(texto))).toEqual({ texto: '⚠️ Use *extrato* ou *extrato 2* (o número da página).', lancou: false })
+  })
+
+  it('mensagem recuperada não gera extrato nem dica de uso', async () => {
+    const s = novoService()
+    expect(await s.handle(msg('extrato'), { recuperada: true })).toBeNull()
+    expect(await s.handle(msg('extrato 2'), { recuperada: true })).toBeNull()
+    expect(await s.handle(msg('extrato abc'), { recuperada: true })).toBeNull()
+  })
+})
+
 describe('Service: ajuda e recuperação', () => {
   it('ajuda lista os comandos', async () => {
     const r = await novoService().handle(msg('ajuda'))
     expect(r?.texto).toContain('• balancete → movimentos de hoje')
     expect(r?.texto).toContain('• balancete mensal · semanal · anual → resumo')
+    expect(r?.texto).toContain('• extrato → lançamentos do mais recente ao mais antigo (extrato 2 = próxima página)')
     expect(r?.texto).toContain('• auditoria mensal · semanal · anual → ranking e dicas da IA')
     expect(r?.texto).not.toContain('trimestre')
     expect(r?.texto).toContain('desfazer')

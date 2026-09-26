@@ -2,7 +2,7 @@ import { parse, type Comando, type Relatorio } from './parser'
 import { formatBRL } from './money'
 import type { Auditor, DadosAuditoria } from './auditar'
 import { intervaloDaSemanaDomingo, intervaloDoAno, intervaloDoDia, intervaloDoMes, mesAtual, resolverData, rotuloDia, rotuloHora, rotuloMes } from './period'
-import type { LinhaConta, Natureza, Repo } from './types'
+import type { Lancamento, LinhaConta, Natureza, Repo } from './types'
 
 export type Mensagem = { msgId: string; remetente: string; texto: string; enviadoEm: Date }
 export type Resposta = { texto: string; lancou: boolean }
@@ -10,6 +10,7 @@ export type Resposta = { texto: string; lancou: boolean }
 export const ERRO_SALVAR = '⚠️ Não consegui salvar, tente de novo'
 export const ERRO_GENERICO = '⚠️ Algo deu errado, tente de novo'
 export const ERRO_DATA = '⚠️ Data inválida ou no futuro, não lancei'
+export const POR_PAGINA = 20 // lançamentos por página do extrato
 export const IA_DESLIGADA = 'A IA não está configurada (defina OPENROUTER_API_KEY e OPENROUTER_MODEL no .env).'
 
 const AJUDA = [
@@ -26,6 +27,7 @@ const AJUDA = [
   '• balancete → movimentos de hoje',
   '• balancete mensal · semanal · anual → resumo',
   '• auditoria mensal · semanal · anual → ranking e dicas da IA',
+  '• extrato → lançamentos do mais recente ao mais antigo (extrato 2 = próxima página)',
   '',
   '↩️ *Corrigir*',
   '• desfazer → desfaz o último lançamento',
@@ -34,6 +36,20 @@ const AJUDA = [
 const USO = {
   balancete: '⚠️ Use *balancete*, *balancete mensal*, *balancete semanal* ou *balancete anual*.',
   auditoria: '⚠️ Use *auditoria mensal*, *auditoria semanal* ou *auditoria anual*.',
+  extrato: '⚠️ Use *extrato* ou *extrato 2* (o número da página).',
+}
+
+// duas linhas por lançamento: dia e hora do envio em cima; valor e descrição embaixo
+const linhaLancamento = (l: Lancamento) => `*${rotuloDia(l.data)} às ${rotuloHora(l.enviadoEm)}*
+${l.tipo === 'receita' ? '🟢' : '🔴'} ${formatBRL(l.valor)} · ${l.conta}`
+
+const totaisDe = (ls: Lancamento[]) => {
+  const total = (t: Natureza) => ls.filter((l) => l.tipo === t).reduce((s, l) => s + l.valor, 0)
+  return [
+    `🟢 *Receitas* — ${formatBRL(total('receita'))}`,
+    `🔴 *Despesas* — ${formatBRL(total('despesa'))}`,
+    `💰 *Saldo: ${formatBRL(total('receita') - total('despesa'))}*`,
+  ].join('\n')
 }
 
 const soma = (linhas: LinhaConta[]) => linhas.reduce((s, l) => s + l.total, 0)
@@ -52,7 +68,7 @@ export class Service {
     if (this.tratadas.has(msg.msgId)) return null
     const cmd = parse(msg.texto)
     if (!cmd) return null
-    if (opcoes.recuperada && (cmd.tipo === 'balancete' || cmd.tipo === 'auditoria' || cmd.tipo === 'uso' || cmd.tipo === 'ajuda')) return null
+    if (opcoes.recuperada && (cmd.tipo === 'balancete' || cmd.tipo === 'auditoria' || cmd.tipo === 'extrato' || cmd.tipo === 'uso' || cmd.tipo === 'ajuda')) return null
     try {
       const r = await this.executar(cmd, msg)
       this.tratadas.add(msg.msgId)
@@ -97,6 +113,8 @@ export class Service {
         return { texto: await this.balancete(cmd.relatorio), lancou: false }
       case 'auditoria':
         return { texto: await this.auditoria(cmd.relatorio), lancou: false }
+      case 'extrato':
+        return { texto: await this.extratoPagina(cmd.pagina), lancou: false }
     }
   }
 
@@ -151,16 +169,18 @@ export class Service {
     const cab = `📊 *Balancete · hoje ${rotuloDia(agora)}*`
     const extrato = await this.repo.extrato(intervaloDoDia(agora))
     if (!extrato.length) return `${cab}\n\nSem lançamentos hoje.`
-    // duas linhas por lançamento: dia e hora do envio em cima; valor e descrição embaixo
-    const linhas = extrato.map((l) => `*${rotuloDia(l.data)} às ${rotuloHora(l.enviadoEm)}*
-${l.tipo === 'receita' ? '🟢' : '🔴'} ${formatBRL(l.valor)} · ${l.conta}`)
-    const total = (t: Natureza) => extrato.filter((l) => l.tipo === t).reduce((s, l) => s + l.valor, 0)
-    const totais = [
-      `🟢 *Receitas* — ${formatBRL(total('receita'))}`,
-      `🔴 *Despesas* — ${formatBRL(total('despesa'))}`,
-      `💰 *Saldo: ${formatBRL(total('receita') - total('despesa'))}*`,
-    ].join('\n')
-    return [cab, linhas.join('\n'), totais].join('\n\n')
+    return [cab, extrato.map(linhaLancamento).join('\n'), totaisDe(extrato)].join('\n\n')
+  }
+
+  // extrato completo, do mais recente ao mais antigo, POR_PAGINA lançamentos por página; os totais gerais só na página 1
+  private async extratoPagina(pagina: number): Promise<string> {
+    const todos = (await this.repo.extrato({ de: new Date(0), ate: new Date('2100-01-01T00:00:00Z') })).reverse()
+    if (!todos.length) return '📒 *Extrato*\n\nSem lançamentos.'
+    const total = Math.ceil(todos.length / POR_PAGINA)
+    if (pagina > total) return `⚠️ O extrato tem só ${total} ${total === 1 ? 'página' : 'páginas'}. Digite *extrato* para começar.`
+    const linhas = todos.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA).map(linhaLancamento).join('\n')
+    const rodape = pagina < total ? `➡️ Próxima página: digite *extrato ${pagina + 1}*` : total > 1 ? '✅ Fim do extrato' : ''
+    return [`📒 *Extrato · página ${pagina}/${total}*`, ...(pagina === 1 ? [totaisDe(todos)] : []), linhas, ...(rodape ? [rodape] : [])].join('\n\n')
   }
 
   private async auditoria(rel: Relatorio): Promise<string> {

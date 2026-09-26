@@ -7,11 +7,12 @@ export type Comando =
   | { tipo: 'lancamento'; natureza: Natureza; conta: string; valor: number; data?: DataLanc }
   | { tipo: 'balancete'; relatorio: 'hoje' | Relatorio } // 'hoje' = extrato do dia
   | { tipo: 'auditoria'; relatorio: Relatorio }
-  | { tipo: 'uso'; comando: 'balancete' | 'auditoria' } // uso incorreto: o service responde a dica
+  | { tipo: 'extrato'; pagina: number } // extrato completo da conta, paginado
+  | { tipo: 'uso'; comando: 'balancete' | 'auditoria' | 'extrato' } // uso incorreto: o service responde a dica
   | { tipo: 'desfazer' }
   | { tipo: 'ajuda' }
 
-const RESERVADAS = ['balancete', 'auditoria', 'desfazer', 'ajuda']
+const RESERVADAS = ['balancete', 'auditoria', 'extrato', 'desfazer', 'ajuda']
 const MAX_CONTA = 40
 
 // Palavras que, no começo da descrição e sem sinal, marcam receita (sem acento, minúsculas).
@@ -46,6 +47,12 @@ export function parse(texto: string): Comando | null {
   const t = texto.trim().replace(/r\$\s*/gi, '').replace(/\s+/g, ' ').toLowerCase()
   if (t === 'ajuda') return { tipo: 'ajuda' }
   if (t === 'desfazer') return { tipo: 'desfazer' }
+
+  const ext = /^extrato(?: (.*))?$/.exec(t)
+  if (ext) {
+    const pagina = ext[1] ?? '1'
+    return /^\d{1,6}$/.test(pagina) && Number(pagina) >= 1 ? { tipo: 'extrato', pagina: Number(pagina) } : { tipo: 'uso', comando: 'extrato' }
+  }
 
   const rel = /^(balancete|auditoria)(?: (.*))?$/.exec(t)
   if (rel) {
