@@ -1,5 +1,6 @@
 import { parse, type Comando, type Relatorio } from './parser'
 import { formatBRL } from './money'
+import * as ui from './presentation'
 import type { Auditor, DadosAuditoria } from './auditar'
 import { intervaloDaSemanaDomingo, intervaloDoAno, intervaloDoDia, intervaloDoMes, mesAtual, resolverData, rotuloDia, rotuloHora, rotuloMes } from './period'
 import type { Lancamento, LinhaConta, Natureza, Repo } from './types'
@@ -7,51 +8,9 @@ import type { Lancamento, LinhaConta, Natureza, Repo } from './types'
 export type Mensagem = { msgId: string; remetente: string; texto: string; enviadoEm: Date }
 export type Resposta = { texto: string; lancou: boolean }
 
-export const ERRO_SALVAR = '⚠️ Não consegui salvar, tente de novo'
-export const ERRO_GENERICO = '⚠️ Algo deu errado, tente de novo'
-export const ERRO_DATA = '⚠️ Data inválida ou no futuro, não lancei'
 export const POR_PAGINA = 20 // lançamentos por página do extrato
-export const IA_DESLIGADA = 'A IA não está configurada (defina OPENROUTER_API_KEY e OPENROUTER_MODEL no .env).'
 
-const AJUDA = [
-  '🤖 *WCOEN · Comandos*',
-  '',
-  '💸 *Lançar*',
-  '🔴 mercado 45,90 → despesa',
-  '🟢 + 70 plantão → receita',
-  '🟢 salário 3000 → receita também (salário, plantão, venda, freela…)',
-  '🔴 - 130 role na avenida → despesa',
-  '📅 Data no fim (opcional): ontem · 15/09',
-  '',
-  '📊 *Consultar*',
-  '• balancete → movimentos de hoje',
-  '• balancete mensal · semanal · anual → resumo',
-  '• auditoria mensal · semanal · anual → ranking e dicas da IA',
-  '• extrato → lançamentos do mais recente ao mais antigo (extrato 2 = próxima página)',
-  '',
-  '↩️ *Corrigir*',
-  '• desfazer → desfaz o último lançamento',
-].join('\n')
-
-const USO = {
-  balancete: '⚠️ Use *balancete*, *balancete mensal*, *balancete semanal* ou *balancete anual*.',
-  auditoria: '⚠️ Use *auditoria mensal*, *auditoria semanal* ou *auditoria anual*.',
-  extrato: '⚠️ Use *extrato* ou *extrato 2* (o número da página).',
-}
-
-// duas linhas por lançamento: dia e hora do envio em cima; valor e descrição embaixo
-const linhaLancamento = (l: Lancamento) => `*${rotuloDia(l.data)} às ${rotuloHora(l.enviadoEm)}*
-${l.tipo === 'receita' ? '🟢' : '🔴'} ${formatBRL(l.valor)} · ${l.conta}`
-
-const totaisDe = (ls: Lancamento[]) => {
-  const total = (t: Natureza) => ls.filter((l) => l.tipo === t).reduce((s, l) => s + l.valor, 0)
-  return [
-    `🟢 *Receitas* — ${formatBRL(total('receita'))}`,
-    `🔴 *Despesas* — ${formatBRL(total('despesa'))}`,
-    `💰 *Saldo: ${formatBRL(total('receita') - total('despesa'))}*`,
-  ].join('\n')
-}
-
+const somaTipo = (ls: Lancamento[], t: Natureza) => ls.filter((l) => l.tipo === t).reduce((s, l) => s + l.valor, 0)
 const soma = (linhas: LinhaConta[]) => linhas.reduce((s, l) => s + l.total, 0)
 
 export class Service {
@@ -76,7 +35,7 @@ export class Service {
     } catch (err) {
       console.error('erro ao processar mensagem', msg.msgId, err)
       const gravando = cmd.tipo === 'lancamento' || cmd.tipo === 'desfazer'
-      return { texto: gravando ? ERRO_SALVAR : ERRO_GENERICO, lancou: false }
+      return { texto: gravando ? ui.ERRO_SALVAR : ui.ERRO_GENERICO, lancou: false }
     }
   }
 
@@ -85,7 +44,7 @@ export class Service {
       case 'lancamento': {
         // sem data informada pelo usuário, vale a data de envio da mensagem
         const data = cmd.data ? resolverData(cmd.data, msg.enviadoEm) : msg.enviadoEm
-        if (!data) return { texto: ERRO_DATA, lancou: false }
+        if (!data) return { texto: ui.ERRO_DATA, lancou: false }
         const r = await this.repo.add({
           tipo: cmd.natureza,
           conta: cmd.conta,
@@ -96,19 +55,16 @@ export class Service {
           enviadoEm: msg.enviadoEm,
         })
         if (r === 'duplicado') return null
-        const rotulo = cmd.natureza === 'receita' ? '🟢 *Receita*' : '🔴 *Despesa*'
-        const dia = cmd.data ? ` · 📅 ${rotuloDia(data)}` : ''
-        return { texto: `${rotulo} · ${cmd.conta} · ${formatBRL(cmd.valor)}${dia}`, lancou: true }
+        return { texto: ui.lancamentoRegistrado({ natureza: cmd.natureza, conta: cmd.conta, valor: cmd.valor, dia: cmd.data ? data : undefined }), lancou: true }
       }
       case 'desfazer': {
         const l = await this.repo.desfazerUltimo()
-        const texto = l ? `↩️ *Desfeito* · ${l.conta} · ${formatBRL(l.valor)}` : '↩️ Nada para desfazer.'
-        return { texto, lancou: false }
+        return { texto: ui.desfeito(l), lancou: false }
       }
       case 'ajuda':
-        return { texto: AJUDA, lancou: false }
+        return { texto: ui.AJUDA, lancou: false }
       case 'uso':
-        return { texto: USO[cmd.comando], lancou: false }
+        return { texto: ui.USO[cmd.comando], lancou: false }
       case 'balancete':
         return { texto: await this.balancete(cmd.relatorio), lancou: false }
       case 'auditoria':
@@ -153,42 +109,35 @@ export class Service {
     if (rel === 'hoje') return this.balanceteDoDia(agora)
 
     // resumo: um bloco por período da janela (o atual primeiro); os sem movimento não aparecem
-    const blocos: string[] = []
+    const blocos: ui.BlocoPeriodo[] = []
     for (const { rotulo, intervalo } of this.periodos(rel).janela) {
       const b = await this.repo.balancete(intervalo)
       if (!b.receitas.length && !b.despesas.length) continue
-      const r = soma(b.receitas)
-      const d = soma(b.despesas)
-      // um valor por linha, com o ícone junto (numa linha só, o celular quebrava depois do ícone)
-      blocos.push(`*${rotulo}*\n🟢 ${formatBRL(r)}\n🔴 ${formatBRL(d)}\n💰 ${formatBRL(r - d)}`)
+      blocos.push({ rotulo, receitas: soma(b.receitas), despesas: soma(b.despesas) })
     }
-    return [`📊 *Balancete ${rel}*`, ...(blocos.length ? blocos : ['Sem lançamentos no período.'])].join('\n\n')
+    return ui.resumoPeriodos(rel, blocos)
   }
 
   private async balanceteDoDia(agora: Date): Promise<string> {
-    const cab = `📊 *Balancete · hoje ${rotuloDia(agora)}*`
     const extrato = await this.repo.extrato(intervaloDoDia(agora))
-    if (!extrato.length) return `${cab}\n\nSem lançamentos hoje.`
-    return [cab, extrato.map(linhaLancamento).join('\n'), totaisDe(extrato)].join('\n\n')
+    return ui.balanceteDoDia(agora, extrato, somaTipo(extrato, 'receita'), somaTipo(extrato, 'despesa'))
   }
 
   // extrato completo, do mais recente ao mais antigo, POR_PAGINA lançamentos por página; os totais gerais só na página 1
   private async extratoPagina(pagina: number): Promise<string> {
     const todos = (await this.repo.extrato({ de: new Date(0), ate: new Date('2100-01-01T00:00:00Z') })).reverse()
-    if (!todos.length) return '📒 *Extrato*\n\nSem lançamentos.'
+    if (!todos.length) return ui.extratoVazio()
     const total = Math.ceil(todos.length / POR_PAGINA)
-    if (pagina > total) return `⚠️ O extrato tem só ${total} ${total === 1 ? 'página' : 'páginas'}. Digite *extrato* para começar.`
-    const linhas = todos.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA).map(linhaLancamento).join('\n')
-    const rodape = pagina < total ? `➡️ Próxima página: digite *extrato ${pagina + 1}*` : total > 1 ? '✅ Fim do extrato' : ''
-    return [`📒 *Extrato · página ${pagina}/${total}*`, ...(pagina === 1 ? [totaisDe(todos)] : []), linhas, ...(rodape ? [rodape] : [])].join('\n\n')
+    if (pagina > total) return ui.paginaInexistente(total)
+    const itens = todos.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
+    return ui.extrato(pagina, total, itens, pagina === 1 ? { receitas: somaTipo(todos, 'receita'), despesas: somaTipo(todos, 'despesa') } : null)
   }
 
   private async auditoria(rel: Relatorio): Promise<string> {
     const { titulo, atual, janela } = this.periodos(rel)
-    const cab = `🔎 *Auditoria ${rel} · ${titulo}*`
     const extrato = await this.repo.extrato(atual)
-    if (!extrato.length) return `${cab}\n\nSem lançamentos no período.`
-    if (!this.auditor) return `${cab}\n\n${IA_DESLIGADA}`
+    if (!extrato.length) return ui.auditoriaVazia(rel, titulo)
+    if (!this.auditor) return ui.auditoriaSemIA(rel, titulo)
 
     // tudo calculado aqui; a IA só recebe estes dados prontos e devolve texto
     const b = await this.repo.balancete(atual)
@@ -223,39 +172,23 @@ export class Service {
       })),
     }
 
-    const blocos = [
-      cab,
-      [
-        `🟢 *Receitas* — ${dados.receitas}`,
-        `🔴 *Despesas* — ${dados.despesas}`,
-        `💰 *Saldo: ${dados.saldo}*`,
-      ].join('\n'),
-    ]
-    if (ranking.length) {
-      blocos.push(['🏆 *Maiores gastos*', ...ranking.map((r, i) => `${i + 1}. ${r.conta} — ${r.valor} (${r.percentual}%)`)].join('\n'))
-    }
-    if (dados.comparacao) {
-      // variação só quando o período anterior tem despesas (senão a base é zero)
-      const variacao = antDespesas > 0 ? Math.round(((despesas - antDespesas) * 100) / antDespesas) : null
-      const pct = variacao === null ? '' : ` (${variacao > 0 ? '+' : ''}${variacao}%)`
-      const c = dados.comparacao
-      blocos.push(
-        [
-          `📉 *Comparado a ${c.periodo}*`,
-          `🟢 Receitas: ${c.receitas} → ${dados.receitas}`,
-          `🔴 Despesas: ${c.despesas} → ${dados.despesas}${pct}`,
-          `💰 Saldo: ${c.saldo} → ${dados.saldo}`,
-        ].join('\n'),
-      )
-    }
-
     let dicas: string[] = []
     try {
       dicas = await this.auditor.sugerir(dados)
     } catch (err) {
       console.error('auditoria: a IA falhou:', err instanceof Error ? err.message : err)
     }
-    blocos.push(['💡 *Sugestões da IA*', ...(dicas.length ? dicas.map((d) => `• ${d}`) : ['Indisponível agora, tente de novo.'])].join('\n'))
-    return blocos.join('\n\n')
+    return ui.auditoria({
+      rel,
+      titulo,
+      receitas,
+      despesas,
+      ranking: b.despesas.slice(0, 5).map((l, i) => ({ conta: l.conta, valor: l.total, percentual: ranking[i].percentual })),
+      // variação só quando o período anterior tem despesas (senão a base é zero)
+      ...(temAnterior && {
+        comparacao: { periodo: janela[1].rotulo, receitas: antReceitas, despesas: antDespesas, variacaoDespesas: antDespesas > 0 ? Math.round(((despesas - antDespesas) * 100) / antDespesas) : null },
+      }),
+      dicas,
+    })
   }
 }
