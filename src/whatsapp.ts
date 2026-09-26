@@ -43,7 +43,7 @@ export async function iniciarWhatsApp({ groupId, tratar, authDir = 'auth' }: Opc
       const n = recuperados
       recuperados = 0
       const s = n > 1 ? 's' : ''
-      await enviar(`📥 Recuperei ${n} lançamento${s} feito${s} enquanto eu estava offline`)
+      await enviar(`📥 Recuperei ${n} lançamento${s} feito${s} enquanto eu estava offline`).catch(console.error)
     }, 5000)
   }
 
@@ -116,6 +116,10 @@ export async function iniciarWhatsApp({ groupId, tratar, authDir = 'auth' }: Opc
           console.error('Sessão encerrada pelo WhatsApp. Apague a pasta ./auth e escaneie o QR de novo.')
           process.exit(1)
         }
+        if (codigo === DisconnectReason.connectionReplaced) {
+          console.error('Outra instância assumiu esta sessão do WhatsApp. Feche a outra e reinicie o bot.')
+          process.exit(1)
+        }
         const espera = atrasoReconexao(tentativa++)
         console.warn(`Conexão caiu (código ${codigo}); nova tentativa em ${espera / 1000}s`)
         setTimeout(() => conectar().catch(console.error), espera)
@@ -123,7 +127,8 @@ export async function iniciarWhatsApp({ groupId, tratar, authDir = 'auth' }: Opc
     })
 
     sock.ev.on('messages.upsert', ({ messages, type }) => {
-      if (type !== 'notify') return
+      // 'append' = mensagens que chegaram offline (e ecos dos envios do próprio bot, barrados por `enviados`)
+      if (type !== 'notify' && type !== 'append') return
       for (const m of messages) fila = fila.then(() => tratarMensagem(m))
     })
   }
