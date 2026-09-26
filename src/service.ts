@@ -1,7 +1,7 @@
 import { parse, type Comando, type Relatorio } from './parser'
 import { formatBRL } from './money'
 import type { Auditor, DadosAuditoria } from './auditar'
-import { intervaloDaSemanaDomingo, intervaloDoAno, intervaloDoMes, mesAtual, resolverData, rotuloDia, rotuloHora, rotuloMes } from './period'
+import { intervaloDaSemanaDomingo, intervaloDoAno, intervaloDoDia, intervaloDoMes, mesAtual, resolverData, rotuloDia, rotuloHora, rotuloMes } from './period'
 import type { LinhaConta, Natureza, Repo } from './types'
 
 export type Mensagem = { msgId: string; remetente: string; texto: string; enviadoEm: Date }
@@ -23,7 +23,8 @@ const AJUDA = [
   '📅 Data no fim (opcional): ontem · 15/09',
   '',
   '📊 *Consultar*',
-  '• balancete mensal · semanal · anual → extrato + resumo',
+  '• balancete → movimentos de hoje',
+  '• balancete mensal · semanal · anual → resumo',
   '• auditoria mensal · semanal · anual → ranking e dicas da IA',
   '',
   '↩️ *Corrigir*',
@@ -31,7 +32,7 @@ const AJUDA = [
 ].join('\n')
 
 const USO = {
-  balancete: '⚠️ Use *balancete mensal*, *balancete semanal* ou *balancete anual*.',
+  balancete: '⚠️ Use *balancete*, *balancete mensal*, *balancete semanal* ou *balancete anual*.',
   auditoria: '⚠️ Use *auditoria mensal*, *auditoria semanal* ou *auditoria anual*.',
 }
 
@@ -103,20 +104,15 @@ export class Service {
   private periodos(rel: Relatorio) {
     const agora = this.agora()
     const { ano, mes } = mesAtual(agora)
-    // atual = período do extrato; janela = períodos do resumo (o atual primeiro, depois os anteriores)
+    // atual = período da auditoria; janela = períodos do resumo (o atual primeiro, depois os anteriores)
     let titulo: string
     let atual: { de: Date; ate: Date }
     let janela: { rotulo: string; intervalo: { de: Date; ate: Date } }[]
-    let cabExtrato = '📅 *Extrato*'
-    let vazio: string
-    let cabResumo: string
     const n = (qtd: number) => Array.from({ length: qtd }, (_, i) => i)
     if (rel === 'mensal') {
       titulo = rotuloMes(agora)
       atual = intervaloDoMes(ano, mes)
       janela = n(12).map((i) => ({ rotulo: rotuloMes(intervaloDoMes(ano, mes - i).de), intervalo: intervaloDoMes(ano, mes - i) }))
-      vazio = 'Sem lançamentos neste mês.'
-      cabResumo = '📈 *Últimos meses* (até 12, só com movimento)'
     } else if (rel === 'semanal') {
       const rotulo = (i: number) => {
         const w = intervaloDaSemanaDomingo(agora, -i)
@@ -125,67 +121,48 @@ export class Service {
       titulo = rotulo(0)
       atual = intervaloDaSemanaDomingo(agora)
       janela = n(4).map((i) => ({ rotulo: rotulo(i), intervalo: intervaloDaSemanaDomingo(agora, -i) }))
-      vazio = 'Sem lançamentos nesta semana.'
-      cabResumo = '📈 *Últimas 4 semanas* (só com movimento)'
     } else {
       titulo = String(ano)
       atual = intervaloDoAno(ano)
       janela = n(5).map((i) => ({ rotulo: String(ano - i), intervalo: intervaloDoAno(ano - i) }))
-      cabExtrato = '📅 *Por mês*'
-      vazio = 'Sem lançamentos neste ano.'
-      cabResumo = '📈 *Últimos 5 anos* (só com movimento)'
     }
 
-    return { titulo, atual, janela, cabExtrato, vazio, cabResumo }
+    return { titulo, atual, janela }
   }
 
-  private async balancete(rel: Relatorio): Promise<string> {
-    const { titulo, atual, janela, cabExtrato, vazio, cabResumo } = this.periodos(rel)
-    const extrato = await this.repo.extrato(atual)
-    // resumo: valores sem "R$" (o total acima já mostra a moeda) e um item por linha, com o ícone junto do valor
-    // (numa linha só, o celular quebrava logo depois do ícone e o valor descia sozinho)
-    const sem = (centavos: number) => formatBRL(centavos).replace('R$ ', '')
-    const linhaTotais = (rotulo: string, receitas: number, despesas: number) =>
-      `*${rotulo}*\n🟢 ${sem(receitas)}\n🔴 ${sem(despesas)}\n💰 ${sem(receitas - despesas)}`
+  private async balancete(rel: 'hoje' | Relatorio): Promise<string> {
+    const agora = this.agora()
+    if (rel === 'hoje') return this.balanceteDoDia(agora)
 
-    // extrato: uma linha por lançamento; no anual, uma linha por mês com movimento (ordem crescente)
-    let linhas: string[]
-    if (rel === 'anual') {
-      const meses = new Map<string, [number, number]>()
-      for (const l of extrato) {
-        const m = meses.get(rotuloMes(l.data)) ?? [0, 0]
-        m[l.tipo === 'receita' ? 0 : 1] += l.valor
-        meses.set(rotuloMes(l.data), m)
-      }
-      linhas = [...meses].map(([rotulo, [r, d]]) => linhaTotais(rotulo, r, d))
-    } else {
-      // duas linhas por lançamento: dia e hora em cima; valor e descrição embaixo
-      linhas = extrato.map(
-        (l) => `*${rotuloDia(l.data)} às ${rotuloHora(l.enviadoEm)}*\n${l.tipo === 'receita' ? '🟢' : '🔴'} ${formatBRL(l.valor)} · ${l.conta}`,
-      )
-    }
-
-    const blocos = [`📊 *Balancete ${rel} · ${titulo}*`, [cabExtrato, ...(extrato.length ? linhas : [vazio])].join('\n')]
-    if (extrato.length) {
-      const total = (t: Natureza) => extrato.filter((l) => l.tipo === t).reduce((s, l) => s + l.valor, 0)
-      blocos.push(
-        [
-          `🟢 *Receitas* — ${formatBRL(total('receita'))}`,
-          `🔴 *Despesas* — ${formatBRL(total('despesa'))}`,
-          `💰 *Saldo: ${formatBRL(total('receita') - total('despesa'))}*`,
-        ].join('\n'),
-      )
-    }
-
-    // resumo: um balancete por período da janela; os sem movimento não aparecem
-    const resumo: string[] = []
-    for (const { rotulo, intervalo } of janela) {
+    // resumo: um bloco por período da janela (o atual primeiro); os sem movimento não aparecem
+    const blocos: string[] = []
+    for (const { rotulo, intervalo } of this.periodos(rel).janela) {
       const b = await this.repo.balancete(intervalo)
-      if (b.receitas.length || b.despesas.length) resumo.push(linhaTotais(rotulo, soma(b.receitas), soma(b.despesas)))
+      if (!b.receitas.length && !b.despesas.length) continue
+      const r = soma(b.receitas)
+      const d = soma(b.despesas)
+      // um valor por linha, com o ícone junto (numa linha só, o celular quebrava depois do ícone)
+      blocos.push(`*${rotulo}*\n🟢 ${formatBRL(r)}\n🔴 ${formatBRL(d)}\n💰 ${formatBRL(r - d)}`)
     }
-    if (resumo.length) blocos.push([cabResumo, ...resumo].join('\n'))
-    return blocos.join('\n\n')
+    return [`📊 *Balancete ${rel}*`, ...(blocos.length ? blocos : ['Sem lançamentos no período.'])].join('\n\n')
   }
+
+  private async balanceteDoDia(agora: Date): Promise<string> {
+    const cab = `📊 *Balancete · hoje ${rotuloDia(agora)}*`
+    const extrato = await this.repo.extrato(intervaloDoDia(agora))
+    if (!extrato.length) return `${cab}\n\nSem lançamentos hoje.`
+    // duas linhas por lançamento: dia e hora do envio em cima; valor e descrição embaixo
+    const linhas = extrato.map((l) => `*${rotuloDia(l.data)} às ${rotuloHora(l.enviadoEm)}*
+${l.tipo === 'receita' ? '🟢' : '🔴'} ${formatBRL(l.valor)} · ${l.conta}`)
+    const total = (t: Natureza) => extrato.filter((l) => l.tipo === t).reduce((s, l) => s + l.valor, 0)
+    const totais = [
+      `🟢 *Receitas* — ${formatBRL(total('receita'))}`,
+      `🔴 *Despesas* — ${formatBRL(total('despesa'))}`,
+      `💰 *Saldo: ${formatBRL(total('receita') - total('despesa'))}*`,
+    ].join('\n')
+    return [cab, linhas.join('\n'), totais].join('\n\n')
+  }
+
   private async auditoria(rel: Relatorio): Promise<string> {
     const { titulo, atual, janela } = this.periodos(rel)
     const cab = `🔎 *Auditoria ${rel} · ${titulo}*`

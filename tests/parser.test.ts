@@ -112,9 +112,11 @@ describe('parse: data retroativa', () => {
   })
 })
 
-describe('parse: balancete mensal, semanal e anual', () => {
+describe('parse: balancete (dia, mensal, semanal e anual)', () => {
   it.each([
-    ['balancete', 'mensal'],
+    ['balancete', 'hoje'],
+    ['balancete hoje', 'hoje'],
+    ['  BALANCETE   Hoje ', 'hoje'],
     ['balancete mensal', 'mensal'],
     ['Balancete   Mensal ', 'mensal'],
     ['BALANCETE MENSAL', 'mensal'],
@@ -205,7 +207,13 @@ describe('parse: ignorados', () => {
     ['📅 *Extrato*'],
     ['05/09 09:00 · 🟢 salário — R$ 3.000,00'],
     ['📈 *Últimos meses* (até 12, só com movimento)'],
-    ['⚠️ Use *balancete mensal*, *balancete semanal* ou *balancete anual*.'],
+    ['⚠️ Use *balancete*, *balancete mensal*, *balancete semanal* ou *balancete anual*.'],
+    ['*15/09 às 09:30*'],
+    ['🔴 R$ 45,90 · mercado'],
+    ['*09/2026*'],
+    ['🟢 R$ 3.000,00'],
+    ['📊 *Balancete · hoje 15/09*'],
+    ['📊 *Balancete mensal*'],
     ['↩️ Desfeito: mercado R$ 45,90'],
     ['⚠️ Não consegui salvar, tente de novo 10'],
     [`${'palavra '.repeat(10)}45`], // conta com mais de 40 caracteres

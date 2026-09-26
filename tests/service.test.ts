@@ -62,9 +62,9 @@ describe('Service: desfazer', () => {
 })
 
 const USO_AUDITORIA = '⚠️ Use *auditoria mensal*, *auditoria semanal* ou *auditoria anual*.'
-const USO_BALANCETE = '⚠️ Use *balancete mensal*, *balancete semanal* ou *balancete anual*.'
+const USO_BALANCETE = '⚠️ Use *balancete*, *balancete mensal*, *balancete semanal* ou *balancete anual*.'
 
-describe('Service: balancete mensal', () => {
+describe('Service: balancete mensal (só resumo)', () => {
   async function comDados() {
     const s = novoService()
     await s.handle(msg('+ salário 3000', '2026-09-05T12:00:00Z'))
@@ -74,116 +74,76 @@ describe('Service: balancete mensal', () => {
     return s
   }
   const esperado = [
-    '📊 *Balancete mensal · 09/2026*',
+    '📊 *Balancete mensal*',
     '',
-    '📅 *Extrato*',
-    '*05/09 às 09:00*',
-    '🟢 R$ 3.000,00 · salário',
-    '*10/09 às 12:30*',
-    '🔴 R$ 345,90 · mercado',
-    '*12/09 às 15:05*',
-    '🔴 R$ 166,50 · luz',
-    '',
-    '🟢 *Receitas* — R$ 3.000,00',
-    '🔴 *Despesas* — R$ 512,40',
-    '💰 *Saldo: R$ 2.487,60*',
-    '',
-    '📈 *Últimos meses* (até 12, só com movimento)',
     '*09/2026*',
-    '🟢 3.000,00',
-    '🔴 512,40',
-    '💰 2.487,60',
+    '🟢 R$ 3.000,00',
+    '🔴 R$ 512,40',
+    '💰 R$ 2.487,60',
+    '',
     '*08/2026*',
-    '🟢 0,00',
-    '🔴 10,00',
-    '💰 -10,00',
+    '🟢 R$ 0,00',
+    '🔴 R$ 10,00',
+    '💰 -R$ 10,00',
   ].join('\n')
 
-  it('balancete = balancete mensal: extrato, totais e resumo', async () => {
+  it('resumo por mês, sem extrato', async () => {
     const s = await comDados()
-    const r = await s.handle(msg('balancete'))
+    const r = await s.handle(msg('balancete mensal'))
     expect(r?.texto).toBe(esperado)
     expect(r?.lancou).toBe(false)
     expect((await s.handle(msg('Balancete   Mensal ')))?.texto).toBe(esperado)
   })
 
-  it('mês sem lançamentos mas com histórico: só a frase e o resumo', async () => {
-    const s = novoService()
-    await s.handle(msg('mercado 10', '2026-08-31T12:00:00Z'))
-    expect((await s.handle(msg('balancete')))?.texto).toBe(
-      [
-        '📊 *Balancete mensal · 09/2026*',
-        '',
-        '📅 *Extrato*',
-        'Sem lançamentos neste mês.',
-        '',
-        '📈 *Últimos meses* (até 12, só com movimento)',
-        '*08/2026*',
-        '🟢 0,00',
-        '🔴 10,00',
-        '💰 -10,00',
-      ].join('\n'),
-    )
-  })
-
   it('nenhum lançamento: só cabeçalho e a frase', async () => {
-    expect((await novoService().handle(msg('balancete mensal')))?.texto).toBe(
-      '📊 *Balancete mensal · 09/2026*\n\n📅 *Extrato*\nSem lançamentos neste mês.',
-    )
+    expect((await novoService().handle(msg('balancete mensal')))?.texto).toBe('📊 *Balancete mensal*\n\nSem lançamentos no período.')
   })
 
-  it('lançamento desfeito não aparece no extrato, nos totais nem no resumo', async () => {
+  it('lançamento desfeito não aparece', async () => {
     const s = novoService()
     await s.handle(msg('mercado 10', '2026-09-10T12:00:00Z'))
     await s.handle(msg('luz 20', '2026-09-11T12:00:00Z'))
     await s.handle(msg('desfazer', '2026-09-11T13:00:00Z'))
-    const t = (await s.handle(msg('balancete')))?.texto
-    expect(t).not.toContain('luz')
-    expect(t).toContain('🔴 *Despesas* — R$ 10,00')
-    expect(t).toContain('*09/2026*\n🟢 0,00\n🔴 10,00\n💰 -10,00')
+    expect((await s.handle(msg('balancete mensal')))?.texto).toBe(
+      '📊 *Balancete mensal*\n\n*09/2026*\n🟢 R$ 0,00\n🔴 R$ 10,00\n💰 -R$ 10,00',
+    )
   })
 
-  it('lançamento retroativo aparece no dia informado, com a hora do envio', async () => {
+  it('lançamento retroativo entra no período da sua data', async () => {
     const s = novoService()
-    await s.handle(msg('+ plantão 450 01/09', '2026-09-10T12:00:00Z'))
-    expect((await s.handle(msg('balancete')))?.texto).toContain('*01/09 às 09:00*\n🟢 R$ 450,00 · plantão')
+    await s.handle(msg('+ plantão 450 31/08', '2026-09-10T12:00:00Z'))
+    expect((await s.handle(msg('balancete mensal')))?.texto).toBe(
+      '📊 *Balancete mensal*\n\n*08/2026*\n🟢 R$ 450,00\n🔴 R$ 0,00\n💰 R$ 450,00',
+    )
   })
 
-  it('resumo de meses atravessa a virada de ano', async () => {
+  it('atravessa a virada de ano', async () => {
     const s = new Service(new MemoryRepo(), () => new Date('2026-01-10T12:00:00Z'))
     await s.handle(msg('mercado 10', '2025-12-20T12:00:00Z'))
     await s.handle(msg('luz 5', '2026-01-05T12:00:00Z'))
-    expect((await s.handle(msg('balancete')))?.texto).toBe(
+    expect((await s.handle(msg('balancete mensal')))?.texto).toBe(
       [
-        '📊 *Balancete mensal · 01/2026*',
+        '📊 *Balancete mensal*',
         '',
-        '📅 *Extrato*',
-        '*05/01 às 09:00*',
-        '🔴 R$ 5,00 · luz',
-        '',
-        '🟢 *Receitas* — R$ 0,00',
-        '🔴 *Despesas* — R$ 5,00',
-        '💰 *Saldo: -R$ 5,00*',
-        '',
-        '📈 *Últimos meses* (até 12, só com movimento)',
         '*01/2026*',
-        '🟢 0,00',
-        '🔴 5,00',
-        '💰 -5,00',
+        '🟢 R$ 0,00',
+        '🔴 R$ 5,00',
+        '💰 -R$ 5,00',
+        '',
         '*12/2025*',
-        '🟢 0,00',
-        '🔴 10,00',
-        '💰 -10,00',
+        '🟢 R$ 0,00',
+        '🔴 R$ 10,00',
+        '💰 -R$ 10,00',
       ].join('\n'),
     )
   })
 
-  it('resumo só cobre 12 meses', async () => {
+  it('só cobre 12 meses', async () => {
     const s = novoService()
     await s.handle(msg('mercado 10', '2025-10-10T12:00:00Z')) // 11 meses atrás: entra
     await s.handle(msg('luz 20', '2025-09-10T12:00:00Z')) // 12 meses atrás: fora
-    const t = (await s.handle(msg('balancete')))?.texto
-    expect(t).toContain('*10/2025*\n🟢 0,00\n🔴 10,00')
+    const t = (await s.handle(msg('balancete mensal')))?.texto
+    expect(t).toContain('*10/2025*\n🟢 R$ 0,00\n🔴 R$ 10,00')
     expect(t).not.toContain('09/2025')
   })
 })
@@ -196,58 +156,33 @@ describe('Service: balancete semanal (domingo a sábado)', () => {
     await s.handle(msg('gas 30', '2026-08-31T12:00:00Z'))
     expect((await s.handle(msg('balancete semanal')))?.texto).toBe(
       [
-        '📊 *Balancete semanal · 13/09 a 19/09*',
+        '📊 *Balancete semanal*',
         '',
-        '📅 *Extrato*',
-        '*14/09 às 09:00*',
-        '🔴 R$ 10,00 · mercado',
-        '',
-        '🟢 *Receitas* — R$ 0,00',
-        '🔴 *Despesas* — R$ 10,00',
-        '💰 *Saldo: -R$ 10,00*',
-        '',
-        '📈 *Últimas 4 semanas* (só com movimento)',
         '*13/09 a 19/09*',
-        '🟢 0,00',
-        '🔴 10,00',
-        '💰 -10,00',
+        '🟢 R$ 0,00',
+        '🔴 R$ 10,00',
+        '💰 -R$ 10,00',
+        '',
         '*06/09 a 12/09*',
-        '🟢 0,00',
-        '🔴 20,00',
-        '💰 -20,00',
+        '🟢 R$ 0,00',
+        '🔴 R$ 20,00',
+        '💰 -R$ 20,00',
+        '',
         '*30/08 a 05/09*',
-        '🟢 0,00',
-        '🔴 30,00',
-        '💰 -30,00',
+        '🟢 R$ 0,00',
+        '🔴 R$ 30,00',
+        '💰 -R$ 30,00',
       ].join('\n'),
     )
   })
 
-  it('semana sem lançamentos', async () => {
-    const s = novoService()
-    expect((await s.handle(msg('balancete semanal')))?.texto).toBe(
-      '📊 *Balancete semanal · 13/09 a 19/09*\n\n📅 *Extrato*\nSem lançamentos nesta semana.',
-    )
-    await s.handle(msg('luz 20', '2026-09-12T12:00:00Z'))
-    expect((await s.handle(msg('balancete semanal')))?.texto).toBe(
-      [
-        '📊 *Balancete semanal · 13/09 a 19/09*',
-        '',
-        '📅 *Extrato*',
-        'Sem lançamentos nesta semana.',
-        '',
-        '📈 *Últimas 4 semanas* (só com movimento)',
-        '*06/09 a 12/09*',
-        '🟢 0,00',
-        '🔴 20,00',
-        '💰 -20,00',
-      ].join('\n'),
-    )
+  it('nenhum lançamento', async () => {
+    expect((await novoService().handle(msg('balancete semanal')))?.texto).toBe('📊 *Balancete semanal*\n\nSem lançamentos no período.')
   })
 })
 
-describe('Service: balancete anual', () => {
-  it('ano atual por mês + últimos 5 anos, sem os vazios', async () => {
+describe('Service: balancete anual (só resumo)', () => {
+  it('últimos 5 anos, sem os vazios e sem "Por mês"', async () => {
     const s = novoService()
     await s.handle(msg('+ salário 3000', '2026-09-05T12:00:00Z'))
     await s.handle(msg('mercado 345,90', '2026-09-10T15:30:00Z'))
@@ -256,40 +191,78 @@ describe('Service: balancete anual', () => {
     await s.handle(msg('gas 5', '2021-03-10T12:00:00Z')) // fora dos 5 anos
     expect((await s.handle(msg('balancete anual')))?.texto).toBe(
       [
-        '📊 *Balancete anual · 2026*',
+        '📊 *Balancete anual*',
         '',
-        '📅 *Por mês*',
-        '*09/2026*',
-        '🟢 3.000,00',
-        '🔴 512,40',
-        '💰 2.487,60',
-        '',
-        '🟢 *Receitas* — R$ 3.000,00',
-        '🔴 *Despesas* — R$ 512,40',
-        '💰 *Saldo: R$ 2.487,60*',
-        '',
-        '📈 *Últimos 5 anos* (só com movimento)',
         '*2026*',
-        '🟢 3.000,00',
-        '🔴 512,40',
-        '💰 2.487,60',
+        '🟢 R$ 3.000,00',
+        '🔴 R$ 512,40',
+        '💰 R$ 2.487,60',
+        '',
         '*2025*',
-        '🟢 0,00',
-        '🔴 10,00',
-        '💰 -10,00',
+        '🟢 R$ 0,00',
+        '🔴 R$ 10,00',
+        '💰 -R$ 10,00',
       ].join('\n'),
     )
   })
 
-  it('meses do ano em ordem crescente; ano sem lançamentos mostra a frase', async () => {
+  it('nenhum lançamento', async () => {
+    expect((await novoService().handle(msg('balancete anual')))?.texto).toBe('📊 *Balancete anual*\n\nSem lançamentos no período.')
+  })
+})
+
+describe('Service: balancete do dia', () => {
+  it('extrato de hoje em ordem, com totais; ontem fica fora', async () => {
     const s = novoService()
-    await s.handle(msg('mercado 10', '2026-03-10T12:00:00Z'))
-    await s.handle(msg('luz 20', '2026-01-10T12:00:00Z'))
-    const t = (await s.handle(msg('balancete anual')))?.texto
-    expect(t).toContain('📅 *Por mês*\n*01/2026*\n🟢 0,00\n🔴 20,00\n💰 -20,00\n*03/2026*\n🟢 0,00\n🔴 10,00\n💰 -10,00\n\n')
-    expect((await novoService().handle(msg('balancete anual')))?.texto).toBe(
-      '📊 *Balancete anual · 2026*\n\n📅 *Por mês*\nSem lançamentos neste ano.',
+    await s.handle(msg('+ plantão 450', '2026-09-15T15:05:00Z'))
+    await s.handle(msg('mercado 45,90', '2026-09-15T12:30:00Z'))
+    await s.handle(msg('luz 20', '2026-09-14T12:00:00Z'))
+    const r = await s.handle(msg('balancete'))
+    expect(r?.texto).toBe(
+      [
+        '📊 *Balancete · hoje 15/09*',
+        '',
+        '*15/09 às 09:30*',
+        '🔴 R$ 45,90 · mercado',
+        '*15/09 às 12:05*',
+        '🟢 R$ 450,00 · plantão',
+        '',
+        '🟢 *Receitas* — R$ 450,00',
+        '🔴 *Despesas* — R$ 45,90',
+        '💰 *Saldo: R$ 404,10*',
+      ].join('\n'),
     )
+    expect(r?.lancou).toBe(false)
+    expect((await s.handle(msg('Balancete  HOJE')))?.texto).toBe(r?.texto)
+  })
+
+  it('vazio', async () => {
+    expect((await novoService().handle(msg('balancete')))?.texto).toBe('📊 *Balancete · hoje 15/09*\n\nSem lançamentos hoje.')
+  })
+
+  it('virada do dia local: 02:59Z ainda é o dia anterior', async () => {
+    const antes = new Service(new MemoryRepo(), () => new Date('2026-09-15T02:59:00Z'))
+    await antes.handle(msg('mercado 10', '2026-09-14T15:00:00Z'))
+    expect((await antes.handle(msg('balancete')))?.texto).toContain('hoje 14/09*\n\n*14/09 às 12:00*')
+    const depois = new Service(new MemoryRepo(), () => new Date('2026-09-15T03:00:00Z'))
+    await depois.handle(msg('mercado 10', '2026-09-14T15:00:00Z'))
+    expect((await depois.handle(msg('balancete')))?.texto).toBe('📊 *Balancete · hoje 15/09*\n\nSem lançamentos hoje.')
+  })
+
+  it('desfeito some', async () => {
+    const s = novoService()
+    await s.handle(msg('mercado 10', '2026-09-15T12:00:00Z'))
+    await s.handle(msg('luz 20', '2026-09-15T13:00:00Z'))
+    await s.handle(msg('desfazer', '2026-09-15T13:30:00Z'))
+    const t = (await s.handle(msg('balancete')))?.texto
+    expect(t).not.toContain('luz')
+    expect(t).toContain('🔴 *Despesas* — R$ 10,00')
+  })
+
+  it('retroativo (data de outro dia) não aparece no dia de hoje', async () => {
+    const s = novoService()
+    await s.handle(msg('+ plantão 450 01/09', '2026-09-15T12:00:00Z'))
+    expect((await s.handle(msg('balancete')))?.texto).toBe('📊 *Balancete · hoje 15/09*\n\nSem lançamentos hoje.')
   })
 })
 
@@ -308,18 +281,16 @@ describe('Service: data do lançamento', () => {
     // enviada em 31/08 (antes do "agora" de setembro): cai em agosto, e a confirmação não mostra data
     const r = await s.handle(msg('mercado 10', '2026-08-31T12:00:00Z'))
     expect(r?.texto).toBe('🔴 *Despesa* · mercado · R$ 10,00')
-    const b = (await s.handle(msg('balancete')))?.texto
-    expect(b).toContain('Sem lançamentos neste mês.')
-    expect(b).toContain('*08/2026*\n🟢 0,00\n🔴 10,00')
+    expect((await s.handle(msg('balancete mensal')))?.texto).toContain('*08/2026*\n🟢 R$ 0,00\n🔴 R$ 10,00')
   })
 
   it('com data informada, lança nela e mostra o dia na confirmação', async () => {
     const s = novoService() // mensagens enviadas em 10/09/2026
     expect((await s.handle(msg('+ plantão 450 ontem')))?.texto).toBe('🟢 *Receita* · plantão · R$ 450,00 · 📅 09/09')
     expect((await s.handle(msg('mercado 10 31/08')))?.texto).toBe('🔴 *Despesa* · mercado · R$ 10,00 · 📅 31/08')
-    const b = (await s.handle(msg('balancete')))?.texto
-    expect(b).toContain('*09/09 às 09:00*\n🟢 R$ 450,00 · plantão') // data do lançamento, hora do envio
-    expect(b).toContain('*08/2026*\n🟢 0,00\n🔴 10,00')
+    const b = (await s.handle(msg('balancete mensal')))?.texto
+    expect(b).toContain('*09/2026*\n🟢 R$ 450,00\n🔴 R$ 0,00')
+    expect(b).toContain('*08/2026*\n🟢 R$ 0,00\n🔴 R$ 10,00')
   })
 
   it('sem ano e no futuro assume o ano anterior', async () => {
@@ -332,7 +303,7 @@ describe('Service: data do lançamento', () => {
     const s = novoService()
     expect(await s.handle(msg('mercado 10 25/09/2026'))).toEqual({ texto: ERRO_DATA, lancou: false })
     expect((await s.handle(msg('mercado 10 29/02/2026')))?.texto).toBe(ERRO_DATA)
-    expect((await s.handle(msg('balancete')))?.texto).toContain('Sem lançamentos neste mês.')
+    expect((await s.handle(msg('balancete mensal')))?.texto).toBe('📊 *Balancete mensal*\n\nSem lançamentos no período.')
   })
 
   it('desfazer desfaz o último enviado, não o de data mais recente', async () => {
@@ -545,7 +516,8 @@ describe('Service: auditoria', () => {
 describe('Service: ajuda e recuperação', () => {
   it('ajuda lista os comandos', async () => {
     const r = await novoService().handle(msg('ajuda'))
-    expect(r?.texto).toContain('• balancete mensal · semanal · anual → extrato + resumo')
+    expect(r?.texto).toContain('• balancete → movimentos de hoje')
+    expect(r?.texto).toContain('• balancete mensal · semanal · anual → resumo')
     expect(r?.texto).toContain('• auditoria mensal · semanal · anual → ranking e dicas da IA')
     expect(r?.texto).not.toContain('trimestre')
     expect(r?.texto).toContain('desfazer')
@@ -559,7 +531,7 @@ describe('Service: ajuda e recuperação', () => {
     expect(await s.handle(msg('ajuda'), { recuperada: true })).toBeNull()
     const r = await s.handle(msg('mercado 10', '2026-08-31T12:00:00Z'), { recuperada: true })
     expect(r?.lancou).toBe(true)
-    expect((await s.handle(msg('balancete')))?.texto).toContain('*08/2026*\n🟢 0,00\n🔴 10,00')
+    expect((await s.handle(msg('balancete mensal')))?.texto).toContain('*08/2026*\n🟢 R$ 0,00\n🔴 R$ 10,00')
   })
 })
 

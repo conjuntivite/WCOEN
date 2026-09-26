@@ -34,6 +34,12 @@ export function intervaloDaSemanaDomingo(agora: Date, deslocamento = 0): { de: D
   }
 }
 
+// dia local (00:00 a 00:00 seguinte) que contém `agora`
+export function intervaloDoDia(agora: Date): { de: Date; ate: Date } {
+  const h = diaLocal(agora)
+  return { de: new Date(Date.UTC(h.ano, h.mes - 1, h.dia, OFFSET_H)), ate: new Date(Date.UTC(h.ano, h.mes - 1, h.dia + 1, OFFSET_H)) }
+}
+
 export function intervaloDoAno(ano: number): { de: Date; ate: Date } {
   return { de: new Date(Date.UTC(ano, 0, 1, OFFSET_H)), ate: new Date(Date.UTC(ano + 1, 0, 1, OFFSET_H)) }
 }

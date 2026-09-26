@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mesAtual, intervaloDoMes, intervaloDaSemanaDomingo, rotuloHora, intervaloDoAno, rotuloDia, rotuloMes, resolverData } from '../src/period'
+import { mesAtual, intervaloDoMes, intervaloDaSemanaDomingo, rotuloHora, intervaloDoAno, intervaloDoDia, rotuloDia, rotuloMes, resolverData } from '../src/period'
 
 describe('period (America/Sao_Paulo, -03:00)', () => {
   it('mesAtual usa o fuso local', () => {
@@ -93,5 +93,23 @@ describe('resolverData', () => {
     expect(rotuloHora(new Date('2026-09-10T15:30:00Z'))).toBe('12:30')
     expect(rotuloHora(new Date('2026-09-10T02:59:00Z'))).toBe('23:59')
     expect(rotuloHora(new Date('2026-09-10T03:05:00Z'))).toBe('00:05')
+  })
+})
+
+describe('intervaloDoDia', () => {
+  const dia = (iso: string) => {
+    const { de, ate } = intervaloDoDia(new Date(iso))
+    return [de.toISOString(), ate.toISOString()]
+  }
+  it('dia local que contém o instante', () => {
+    expect(dia('2026-09-15T12:00:00Z')).toEqual(['2026-09-15T03:00:00.000Z', '2026-09-16T03:00:00.000Z'])
+  })
+  it('02:59Z ainda é o dia anterior; 03:00Z já é o novo', () => {
+    expect(dia('2026-09-15T02:59:00Z')[0]).toBe('2026-09-14T03:00:00.000Z')
+    expect(dia('2026-09-15T03:00:00Z')[0]).toBe('2026-09-15T03:00:00.000Z')
+  })
+  it('vira mês e ano', () => {
+    expect(dia('2026-10-01T12:00:00Z')[1]).toBe('2026-10-02T03:00:00.000Z')
+    expect(dia('2026-12-31T12:00:00Z')[1]).toBe('2027-01-01T03:00:00.000Z')
   })
 })

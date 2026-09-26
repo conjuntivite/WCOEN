@@ -5,7 +5,7 @@ export type Relatorio = 'mensal' | 'semanal' | 'anual'
 
 export type Comando =
   | { tipo: 'lancamento'; natureza: Natureza; conta: string; valor: number; data?: DataLanc }
-  | { tipo: 'balancete'; relatorio: Relatorio }
+  | { tipo: 'balancete'; relatorio: 'hoje' | Relatorio } // 'hoje' = extrato do dia
   | { tipo: 'auditoria'; relatorio: Relatorio }
   | { tipo: 'uso'; comando: 'balancete' | 'auditoria' } // uso incorreto: o service responde a dica
   | { tipo: 'desfazer' }
@@ -50,7 +50,8 @@ export function parse(texto: string): Comando | null {
   const rel = /^(balancete|auditoria)(?: (.*))?$/.exec(t)
   if (rel) {
     const comando = rel[1] as 'balancete' | 'auditoria'
-    const relatorio = rel[2] ?? 'mensal'
+    const relatorio = rel[2] ?? (comando === 'balancete' ? 'hoje' : 'mensal')
+    if (relatorio === 'hoje' && comando === 'balancete') return { tipo: 'balancete', relatorio }
     if (relatorio !== 'mensal' && relatorio !== 'semanal' && relatorio !== 'anual') return { tipo: 'uso', comando }
     return comando === 'balancete' ? { tipo: 'balancete', relatorio } : { tipo: 'auditoria', relatorio }
   }
