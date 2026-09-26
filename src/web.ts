@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import QRCode from 'qrcode'
 import { criarLimitador, type Conta, type Contas, type ErroCadastro } from './contas'
-import { ERROS_PAINEL, SCRIPT_PAINEL, fragmentoPainel, paginaCadastro, paginaEntrar, paginaPainel, passoDe } from './paginas'
+import { ERROS_PAINEL, SCRIPT_PAINEL, fragmentoPainel, paginaCadastro, paginaEntrar, paginaPainel, passoDe, type CampoCadastro } from './paginas'
 import type { Sessoes } from './sessoes'
 
 export type OpcoesWeb = {
@@ -24,6 +24,7 @@ const MSG_CADASTRO: Record<ErroCadastro, string> = {
   senha_curta: 'A senha precisa ter ao menos 8 caracteres.',
   email_em_uso: 'Este e-mail já está cadastrado.',
 }
+const CAMPO_CADASTRO: Record<ErroCadastro, CampoCadastro> = { convite_invalido: 'convite', email_invalido: 'email', email_em_uso: 'email', senha_curta: 'senha' }
 const TRINTA_DIAS_S = 30 * 24 * 3600
 
 class HttpErro extends Error {
@@ -135,11 +136,11 @@ export function criarWeb(op: OpcoesWeb): Server {
     if (caminho === '/entrar') {
       const email = (f.get('email') ?? '').trim().toLowerCase()
       const chaves = [`e:${email}`, `i:${ipDe(req)}`]
-      if (chaves.some((k) => limitador.bloqueado(k))) return html(res, 429, paginaEntrar('Muitas tentativas. Aguarde alguns minutos.'))
+      if (chaves.some((k) => limitador.bloqueado(k))) return html(res, 429, paginaEntrar('Muitas tentativas. Aguarde alguns minutos.', email))
       const c = await contas.verificar(email, f.get('senha') ?? '')
       if (!c) {
         chaves.forEach((k) => limitador.falhou(k))
-        return html(res, 401, paginaEntrar('E-mail ou senha incorretos.'))
+        return html(res, 401, paginaEntrar('E-mail ou senha incorretos.', email))
       }
       limitador.limpar(chaves[0])
       return ir(res, '/painel', cookieSessao(await contas.criarLogin(c.id), TRINTA_DIAS_S))
@@ -147,11 +148,12 @@ export function criarWeb(op: OpcoesWeb): Server {
 
     if (caminho === '/cadastro') {
       const chaveIp = `i:${ipDe(req)}`
-      if (limitador.bloqueado(chaveIp)) return html(res, 429, paginaCadastro('Muitas tentativas. Aguarde alguns minutos.'))
-      const r = await contas.cadastrar(f.get('email') ?? '', f.get('senha') ?? '', f.get('convite') ?? '')
+      const emailDigitado = (f.get('email') ?? '').trim()
+      if (limitador.bloqueado(chaveIp)) return html(res, 429, paginaCadastro('Muitas tentativas. Aguarde alguns minutos.', undefined, emailDigitado))
+      const r = await contas.cadastrar(emailDigitado, f.get('senha') ?? '', f.get('convite') ?? '')
       if (!r.ok) {
         limitador.falhou(chaveIp)
-        return html(res, 400, paginaCadastro(MSG_CADASTRO[r.erro]))
+        return html(res, 400, paginaCadastro(MSG_CADASTRO[r.erro], CAMPO_CADASTRO[r.erro], emailDigitado))
       }
       return ir(res, '/painel', cookieSessao(await contas.criarLogin(r.conta.id), TRINTA_DIAS_S))
     }

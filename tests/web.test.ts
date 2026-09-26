@@ -89,6 +89,21 @@ describe('cadastro e login', () => {
     expect(r.headers.getSetCookie()).toEqual([])
   })
 
+  it('erro de cadastro aparece junto do campo certo e o e-mail digitado é preservado', async () => {
+    const r = await post('/cadastro', { email: 'ana@x.com', senha: 'senha-boa-123', convite: 'errado' })
+    const html = await r.text()
+    expect(html).toMatch(/name="convite"[^>]*aria-invalid="true"/)
+    expect(html).not.toMatch(/name="senha"[^>]*aria-invalid/)
+    expect(html).toContain('value="ana@x.com"')
+    const curta = await (await post('/cadastro', { email: 'b@x.com', senha: '123', convite: 'segredo' })).text()
+    expect(curta).toMatch(/name="senha"[^>]*aria-invalid="true"/)
+  })
+
+  it('login errado preserva o e-mail digitado', async () => {
+    const html = await (await post('/entrar', { email: 'sem@conta.com', senha: 'errada-errada' })).text()
+    expect(html).toContain('value="sem@conta.com"')
+  })
+
   it('login certo entra; errado dá 401', async () => {
     await entrar('login@x.com')
     const ok = await post('/entrar', { email: ' LOGIN@x.com ', senha: 'senha-boa-123' })
