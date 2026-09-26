@@ -92,7 +92,7 @@ Coleção `lancamentos` (banco `wcoen`):
 
 **Fuso:** limites de mês e de semana em `America/Sao_Paulo`; armazenamento em UTC.
 
-**Relatórios:** `balancete` (= `balancete mensal`), `balancete semanal` e `balancete anual`. Cada um traz, em blocos separados por linha em branco: o **extrato** cronológico do período atual (uma linha por lançamento, `dd/mm HH:mm · 🟢/🔴 conta — R$ valor`, com a data do lançamento e a hora do **envio** da mensagem), os **totais** (receitas, despesas e saldo) e o **resumo** dos períodos anteriores (só os que têm movimento, do mais recente ao mais antigo).
+**Relatórios:** `balancete` (= `balancete mensal`), `balancete semanal` e `balancete anual`. Cada um traz, em blocos separados por linha em branco: o **extrato** cronológico do período atual (duas linhas por lançamento para não quebrar no celular: `*dd/mm às HH:mm*` em cima, e `🟢/🔴 R$ valor · conta` embaixo; a data é a do lançamento e a hora é a do **envio** da mensagem), os **totais** (receitas, despesas e saldo) e o **resumo** dos períodos anteriores (só os que têm movimento, do mais recente ao mais antigo; cada período em duas linhas, `*rótulo*` e `🟢 receitas · 🔴 despesas · 💰 saldo`, sem "R$" para caber na tela).
 
 - **Mensal:** extrato do mês atual + últimos 12 meses (o atual incluído).
 - **Semanal:** extrato da semana atual (domingo 00:00 a sábado 23:59) + últimas 4 semanas (a atual incluída).
@@ -111,17 +111,22 @@ Coleção `lancamentos` (banco `wcoen`):
 📊 *Balancete mensal · 09/2026*
 
 📅 *Extrato*
-05/09 09:00 · 🟢 salário — R$ 3.000,00
-10/09 12:30 · 🔴 mercado — R$ 345,90
-12/09 15:05 · 🔴 luz — R$ 166,50
+*05/09 às 09:00*
+🟢 R$ 3.000,00 · salário
+*10/09 às 12:30*
+🔴 R$ 345,90 · mercado
+*12/09 às 15:05*
+🔴 R$ 166,50 · luz
 
 🟢 *Receitas* — R$ 3.000,00
 🔴 *Despesas* — R$ 512,40
 💰 *Saldo: R$ 2.487,60*
 
 📈 *Últimos meses* (até 12, só com movimento)
-09/2026 · 🟢 R$ 3.000,00 · 🔴 R$ 512,40 · 💰 R$ 2.487,60
-08/2026 · 🟢 R$ 0,00 · 🔴 R$ 10,00 · 💰 -R$ 10,00
+*09/2026*
+🟢 3.000,00 · 🔴 512,40 · 💰 2.487,60
+*08/2026*
+🟢 0,00 · 🔴 10,00 · 💰 -10,00
 ```
 
 ## Auditoria com IA (opcional)

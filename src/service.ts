@@ -141,8 +141,10 @@ export class Service {
   private async balancete(rel: Relatorio): Promise<string> {
     const { titulo, atual, janela, cabExtrato, vazio, cabResumo } = this.periodos(rel)
     const extrato = await this.repo.extrato(atual)
+    // valores do resumo sem "R$" (o total acima já mostra a moeda) e em duas linhas, para não quebrar no celular
+    const sem = (centavos: number) => formatBRL(centavos).replace('R$ ', '')
     const linhaTotais = (rotulo: string, receitas: number, despesas: number) =>
-      `${rotulo} · 🟢 ${formatBRL(receitas)} · 🔴 ${formatBRL(despesas)} · 💰 ${formatBRL(receitas - despesas)}`
+      `*${rotulo}*\n🟢 ${sem(receitas)} · 🔴 ${sem(despesas)} · 💰 ${sem(receitas - despesas)}`
 
     // extrato: uma linha por lançamento; no anual, uma linha por mês com movimento (ordem crescente)
     let linhas: string[]
@@ -155,8 +157,9 @@ export class Service {
       }
       linhas = [...meses].map(([rotulo, [r, d]]) => linhaTotais(rotulo, r, d))
     } else {
+      // duas linhas por lançamento: dia e hora em cima; valor e descrição embaixo
       linhas = extrato.map(
-        (l) => `${rotuloDia(l.data)} ${rotuloHora(l.enviadoEm)} · ${l.tipo === 'receita' ? '🟢' : '🔴'} ${l.conta} — ${formatBRL(l.valor)}`,
+        (l) => `*${rotuloDia(l.data)} às ${rotuloHora(l.enviadoEm)}*\n${l.tipo === 'receita' ? '🟢' : '🔴'} ${formatBRL(l.valor)} · ${l.conta}`,
       )
     }
 
