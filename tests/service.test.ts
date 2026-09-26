@@ -16,12 +16,12 @@ const novoService = () => new Service(new MemoryRepo(), agora)
 describe('Service: lançamentos', () => {
   it('registra despesa e confirma', async () => {
     const r = await novoService().handle(msg('mercado 45,90'))
-    expect(r).toEqual({ texto: '✅ Despesa: mercado R$ 45,90', lancou: true })
+    expect(r).toEqual({ texto: '🔴 Despesa: mercado R$ 45,90', lancou: true })
   })
 
   it('registra receita e confirma', async () => {
     const r = await novoService().handle(msg('+ salário 3000'))
-    expect(r).toEqual({ texto: '✅ Receita: salário R$ 3.000,00', lancou: true })
+    expect(r).toEqual({ texto: '🟢 Receita: salário R$ 3.000,00', lancou: true })
   })
 
   it('ignora texto que não é comando', async () => {
@@ -69,12 +69,12 @@ describe('Service: balancete', () => {
     expect(r?.texto).toBe(
       [
         '📊 Balancete 09/2026',
-        'Receitas: R$ 3.000,00',
+        '🟢 Receitas: R$ 3.000,00',
         '  salário  3.000,00',
-        'Despesas: R$ 512,40',
+        '🔴 Despesas: R$ 512,40',
         '  mercado  345,90',
         '  luz      166,50',
-        'Saldo: R$ 2.487,60',
+        '💰 Saldo: R$ 2.487,60',
       ].join('\n'),
     )
     expect(r?.lancou).toBe(false)
@@ -82,8 +82,8 @@ describe('Service: balancete', () => {
 
   it('mês específico e tudo', async () => {
     const s = await comDados()
-    expect((await s.handle(msg('balancete 08/2026')))?.texto).toContain('Despesas: R$ 10,00')
-    expect((await s.handle(msg('balancete tudo')))?.texto).toContain('Despesas: R$ 522,40')
+    expect((await s.handle(msg('balancete 08/2026')))?.texto).toContain('🔴 Despesas: R$ 10,00')
+    expect((await s.handle(msg('balancete tudo')))?.texto).toContain('🔴 Despesas: R$ 522,40')
   })
 
   it('período vazio', async () => {
@@ -105,10 +105,10 @@ describe('Service: balancete por semana (segunda a domingo)', () => {
     expect(r?.texto).toBe(
       [
         '📊 Balancete semana 14/09 a 20/09',
-        'Receitas: R$ 0,00',
-        'Despesas: R$ 10,00',
+        '🟢 Receitas: R$ 0,00',
+        '🔴 Despesas: R$ 10,00',
         '  mercado  10,00',
-        'Saldo: -R$ 10,00',
+        '💰 Saldo: -R$ 10,00',
       ].join('\n'),
     )
   })
@@ -118,10 +118,10 @@ describe('Service: balancete por semana (segunda a domingo)', () => {
     expect(r?.texto).toBe(
       [
         '📊 Balancete semana 07/09 a 13/09',
-        'Receitas: R$ 0,00',
-        'Despesas: R$ 20,00',
+        '🟢 Receitas: R$ 0,00',
+        '🔴 Despesas: R$ 20,00',
         '  luz  20,00',
-        'Saldo: -R$ 20,00',
+        '💰 Saldo: -R$ 20,00',
       ].join('\n'),
     )
   })
@@ -142,10 +142,10 @@ describe('Service: trimestre e ano', () => {
     expect(r?.texto).toBe(
       [
         '📊 Balancete trimestre 06/2026 a 08/2026',
-        'Receitas: R$ 0,00',
-        'Despesas: R$ 10,00',
+        '🟢 Receitas: R$ 0,00',
+        '🔴 Despesas: R$ 10,00',
         '  mercado  10,00',
-        'Saldo: -R$ 10,00',
+        '💰 Saldo: -R$ 10,00',
       ].join('\n'),
     )
   })
@@ -154,10 +154,10 @@ describe('Service: trimestre e ano', () => {
     const s = await comDados()
     const atual = await s.handle(msg('balancete ano'))
     expect(atual?.texto).toContain('📊 Balancete 2026\n')
-    expect(atual?.texto).toContain('Despesas: R$ 60,00') // 10 + 20 + 30, sem os 5 de 2025
+    expect(atual?.texto).toContain('🔴 Despesas: R$ 60,00') // 10 + 20 + 30, sem os 5 de 2025
     const passado = await s.handle(msg('balancete 2025'))
     expect(passado?.texto).toContain('📊 Balancete 2025\n')
-    expect(passado?.texto).toContain('Despesas: R$ 5,00')
+    expect(passado?.texto).toContain('🔴 Despesas: R$ 5,00')
   })
 })
 
@@ -176,7 +176,7 @@ describe('Service: filtros do balancete', () => {
     expect(r?.texto).toBe(
       [
         '📊 Balancete 09/2026 · despesas',
-        'Despesas: R$ 170,00',
+        '🔴 Despesas: R$ 170,00',
         '  mercado  120,00',
         '  luz      50,00',
       ].join('\n'),
@@ -185,12 +185,12 @@ describe('Service: filtros do balancete', () => {
 
   it('só receitas', async () => {
     const r = await (await comDados()).handle(msg('balancete receitas'))
-    expect(r?.texto).toBe(['📊 Balancete 09/2026 · receitas', 'Receitas: R$ 450,00', '  plantão  450,00'].join('\n'))
+    expect(r?.texto).toBe(['📊 Balancete 09/2026 · receitas', '🟢 Receitas: R$ 450,00', '  plantão  450,00'].join('\n'))
   })
 
   it('quanto gastei só em mercado', async () => {
     const r = await (await comDados()).handle(msg('balancete mercado'))
-    expect(r?.texto).toBe(['📊 Balancete 09/2026 · mercado', 'Despesas: R$ 120,00'].join('\n'))
+    expect(r?.texto).toBe(['📊 Balancete 09/2026 · mercado', '🔴 Despesas: R$ 120,00'].join('\n'))
   })
 
   it('conta com receita e despesa mostra os dois e o saldo', async () => {
@@ -198,7 +198,7 @@ describe('Service: filtros do balancete', () => {
     await s.handle(msg('+ mercado 30')) // reembolso
     const r = await s.handle(msg('balancete mercado'))
     expect(r?.texto).toBe(
-      ['📊 Balancete 09/2026 · mercado', 'Receitas: R$ 30,00', 'Despesas: R$ 120,00', 'Saldo: -R$ 90,00'].join('\n'),
+      ['📊 Balancete 09/2026 · mercado', '🟢 Receitas: R$ 30,00', '🔴 Despesas: R$ 120,00', '💰 Saldo: -R$ 90,00'].join('\n'),
     )
   })
 
@@ -219,22 +219,22 @@ describe('Service: data do lançamento', () => {
     const s = novoService()
     // enviada em 31/08 (antes do "agora" de setembro): cai em agosto, e a confirmação não mostra data
     const r = await s.handle(msg('mercado 10', '2026-08-31T12:00:00Z'))
-    expect(r?.texto).toBe('✅ Despesa: mercado R$ 10,00')
-    expect((await s.handle(msg('balancete 08/2026')))?.texto).toContain('Despesas: R$ 10,00')
+    expect(r?.texto).toBe('🔴 Despesa: mercado R$ 10,00')
+    expect((await s.handle(msg('balancete 08/2026')))?.texto).toContain('🔴 Despesas: R$ 10,00')
     expect((await s.handle(msg('balancete 09/2026')))?.texto).toBe('📊 Balancete 09/2026\nSem lançamentos no período.')
   })
 
   it('com data informada, lança nela e mostra o dia na confirmação', async () => {
     const s = novoService() // mensagens enviadas em 10/09/2026
-    expect((await s.handle(msg('+ plantão 450 ontem')))?.texto).toBe('✅ Receita: plantão R$ 450,00 (09/09)')
-    expect((await s.handle(msg('mercado 10 31/08')))?.texto).toBe('✅ Despesa: mercado R$ 10,00 (31/08)')
-    expect((await s.handle(msg('balancete 08/2026')))?.texto).toContain('Despesas: R$ 10,00')
-    expect((await s.handle(msg('balancete 09/2026')))?.texto).toContain('Receitas: R$ 450,00')
+    expect((await s.handle(msg('+ plantão 450 ontem')))?.texto).toBe('🟢 Receita: plantão R$ 450,00 (09/09)')
+    expect((await s.handle(msg('mercado 10 31/08')))?.texto).toBe('🔴 Despesa: mercado R$ 10,00 (31/08)')
+    expect((await s.handle(msg('balancete 08/2026')))?.texto).toContain('🔴 Despesas: R$ 10,00')
+    expect((await s.handle(msg('balancete 09/2026')))?.texto).toContain('🟢 Receitas: R$ 450,00')
   })
 
   it('sem ano e no futuro assume o ano anterior', async () => {
     const r = await novoService().handle(msg('mercado 10 25/09'))
-    expect(r?.texto).toBe('✅ Despesa: mercado R$ 10,00 (25/09)')
+    expect(r?.texto).toBe('🔴 Despesa: mercado R$ 10,00 (25/09)')
   })
 
   it('recusa data no futuro ou inexistente, sem lançar', async () => {
@@ -267,7 +267,7 @@ describe('Service: ajuda e recuperação', () => {
     expect(await s.handle(msg('ajuda'), { recuperada: true })).toBeNull()
     const r = await s.handle(msg('mercado 10', '2026-08-31T12:00:00Z'), { recuperada: true })
     expect(r?.lancou).toBe(true)
-    expect((await s.handle(msg('balancete 08/2026')))?.texto).toContain('Despesas: R$ 10,00')
+    expect((await s.handle(msg('balancete 08/2026')))?.texto).toContain('🔴 Despesas: R$ 10,00')
   })
 })
 
@@ -295,7 +295,7 @@ describe('Service: agrupamento por IA (só sob pedido)', () => {
     expect(r?.texto).toBe(
       [
         '📊 Balancete 09/2026 · carro (agrupado por IA)',
-        'Despesas: R$ 420,00',
+        '🔴 Despesas: R$ 420,00',
         '  gasolina  300,00',
         '  óleo      120,00',
       ].join('\n'),
@@ -307,11 +307,11 @@ describe('Service: agrupamento por IA (só sob pedido)', () => {
     expect(r?.texto).toBe(
       [
         '📊 Balancete 09/2026 · lazer (agrupado por IA)',
-        'Receitas: R$ 450,00',
+        '🟢 Receitas: R$ 450,00',
         '  plantão  450,00',
-        'Despesas: R$ 200,00',
+        '🔴 Despesas: R$ 200,00',
         '  mercado  200,00',
-        'Saldo: R$ 250,00',
+        '💰 Saldo: R$ 250,00',
       ].join('\n'),
     )
   })
@@ -325,7 +325,7 @@ describe('Service: agrupamento por IA (só sob pedido)', () => {
     // Review Focus 6
     const agr = agrupadorFalso(['gasolina'])
     const s = await servicoComDados(agr)
-    expect((await s.handle(msg('balancete mercado')))?.texto).toBe('📊 Balancete 09/2026 · mercado\nDespesas: R$ 200,00')
+    expect((await s.handle(msg('balancete mercado')))?.texto).toBe('📊 Balancete 09/2026 · mercado\n🔴 Despesas: R$ 200,00')
     expect((await s.handle(msg('balancete carro')))?.texto).toBe('📊 Balancete 09/2026 · carro\nSem lançamentos no período.')
     expect(agr.agrupar).not.toHaveBeenCalled()
   })

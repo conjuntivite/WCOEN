@@ -44,7 +44,7 @@ O núcleo (`parser`, `service`) não conhece o WhatsApp. O `repo` é uma interfa
 1. O Baileys recebe a mensagem; `whatsapp.ts` descarta tudo que não for texto do grupo configurado.
 2. Normaliza para `{ msgId, remetente, texto, enviadoEm }` e chama o `service`.
 3. O `parser` transforma o texto em comando: despesa, receita, balancete, desfazer, ajuda ou ignorar.
-4. O `service` chama o `repo` e monta a resposta (ex.: `✅ Despesa: mercado R$ 45,90`).
+4. O `service` chama o `repo` e monta a resposta (ex.: `🔴 Despesa: mercado R$ 45,90`; receita usa `🟢`).
 5. O adaptador envia a resposta ao grupo com um pequeno atraso.
 
 ### Anti-loop
@@ -101,7 +101,7 @@ Coleção `lancamentos` (banco `wcoen`):
 
 ```
 📊 Balancete 09/2026 · despesas          📊 Balancete 09/2026 · mercado
-Despesas: R$ 512,40                       Despesas: R$ 345,90
+🔴 Despesas: R$ 512,40                     🔴 Despesas: R$ 345,90
   mercado  345,90
   luz      166,50
 ```
@@ -116,12 +116,12 @@ Filtro por natureza mostra só aquele bloco, sem saldo. Filtro por conta mostra 
 
 ```
 📊 Balancete 09/2026
-Receitas: R$ 3.000,00
+🟢 Receitas: R$ 3.000,00
   salário  3.000,00
-Despesas: R$ 512,40
+🔴 Despesas: R$ 512,40
   mercado  345,90
   luz      166,50
-Saldo: R$ 2.487,60
+💰 Saldo: R$ 2.487,60
 ```
 
 ## Agrupamento por IA (opcional)
@@ -137,7 +137,7 @@ Quando o usuário **pede** com `ia` (`balancete ia carro`, `balancete ano ia car
 
 ```
 📊 Balancete 09/2026 · carro (agrupado por IA)
-Despesas: R$ 420,00
+🔴 Despesas: R$ 420,00
   gasolina  300,00
   óleo      120,00
 ```
@@ -148,8 +148,8 @@ Despesas: R$ 420,00
 
 ## Estado do bot: avisos e recuperação
 
-- **Ao ligar:** manda `🟢 Bot online` no grupo.
-- **Ao desligar de forma normal** (SIGINT/SIGTERM): manda `🔴 Bot desligando` antes de sair. Não cobre queda de energia, travamento ou crash; nesses casos o `🟢` seguinte indica que houve uma pausa.
+- **Ao ligar:** manda `🤖 Bot online` no grupo.
+- **Ao desligar de forma normal** (SIGINT/SIGTERM): manda `🤖 Bot desligando` antes de sair. Não cobre queda de energia, travamento ou crash; nesses casos o `🤖 Bot online` seguinte indica que houve uma pausa.
 - **Recuperação de mensagens offline:** ao reconectar, o WhatsApp costuma entregar as mensagens do grupo enviadas com o bot desligado. O bot as processa (o `msgId` único evita duplicidade) usando a **data original** da mensagem, e responde algo como `📥 Recuperei 3 lançamentos feitos enquanto eu estava offline`. Extra, sem garantia de por quanto tempo o WhatsApp retém as mensagens; se não houver resposta, o usuário deve assumir que não foi registrado.
 
 ## Erros e reconexão
@@ -159,7 +159,7 @@ Despesas: R$ 420,00
 - **Sessão invalidada** (aparelho desconectado): o bot para e loga "apague `./auth` e escaneie de novo". Sem loop de tentativas.
 - **Mensagens repetidas:** `msgId` único garante idempotência.
 - **Mongo fora do ar na partida:** falha imediata com mensagem clara.
-- **Falha ao gravar durante o uso:** responde `⚠️ Não consegui salvar, tente de novo`. O ✅ só é enviado depois da gravação confirmada.
+- **Falha ao gravar durante o uso:** responde `⚠️ Não consegui salvar, tente de novo`. A confirmação (`🟢`/`🔴`) só é enviada depois da gravação confirmada.
 - **Erro inesperado:** `try/catch` por mensagem; loga, responde erro genérico e o processo continua.
 
 ## Testes (Vitest)

@@ -23,7 +23,7 @@ const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms))
 export async function iniciarWhatsApp({ groupId, tratar, authDir = 'auth' }: OpcoesWhatsApp) {
   let sock: WASocket | undefined
   let tentativa = 0
-  let primeiraConexao = true // "🟢 Bot online" só na partida do processo, não a cada reconexão
+  let primeiraConexao = true // "🤖 Bot online" só na partida do processo, não a cada reconexão
   let parando = false
   let conectouEm = 0 // segundos, mesma unidade de messageTimestamp
   let recuperados = 0
@@ -64,7 +64,7 @@ export async function iniciarWhatsApp({ groupId, tratar, authDir = 'auth' }: Opc
     }
     if (primeiraConexao) {
       primeiraConexao = false
-      await enviar('🟢 Bot online')
+      await enviar('🤖 Bot online')
     }
   }
 
@@ -146,7 +146,7 @@ export async function iniciarWhatsApp({ groupId, tratar, authDir = 'auth' }: Opc
       parando = true
       await Promise.race([fila, dormir(5000)]) // deixa a mensagem em andamento terminar (com prazo)
       try {
-        await enviar('🔴 Bot desligando')
+        await enviar('🤖 Bot desligando')
       } catch (err) {
         console.error('não consegui avisar o desligamento', err)
       }

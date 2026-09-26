@@ -76,9 +76,9 @@ export class Service {
           enviadoEm: msg.enviadoEm,
         })
         if (r === 'duplicado') return null
-        const rotulo = cmd.natureza === 'receita' ? 'Receita' : 'Despesa'
+        const rotulo = cmd.natureza === 'receita' ? '🟢 Receita' : '🔴 Despesa'
         const dia = cmd.data ? ` (${rotuloDia(data)})` : ''
-        return { texto: `✅ ${rotulo}: ${cmd.conta} ${formatBRL(cmd.valor)}${dia}`, lancou: true }
+        return { texto: `${rotulo}: ${cmd.conta} ${formatBRL(cmd.valor)}${dia}`, lancou: true }
       }
       case 'desfazer': {
         const l = await this.repo.desfazerUltimo()
@@ -150,9 +150,9 @@ export class Service {
     const comDespesas = mostrar('despesa', b.despesas)
     return [
       cabecalho,
-      ...(comReceitas ? bloco('Receitas', b.receitas) : []),
-      ...(comDespesas ? bloco('Despesas', b.despesas) : []),
-      ...(comReceitas && comDespesas ? [`Saldo: ${formatBRL(soma(b.receitas) - soma(b.despesas))}`] : []),
+      ...(comReceitas ? bloco('🟢 Receitas', b.receitas) : []),
+      ...(comDespesas ? bloco('🔴 Despesas', b.despesas) : []),
+      ...(comReceitas && comDespesas ? [`💰 Saldo: ${formatBRL(soma(b.receitas) - soma(b.despesas))}`] : []),
     ].join('\n')
   }
 }

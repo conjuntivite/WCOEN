@@ -12,7 +12,7 @@ Requer Node >= 20.6 (o `npm start` usa `--env-file`).
 4. Crie um grupo no WhatsApp só seu.
 5. `npm start` com `GROUP_ID` vazio: escaneie o QR (WhatsApp > Aparelhos conectados). O bot lista os grupos e sai. Logo depois de escanear o QR, uma linha como `Conexão caiu (código 515); nova tentativa em 1s` é NORMAL e esperada, não é erro.
 6. Cole o ID do grupo (`...@g.us`) em `GROUP_ID` no `.env`.
-7. `npm start` de novo. O bot avisa `🟢 Bot online` no grupo.
+7. `npm start` de novo. O bot avisa `🤖 Bot online` no grupo.
 
 ## Comandos (no grupo)
 

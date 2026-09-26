@@ -129,6 +129,15 @@ describe('parse: ignorados', () => {
     ['balancete 00/1900'], // Review Focus 5
     ['mercado 45\nluz 30'], // Review Focus 1
     ['✅ Despesa: mercado R$ 45,90'], // Review Focus 2
+    // respostas do próprio bot (anti-eco): nenhuma pode voltar a ser lida como comando
+    ['🔴 Despesa: mercado R$ 45,90'],
+    ['🟢 Receita: plantão R$ 70,00 (09/09)'],
+    ['🔴 Despesa: role na avenida R$ 130,00'],
+    ['🤖 Bot online'],
+    ['🤖 Bot desligando'],
+    ['🟢 Receitas: R$ 3.000,00'],
+    ['🔴 Despesas: R$ 512,40'],
+    ['💰 Saldo: R$ 2.487,60'],
     ['↩️ Desfeito: mercado R$ 45,90'],
     ['⚠️ Não consegui salvar, tente de novo 10'],
     [`${'palavra '.repeat(10)}45`], // conta com mais de 40 caracteres

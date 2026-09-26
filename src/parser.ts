@@ -91,7 +91,7 @@ export function parse(texto: string): Comando | null {
   const valorPrimeiro = sinal !== null && parseValor(itens[0]) !== null
   const valor = parseValor(valorPrimeiro ? itens[0] : itens[itens.length - 1])
   const conta = (valorPrimeiro ? itens.slice(1) : itens.slice(0, -1)).join(' ')
-  // conta começar com letra também barra as respostas do próprio bot (✅, ↩️, ⚠️...)
+  // conta começar com letra também barra as respostas do próprio bot (🟢, 🔴, 🤖, ↩️, ⚠️...)
   if (valor === null || conta.length > MAX_CONTA || !/^\p{L}/u.test(conta)) return null
 
   return { tipo: 'lancamento', natureza: sinal === '+' ? 'receita' : 'despesa', conta, valor, ...(data && { data }) }
