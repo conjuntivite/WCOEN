@@ -22,15 +22,16 @@ Requer Node >= 20.6 (o `npm start` usa `--env-file`).
 | `+ 70 plantão` ou `+ plantão 70` | receita (o `+` no início marca receita; o valor pode vir antes ou depois) |
 | `salário 3000`, `plantão 450`, `venda beck 120` | receita **sem precisar do `+`**, quando a descrição começa com uma palavra de receita: salário, décimo terceiro, plantão, freela/freelance, comissão, bônus, venda(s), reembolso, rendimento(s), pró-labore. O sinal `-` sempre vence (`- salário 100` é despesa). Palavras ambíguas (`pix`, `pagamento`, `aluguel`) exigem o `+` |
 | `- 130 role na avenida` ou `- role 130` | despesa (o `-` no início marca despesa; o valor pode vir antes ou depois) |
-| `balancete` / `balancete mensal` | extrato do mês atual (data, hora, receitas e despesas), totais e resumo dos últimos 12 meses |
-| `balancete semanal` | extrato da semana atual (domingo a sábado) e resumo das últimas 4 semanas |
-| `balancete anual` | o ano atual agrupado por mês e resumo dos últimos 5 anos |
-| `auditoria` / `auditoria mensal` / `semanal` / `anual` | totais, ranking de gastos, comparação com o período anterior e dicas da IA (ver abaixo) |
+| `balancete` | os movimentos **de hoje** (dia, hora, valor e descrição de cada um) e o total do dia |
+| `balancete mensal` | resumo (receitas, despesas e saldo) do mês atual e dos meses anteriores, até 12 |
+| `balancete semanal` | resumo da semana atual (domingo a sábado) e das 3 anteriores |
+| `balancete anual` | resumo do ano atual e dos 4 anteriores |
+| `auditoria` (+ `semanal` ou `anual`) | ranking dos maiores gastos, comparação com o período anterior e sugestões da IA |
 | `+ plantão 450 ontem`, `mercado 45 15/09` | data opcional no fim: `hoje`, `ontem`, `anteontem`, `dd/mm`, `dd/mm/aaaa`. Sem data, vale o dia do envio da mensagem |
 | `desfazer` | desfaz o último lançamento |
 | `ajuda` | lista os comandos |
 
-Nos resumos, períodos sem movimento não aparecem. A hora do extrato é a do envio da mensagem; a data é a do lançamento. Qualquer outro uso de `balancete` (`trimestre`, `tudo`, uma conta...) responde com a dica dos três relatórios. O mesmo vale para `auditoria <outra coisa>`.
+Nos resumos (mensal, semanal e anual), períodos sem movimento não aparecem. No balancete do dia, a hora é a do envio da mensagem e a data é a do lançamento. Qualquer outro uso de `balancete` (`trimestre`, `tudo`, uma conta...) responde com a dica dos comandos; o mesmo vale para `auditoria <outra coisa>`.
 
 A auditoria pode levar até ~45 s (chamada à IA); o bot processa uma mensagem por vez, então o que for digitado nesse intervalo espera (um desligamento nessa janela pode perdê-lo).
 

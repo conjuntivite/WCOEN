@@ -6,7 +6,7 @@ Data: 2026-09-25 (atualizada em 2026-09-26)
 
 Registrar despesas e receitas por mensagens de texto num grupo do WhatsApp (só o usuário) e gerar um balancete (receitas − despesas por conta). Sem a API oficial do WhatsApp (paga).
 
-**Sucesso:** digitar `mercado 45,90` no grupo e receber a confirmação; digitar `balancete` e ver o extrato e os resumos do mês.
+**Sucesso:** digitar `mercado 45,90` no grupo e receber a confirmação; digitar `balancete` e ver os movimentos do dia; digitar `balancete mensal` e ver o resumo dos meses.
 
 ## Decisões
 
@@ -18,7 +18,7 @@ Registrar despesas e receitas por mensagens de texto num grupo do WhatsApp (só 
 | Execução | PC Windows do usuário, processo único |
 | Stack | Node.js + TypeScript + Baileys |
 | Banco | MongoDB existente do usuário (Docker), banco separado `wcoen` |
-| Comandos | Texto livre para lançar; `balancete mensal\|semanal\|anual` e `auditoria` para consultar |
+| Comandos | Texto livre para lançar; `balancete` (dia), `balancete mensal\|semanal\|anual` (resumos) e `auditoria` para consultar |
 | IA (opcional) | OpenRouter, só na `auditoria` (sugestões sobre números calculados em código); **somente modelos pagos**, sem fallback gratuito; chamada via `fetch` nativo; desligada sem chave |
 | Trocar para número dedicado | Só o adaptador WhatsApp muda: novo QR code, número no grupo, `GROUP_ID` no `.env` |
 
@@ -80,9 +80,10 @@ Coleção `lancamentos` (banco `wcoen`):
 | `+ salário 3000` / `+ 70 plantão` | Receita. O `+` inicial marca receita (com ou sem espaço depois) e o valor pode vir depois ou antes da descrição |
 | `salário 3000`, `plantão vogue 40`, `venda beck 120` | Receita **sem sinal**: se a descrição começa com uma palavra de receita (sem diferenciar acento nem maiúsculas: salário, décimo terceiro, plantão, freela, freelance, comissão, bônus, venda, vendas, reembolso, rendimento(s), pró-labore), o lançamento é receita. Vale só a palavra inteira no começo (`vendaval 50` e `pix salário 100` seguem despesa). **O sinal explícito sempre vence** (`- salário 100` é despesa, `+ mercado 50` é receita). Palavras ambíguas (`pix`, `pagamento`, `aluguel`) ficam de fora: para elas vale o `+` |
 | `- 130 role na avenida` / `- role 130` | Despesa. O `-` inicial marca despesa, com as mesmas duas ordens. A descrição vira o nome da conta (até 40 caracteres, começando com letra). Sem sinal, `mercado 45,90` continua sendo despesa com o valor no fim |
-| `balancete` / `balancete mensal` | Extrato do mês atual (data e hora, receitas e despesas), totais e resumo dos últimos 12 meses com movimento |
-| `balancete semanal` | Extrato da semana atual (domingo a sábado), totais e resumo das últimas 4 semanas com movimento |
-| `balancete anual` | O ano atual agrupado por mês, totais e resumo dos últimos 5 anos com movimento |
+| `balancete` / `balancete hoje` | Os movimentos **de hoje** (dia, hora do envio, valor e descrição) e o total do dia |
+| `balancete mensal` | Resumo (receitas, despesas e saldo) do mês atual e dos anteriores, até 12 meses, só os com movimento |
+| `balancete semanal` | Resumo da semana atual (domingo a sábado) e das 3 anteriores, só as com movimento |
+| `balancete anual` | Resumo do ano atual e dos 4 anteriores, só os com movimento |
 | `auditoria` / `auditoria mensal\|semanal\|anual` | Ranking dos maiores gastos e comparação com o período anterior (calculados em código) e sugestões da IA (opcional; ver *Auditoria com IA*) |
 | `balancete <outra coisa>` / `auditoria <outra coisa>` | Dica de uso (os comandos antigos `trimestre`, `tudo`, `receitas`, `despesas`, `<conta>` e `ia` não existem mais) |
 | `desfazer` | Desfaz o último lançamento enviado que não foi desfeito |
@@ -93,45 +94,49 @@ Coleção `lancamentos` (banco `wcoen`):
 
 **Fuso:** limites de mês e de semana em `America/Sao_Paulo`; armazenamento em UTC.
 
-**Relatórios:** `balancete` (= `balancete mensal`), `balancete semanal` e `balancete anual`. Cada um traz, em blocos separados por linha em branco: o **extrato** cronológico do período atual (duas linhas por lançamento para não quebrar no celular: `*dd/mm às HH:mm*` em cima, e `🟢/🔴 R$ valor · conta` embaixo; a data é a do lançamento e a hora é a do **envio** da mensagem), os **totais** (receitas, despesas e saldo) e o **resumo** dos períodos anteriores (só os que têm movimento, do mais recente ao mais antigo; cada período com o `*rótulo*` e depois `🟢 receitas`, `🔴 despesas` e `💰 saldo`, um por linha, sem "R$" e com o ícone junto do valor, para não quebrar no celular).
+**Balancete do dia:** `balancete` (ou `balancete hoje`) mostra os movimentos de **hoje** (dia local, -03:00), em duas linhas por lançamento para não quebrar no celular: `*dd/mm às HH:mm*` em cima (a data é a do lançamento e a hora é a do **envio** da mensagem) e `🟢/🔴 R$ valor · descrição` embaixo; depois o total do dia (receitas, despesas e saldo). Sem lançamentos: `Sem lançamentos hoje.`
 
-- **Mensal:** extrato do mês atual + últimos 12 meses (o atual incluído).
-- **Semanal:** extrato da semana atual (domingo 00:00 a sábado 23:59) + últimas 4 semanas (a atual incluída).
-- **Anual:** o ano atual agrupado por mês (só meses com movimento) + últimos 5 anos (o atual incluído).
-- Sem lançamentos no período atual: `Sem lançamentos neste mês.` (ou `nesta semana.` / `neste ano.`); o resumo ainda aparece se houver histórico. Lançamentos desfeitos nunca aparecem.
-- Qualquer outro texto depois de `balancete` responde `⚠️ Use *balancete mensal*, *balancete semanal* ou *balancete anual*.`
-- Um extrato muito grande não tem limite de tamanho (o limite de texto do WhatsApp só seria atingido com mais de mil lançamentos no mês).
+**Resumos:** `balancete mensal`, `balancete semanal` e `balancete anual` mostram **apenas** receitas, despesas e saldo de cada período, sem extrato. Cada período tem o `*rótulo*` e depois três linhas, `🟢 R$ …`, `🔴 R$ …` e `💰 R$ …` (um item por linha, com o ícone junto do valor), e os períodos ficam separados por linha em branco, do mais recente ao mais antigo.
+
+- **Mensal:** o mês atual e os anteriores, até 12 (o atual incluído); rótulo `MM/AAAA`.
+- **Semanal:** a semana atual (domingo 00:00 a sábado 23:59) e as 3 anteriores; rótulo `dd/mm a dd/mm`.
+- **Anual:** o ano atual e os 4 anteriores; rótulo `AAAA`.
+- Períodos sem movimento não aparecem. Nenhum movimento em nenhum período: `Sem lançamentos no período.` Lançamentos desfeitos nunca aparecem.
+- Qualquer outro texto depois de `balancete` responde `⚠️ Use *balancete*, *balancete mensal*, *balancete semanal* ou *balancete anual*.`
 
 **Data do lançamento:** só é considerada quando o usuário a informa. Sem data, vale a data de envio da mensagem. Para informar, escreva no fim do lançamento: `hoje`, `ontem`, `anteontem`, `dd/mm` ou `dd/mm/aaaa` (ex.: `+ plantão 450 ontem`, `mercado 45,90 15/09`). A confirmação de lançamento com data mostra o dia (`🟢 *Receita* · plantão · R$ 450,00 · 📅 09/09`); sem data, não mostra. Sem ano, usa o ano da mensagem; se isso cair no futuro, usa o ano anterior. Data futura explícita ou inexistente (`29/02/2026`) é recusada com `⚠️ Data inválida ou no futuro, não lancei`, sem lançar. O lançamento com data fica no meio-dia local do dia informado. Datas relativas contam a partir do dia em que a mensagem foi enviada.
 
 **Risco conhecido:** frases que terminam em número (ex.: "reunião às 15") viram lançamento. Mitigação: toda resposta confirma o que foi lançado e `desfazer` corrige.
 
-**Exemplo de `balancete mensal`** (dados de teste; hora local do envio):
+**Exemplo de `balancete`** (o dia):
 
 ```
-📊 *Balancete mensal · 09/2026*
+📊 *Balancete · hoje 15/09*
 
-📅 *Extrato*
-*05/09 às 09:00*
-🟢 R$ 3.000,00 · salário
-*10/09 às 12:30*
-🔴 R$ 345,90 · mercado
-*12/09 às 15:05*
-🔴 R$ 166,50 · luz
+*15/09 às 09:30*
+🔴 R$ 45,90 · mercado
+*15/09 às 12:05*
+🟢 R$ 450,00 · plantão
 
-🟢 *Receitas* — R$ 3.000,00
-🔴 *Despesas* — R$ 512,40
-💰 *Saldo: R$ 2.487,60*
+🟢 *Receitas* — R$ 450,00
+🔴 *Despesas* — R$ 45,90
+💰 *Saldo: R$ 404,10*
+```
 
-📈 *Últimos meses* (até 12, só com movimento)
+**Exemplo de `balancete mensal`:**
+
+```
+📊 *Balancete mensal*
+
 *09/2026*
-🟢 3.000,00
-🔴 512,40
-💰 2.487,60
+🟢 R$ 3.000,00
+🔴 R$ 512,40
+💰 R$ 2.487,60
+
 *08/2026*
-🟢 0,00
-🔴 10,00
-💰 -10,00
+🟢 R$ 0,00
+🔴 R$ 10,00
+💰 -R$ 10,00
 ```
 
 ## Auditoria com IA (opcional)
