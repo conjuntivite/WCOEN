@@ -26,6 +26,7 @@ Requer Node >= 20.6 (o `npm start` usa `--env-file`).
 | `balancete mensal` | resumo (receitas, despesas e saldo) do mês atual e dos meses anteriores, até 12 |
 | `balancete semanal` | resumo da semana atual (domingo a sábado) e das 3 anteriores |
 | `balancete anual` | resumo do ano atual e dos 4 anteriores |
+| `extrato` / `extrato 2` | todos os lançamentos, do mais recente ao mais antigo, **20 por página**; no fim da página o bot diz qual comando digitar para ver a próxima (`extrato 2`, `extrato 3`...) |
 | `auditoria` (+ `semanal` ou `anual`) | ranking dos maiores gastos, comparação com o período anterior e sugestões da IA |
 | `+ plantão 450 ontem`, `mercado 45 15/09` | data opcional no fim: `hoje`, `ontem`, `anteontem`, `dd/mm`, `dd/mm/aaaa`. Sem data, vale o dia do envio da mensagem |
 | `desfazer` | desfaz o último lançamento |

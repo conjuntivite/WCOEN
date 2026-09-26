@@ -84,6 +84,7 @@ Coleção `lancamentos` (banco `wcoen`):
 | `balancete mensal` | Resumo (receitas, despesas e saldo) do mês atual e dos anteriores, até 12 meses, só os com movimento |
 | `balancete semanal` | Resumo da semana atual (domingo a sábado) e das 3 anteriores, só as com movimento |
 | `balancete anual` | Resumo do ano atual e dos 4 anteriores, só os com movimento |
+| `extrato` / `extrato N` | Todos os lançamentos, do mais recente ao mais antigo, **20 por página**; `extrato N` mostra a página N. O bot não manda várias mensagens: no fim de cada página diz qual comando digitar para a próxima |
 | `auditoria` / `auditoria mensal\|semanal\|anual` | Ranking dos maiores gastos e comparação com o período anterior (calculados em código) e sugestões da IA (opcional; ver *Auditoria com IA*) |
 | `balancete <outra coisa>` / `auditoria <outra coisa>` | Dica de uso (os comandos antigos `trimestre`, `tudo`, `receitas`, `despesas`, `<conta>` e `ia` não existem mais) |
 | `desfazer` | Desfaz o último lançamento enviado que não foi desfeito |
@@ -103,6 +104,8 @@ Coleção `lancamentos` (banco `wcoen`):
 - **Anual:** o ano atual e os 4 anteriores; rótulo `AAAA`.
 - Períodos sem movimento não aparecem. Nenhum movimento em nenhum período: `Sem lançamentos no período.` Lançamentos desfeitos nunca aparecem.
 - Qualquer outro texto depois de `balancete` responde `⚠️ Use *balancete*, *balancete mensal*, *balancete semanal* ou *balancete anual*.`
+
+**Extrato paginado:** `extrato` (página 1) e `extrato N` (página N). Ordem estritamente decrescente: `data` do lançamento, depois `enviadoEm`, depois ordem de inserção (do mais recente ao mais antigo). 20 lançamentos por página; cada lançamento em duas linhas (`*dd/mm às HH:mm*` e `🟢/🔴 R$ valor · descrição`). A página 1 traz, no topo, os **totais gerais** (receitas, despesas e saldo de todos os lançamentos); as demais só os lançamentos. Rodapé: `➡️ Próxima página: digite *extrato 2*` quando há mais páginas; `✅ Fim do extrato` na última (quando há mais de uma). Página além do fim: `⚠️ O extrato tem só N página(s). Digite *extrato* para começar.` Sem lançamentos: `Sem lançamentos.` Formas inválidas (`extrato 0`, `extrato abc`, `extrato 2 3`): `⚠️ Use *extrato* ou *extrato 2* (o número da página).` `extrato` é palavra reservada (`extrato 500` é pedido de página, nunca despesa). O extrato completo é carregado do banco e recortado a cada pedido (adequado a um bot pessoal).
 
 **Data do lançamento:** só é considerada quando o usuário a informa. Sem data, vale a data de envio da mensagem. Para informar, escreva no fim do lançamento: `hoje`, `ontem`, `anteontem`, `dd/mm` ou `dd/mm/aaaa` (ex.: `+ plantão 450 ontem`, `mercado 45,90 15/09`). A confirmação de lançamento com data mostra o dia (`🟢 *Receita* · plantão · R$ 450,00 · 📅 09/09`); sem data, não mostra. Sem ano, usa o ano da mensagem; se isso cair no futuro, usa o ano anterior. Data futura explícita ou inexistente (`29/02/2026`) é recusada com `⚠️ Data inválida ou no futuro, não lancei`, sem lançar. O lançamento com data fica no meio-dia local do dia informado. Datas relativas contam a partir do dia em que a mensagem foi enviada.
 
