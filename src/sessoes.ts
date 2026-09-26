@@ -46,6 +46,8 @@ type Sessao = {
   grupoId?: string
   tentativa: number
   encerrada: boolean // desconectar()/encerrar(): nunca reconectar
+  geracao: number // sobe a cada iniciar()/desconectar(); um abrir() de geração antiga se aborta
+  saida?: Promise<void> // desconectar() em andamento (apagar credenciais); iniciar() espera por ele
   conectouEm: number // segundos, mesma unidade de messageTimestamp
   recuperados: number
   fila: Promise<void> // uma mensagem por vez, na ordem em que chegam
@@ -71,7 +73,7 @@ export function criarSessoes(deps: DepsSessoes) {
   function sessaoDe(contaId: string): Sessao {
     let s = sessoes.get(contaId)
     if (!s) {
-      s = { contaId, estado: 'desconectado', service: deps.criarService(contaId), tentativa: 0, encerrada: false, conectouEm: 0, recuperados: 0, fila: Promise.resolve(), enviados: new Set(), ouvintes: new Set() }
+      s = { contaId, estado: 'desconectado', service: deps.criarService(contaId), tentativa: 0, encerrada: false, geracao: 0, conectouEm: 0, recuperados: 0, fila: Promise.resolve(), enviados: new Set(), ouvintes: new Set() }
       sessoes.set(contaId, s)
     }
     return s
@@ -115,13 +117,20 @@ export function criarSessoes(deps: DepsSessoes) {
     })
   }
 
-  async function abrir(s: Sessao) {
+  async function abrir(s: Sessao, g = s.geracao) {
+    const obsoleta = () => s.encerrada || s.geracao !== g // desconectar()/iniciar() aconteceu enquanto esperávamos
     try {
       const auth = await deps.criarAuth(s.contaId)
-      if (s.encerrada) return
+      if (obsoleta()) return
       const sock = await deps.criarSocket(auth)
+      if (obsoleta()) {
+        try {
+          sock.end(undefined)
+        } catch {}
+        return
+      }
       s.sock = sock
-      ouvir(s, sock, 'creds.update', () => auth.saveCreds())
+      ouvir(s, sock, 'creds.update', () => (s.sock === sock ? auth.saveCreds() : undefined)) // socket antigo não regrava credenciais apagadas
       ouvir(s, sock, 'connection.update', (u) => aoAtualizar(s, sock, u))
       ouvir(s, sock, 'messages.upsert', ({ messages, type }: { messages: WAMessage[]; type: string }) => {
         // 'append' = mensagens que chegaram offline (e ecos dos envios do próprio bot, barrados por `enviados`)
@@ -260,9 +269,19 @@ export function criarSessoes(deps: DepsSessoes) {
       }
       s.encerrada = false
       s.tentativa = 0
+      const g = ++s.geracao
       mudar(s, { estado: 'conectando', qr: undefined, codigo: undefined, aviso: undefined }) // síncrono: fecha a porta para o clique duplo
-      s.grupoId = await deps.grupoDa(contaId).catch(() => undefined)
-      await abrir(s)
+      await s.saida // um desconectar() anterior ainda apagando credenciais não pode apagar as da sessão nova
+      try {
+        s.grupoId = await deps.grupoDa(contaId)
+      } catch (err) {
+        // sem o grupo a conta abriria conectada e muda (as mensagens seriam descartadas): melhor falhar à vista
+        log(s, 'grupoDa', err)
+        mudar(s, { estado: 'desconectado', qr: undefined, codigo: undefined, aviso: 'erro' })
+        return
+      }
+      if (s.geracao !== g) return
+      await abrir(s, g)
     },
 
     visao: (contaId: string): Visao => visaoDe(sessaoDe(contaId)),
@@ -300,19 +319,27 @@ export function criarSessoes(deps: DepsSessoes) {
 
     async desconectar(contaId: string): Promise<void> {
       const s = sessaoDe(contaId)
+      s.geracao++
       s.encerrada = true
       limparTimers(s)
       const sock = s.sock
       s.sock = undefined
-      if (sock) {
-        await sock.logout().catch(() => {}) // sem sessão aberta o logout falha; tudo bem
-        try {
-          sock.end(undefined)
-        } catch {}
-      }
-      await Promise.all([deps.apagarAuth(contaId), deps.marcarConectada(contaId, false)])
       s.cacheGrupos = undefined
-      mudar(s, { estado: 'desconectado', qr: undefined, codigo: undefined, aviso: undefined })
+      mudar(s, { estado: 'desconectado', qr: undefined, codigo: undefined, aviso: undefined }) // síncrono: cliques seguintes já veem desconectado
+      // o logout avisa o WhatsApp, mas pode demorar (rede ruim): não trava o portal nem a sessão seguinte
+      if (sock) {
+        sock
+          .logout()
+          .catch(() => {}) // sem sessão aberta o logout falha; tudo bem
+          .finally(() => {
+            try {
+              sock.end(undefined)
+            } catch {}
+          })
+      }
+      const saida = Promise.all([deps.apagarAuth(contaId), deps.marcarConectada(contaId, false)]).then(() => undefined)
+      s.saida = saida.catch((err) => log(s, 'desconectar', err))
+      await saida
     },
 
     // reinício do servidor: uma conta a cada `intervaloMs`, para não abrir todas as conexões de uma vez

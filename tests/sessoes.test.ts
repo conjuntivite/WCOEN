@@ -349,3 +349,52 @@ describe('desconectar, assinar, reabrir, encerrar', () => {
     expect(m.socks).toHaveLength(2)
   })
 })
+
+describe('corridas entre desconectar e conectar (revisão final)', () => {
+  it('desconectar durante a abertura do socket: o socket tardio é encerrado e não ressuscita a sessão', async () => {
+    let liberar!: () => void
+    const portao = new Promise<void>((r) => (liberar = r))
+    const socks: SocketFalso[] = []
+    const m = montar({
+      criarSocket: async () => {
+        await portao
+        const s = new SocketFalso()
+        socks.push(s)
+        return s
+      },
+    })
+    const abrindo = m.sessoes.iniciar('a')
+    await new Promise((r) => setTimeout(r, 10)) // deixa o abrir chegar no criarSocket
+    await m.sessoes.desconectar('a')
+    liberar()
+    await abrindo
+    expect(socks[0].end).toHaveBeenCalled()
+    socks[0].emitir('connection.update', { connection: 'open' })
+    expect(m.sessoes.visao('a').estado).toBe('desconectado')
+    expect(m.conectadas.get('a')).not.toBe(true)
+  })
+
+  it('desconectar não espera o logout lento e não destrói a sessão seguinte (um socket só)', async () => {
+    const m = montar()
+    await abrir(m)
+    m.socks[0].logout.mockImplementation(() => new Promise<void>(() => {})) // logout que nunca volta
+    const espera = (p: Promise<unknown>) => Promise.race([p.then(() => 'ok'), new Promise((r) => setTimeout(() => r('preso'), 100))])
+    expect(await espera(m.sessoes.desconectar('a'))).toBe('ok')
+    expect(await espera(m.sessoes.desconectar('a'))).toBe('ok') // clique duplo
+    await m.sessoes.iniciar('a')
+    expect(m.socks).toHaveLength(2)
+    m.socks[1].emitir('connection.update', { qr: 'QR2' })
+    await m.sessoes.iniciar('a')
+    expect(m.socks).toHaveLength(2)
+    expect(m.socks[1].end).not.toHaveBeenCalled()
+    expect(m.sessoes.visao('a')).toEqual({ estado: 'aguardando_qr', qr: 'QR2' })
+  })
+
+  it('falha ao ler o grupo salvo na abertura não deixa a conta conectada e muda: erro visível e logado', async () => {
+    const m = montar({ grupoDa: async () => { throw new Error('mongo fora') } })
+    await m.sessoes.iniciar('a')
+    expect(m.sessoes.visao('a')).toEqual({ estado: 'desconectado', aviso: 'erro' })
+    expect(m.socks).toHaveLength(0)
+    expect(console.error).toHaveBeenCalled()
+  })
+})
