@@ -11,5 +11,6 @@ export interface Repo {
   add(l: NovoLancamento): Promise<'ok' | 'duplicado'>
   desfazerUltimo(): Promise<Lancamento | null> // último por enviadoEm (desempate: inserção), ignora já desfeitos
   contas(intervalo: Intervalo): Promise<string[]> // nomes distintos de conta (sem desfeitos), em ordem crescente (`.sort()`)
+  extrato(intervalo: { de: Date; ate: Date }): Promise<Lancamento[]> // sem desfeitos, data em [de, ate), ordem: data, enviadoEm, inserção
   balancete(intervalo: Intervalo, filtro?: Filtro): Promise<Balancete> // ignora desfeitos; filtro restringe por natureza, por conta ou por várias contas
 }

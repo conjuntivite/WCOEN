@@ -33,6 +33,17 @@ export function intervaloDaSemana(agora: Date, passada = false): { de: Date; ate
   }
 }
 
+// semana de domingo 00:00 a domingo 00:00 seguinte (local); deslocamento em semanas
+export function intervaloDaSemanaDomingo(agora: Date, deslocamento = 0): { de: Date; ate: Date } {
+  const h = diaLocal(agora)
+  const diaSemana = new Date(Date.UTC(h.ano, h.mes - 1, h.dia)).getUTCDay() // 0 = domingo
+  const domingo = h.dia - diaSemana + deslocamento * 7
+  return {
+    de: new Date(Date.UTC(h.ano, h.mes - 1, domingo, OFFSET_H)),
+    ate: new Date(Date.UTC(h.ano, h.mes - 1, domingo + 7, OFFSET_H)),
+  }
+}
+
 export function intervaloDoTrimestre(agora: Date): { de: Date; ate: Date } {
   const { ano, mes } = diaLocal(agora)
   return {
@@ -53,6 +64,11 @@ export function rotuloMes(d: Date): string {
 export function rotuloDia(d: Date): string {
   const { mes, dia } = diaLocal(d)
   return `${String(dia).padStart(2, '0')}/${String(mes).padStart(2, '0')}`
+}
+
+export function rotuloHora(d: Date): string {
+  const l = new Date(d.getTime() - OFFSET_H * 3600_000)
+  return `${String(l.getUTCHours()).padStart(2, '0')}:${String(l.getUTCMinutes()).padStart(2, '0')}`
 }
 
 export function resolverData(d: DataLanc, ref: Date): Date | null {

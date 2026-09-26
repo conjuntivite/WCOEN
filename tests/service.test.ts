@@ -378,6 +378,7 @@ describe('Service: falhas', () => {
     desfazerUltimo: vi.fn().mockRejectedValue(new Error('mongo fora')),
     balancete: vi.fn().mockRejectedValue(new Error('mongo fora')),
     contas: vi.fn().mockRejectedValue(new Error('mongo fora')),
+    extrato: vi.fn().mockRejectedValue(new Error('mongo fora')),
   }
 
   it('não confirma com ✅ quando a gravação falha', async () => {

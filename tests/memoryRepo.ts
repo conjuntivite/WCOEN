@@ -33,6 +33,14 @@ export class MemoryRepo implements Repo {
     return [...new Set(nomes)].sort()
   }
 
+  async extrato(intervalo: { de: Date; ate: Date }) {
+    return this.itens
+      .map((item, ordem) => ({ item, ordem }))
+      .filter((x) => !x.item.desfeitoEm && x.item.data.getTime() >= intervalo.de.getTime() && x.item.data.getTime() < intervalo.ate.getTime())
+      .sort((a, b) => a.item.data.getTime() - b.item.data.getTime() || a.item.enviadoEm.getTime() - b.item.enviadoEm.getTime() || a.ordem - b.ordem)
+      .map((x) => ({ ...x.item }))
+  }
+
   async balancete(intervalo: Intervalo, filtro?: Filtro): Promise<Balancete> {
     const somas = { receita: new Map<string, number>(), despesa: new Map<string, number>() }
     for (const i of this.itens) {

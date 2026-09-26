@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mesAtual, intervaloDoMes, intervaloDaSemana, intervaloDoTrimestre, intervaloDoAno, rotuloDia, rotuloMes, resolverData } from '../src/period'
+import { mesAtual, intervaloDoMes, intervaloDaSemana, intervaloDaSemanaDomingo, rotuloHora, intervaloDoTrimestre, intervaloDoAno, rotuloDia, rotuloMes, resolverData } from '../src/period'
 
 describe('period (America/Sao_Paulo, -03:00)', () => {
   it('mesAtual usa o fuso local', () => {
@@ -114,5 +114,29 @@ describe('resolverData', () => {
     expect(resolverData({ tipo: 'dia', dia: 25, mes: 9, ano: 2026 }, ref)).toBeNull()
     expect(resolverData({ tipo: 'dia', dia: 29, mes: 2, ano: 2026 }, ref)).toBeNull()
     expect(resolverData({ tipo: 'dia', dia: 31, mes: 4 }, ref)).toBeNull()
+  })
+
+  it('intervaloDaSemanaDomingo vai de domingo 00:00 a domingo 00:00 local', () => {
+    const iso = (r: { de: Date; ate: Date }) => [r.de.toISOString(), r.ate.toISOString()]
+    const terca = new Date('2026-09-15T12:00:00Z')
+    expect(iso(intervaloDaSemanaDomingo(terca))).toEqual(['2026-09-13T03:00:00.000Z', '2026-09-20T03:00:00.000Z'])
+    expect(iso(intervaloDaSemanaDomingo(terca, -1))).toEqual(['2026-09-06T03:00:00.000Z', '2026-09-13T03:00:00.000Z'])
+    expect(iso(intervaloDaSemanaDomingo(terca, -3))).toEqual(['2026-08-23T03:00:00.000Z', '2026-08-30T03:00:00.000Z'])
+  })
+
+  it('intervaloDaSemanaDomingo: sábado 23:59 ainda é a semana; domingo 00:00 abre a próxima', () => {
+    expect(intervaloDaSemanaDomingo(new Date('2026-09-20T02:59:00Z')).de.toISOString()).toBe('2026-09-13T03:00:00.000Z')
+    expect(intervaloDaSemanaDomingo(new Date('2026-09-20T03:00:00Z')).de.toISOString()).toBe('2026-09-20T03:00:00.000Z')
+  })
+
+  it('intervaloDaSemanaDomingo atravessa virada de mês e de ano', () => {
+    expect(intervaloDaSemanaDomingo(new Date('2026-09-02T12:00:00Z')).de.toISOString()).toBe('2026-08-30T03:00:00.000Z')
+    expect(intervaloDaSemanaDomingo(new Date('2026-01-02T12:00:00Z')).de.toISOString()).toBe('2025-12-28T03:00:00.000Z')
+  })
+
+  it('rotuloHora é HH:mm no fuso local', () => {
+    expect(rotuloHora(new Date('2026-09-10T15:30:00Z'))).toBe('12:30')
+    expect(rotuloHora(new Date('2026-09-10T02:59:00Z'))).toBe('23:59')
+    expect(rotuloHora(new Date('2026-09-10T03:05:00Z'))).toBe('00:05')
   })
 })

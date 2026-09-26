@@ -116,5 +116,49 @@ export function repoContract(nome: string, criar: () => Promise<Repo>) {
       await repo.add(novo({ conta: 'retroativo', enviadoEm: new Date('2026-09-10T12:00:00Z'), data: new Date('2026-09-01T15:00:00Z') }))
       expect((await repo.desfazerUltimo())?.conta).toBe('retroativo')
     })
+
+    it('extrato ordena por data, depois enviadoEm, depois inserção', async () => {
+      const repo = await criar()
+      const de = new Date('2026-09-01T03:00:00Z')
+      const ate = new Date('2026-10-01T03:00:00Z')
+      await repo.add(novo({ conta: 'c', data: new Date('2026-09-12T15:00:00Z'), enviadoEm: new Date('2026-09-12T15:00:00Z') }))
+      await repo.add(novo({ conta: 'b2', data: new Date('2026-09-10T15:00:00Z'), enviadoEm: new Date('2026-09-10T16:00:00Z') }))
+      await repo.add(novo({ conta: 'b1', data: new Date('2026-09-10T15:00:00Z'), enviadoEm: new Date('2026-09-10T14:00:00Z') }))
+      await repo.add(novo({ conta: 'a1', data: new Date('2026-09-05T15:00:00Z'), enviadoEm: new Date('2026-09-05T15:00:00Z') }))
+      await repo.add(novo({ conta: 'a2', data: new Date('2026-09-05T15:00:00Z'), enviadoEm: new Date('2026-09-05T15:00:00Z') }))
+      expect((await repo.extrato({ de, ate })).map((l) => l.conta)).toEqual(['a1', 'a2', 'b1', 'b2', 'c'])
+    })
+
+    it('extrato respeita [de, ate)', async () => {
+      const repo = await criar()
+      await repo.add(novo({ conta: 'antes', data: new Date('2026-09-01T02:59:59Z') }))
+      await repo.add(novo({ conta: 'em-de', data: new Date('2026-09-01T03:00:00Z') }))
+      await repo.add(novo({ conta: 'em-ate', data: new Date('2026-10-01T03:00:00Z') }))
+      const r = await repo.extrato({ de: new Date('2026-09-01T03:00:00Z'), ate: new Date('2026-10-01T03:00:00Z') })
+      expect(r.map((l) => l.conta)).toEqual(['em-de'])
+    })
+
+    it('extrato exclui desfeitos', async () => {
+      const repo = await criar()
+      await repo.add(novo({ conta: 'fica', enviadoEm: new Date('2026-09-10T10:00:00Z') }))
+      await repo.add(novo({ conta: 'some', enviadoEm: new Date('2026-09-10T11:00:00Z') }))
+      await repo.desfazerUltimo()
+      const r = await repo.extrato({ de: new Date('2026-09-01T03:00:00Z'), ate: new Date('2026-10-01T03:00:00Z') })
+      expect(r.map((l) => l.conta)).toEqual(['fica'])
+    })
+
+    it('extrato devolve receitas e despesas com os campos preservados', async () => {
+      const repo = await criar()
+      const d = new Date('2026-09-10T15:00:00Z')
+      const e1 = new Date('2026-09-10T15:30:00Z')
+      const e2 = new Date('2026-09-10T16:45:00Z')
+      await repo.add(novo({ tipo: 'receita', conta: 'salario', valor: 200000, data: d, enviadoEm: e1 }))
+      await repo.add(novo({ tipo: 'despesa', conta: 'luz', valor: 3050, data: d, enviadoEm: e2 }))
+      const r = await repo.extrato({ de: new Date('2026-09-01T03:00:00Z'), ate: new Date('2026-10-01T03:00:00Z') })
+      expect(r.map((l) => [l.tipo, l.conta, l.valor, l.data, l.enviadoEm])).toEqual([
+        ['receita', 'salario', 200000, d, e1],
+        ['despesa', 'luz', 3050, d, e2],
+      ])
+    })
   })
 }

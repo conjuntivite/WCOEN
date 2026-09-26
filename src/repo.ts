@@ -28,6 +28,13 @@ class MongoRepo implements Repo {
     return (await this.col.distinct('conta', match)).sort()
   }
 
+  async extrato(intervalo: { de: Date; ate: Date }) {
+    return this.col
+      .find({ desfeitoEm: null, data: { $gte: intervalo.de, $lt: intervalo.ate } })
+      .sort({ data: 1, enviadoEm: 1, _id: 1 })
+      .toArray()
+  }
+
   async balancete(intervalo: Intervalo, filtro?: Filtro): Promise<Balancete> {
     const match: Filter<Lancamento> = { desfeitoEm: null }
     if (intervalo) match.data = { $gte: intervalo.de, $lt: intervalo.ate }
