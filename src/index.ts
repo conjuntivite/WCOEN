@@ -1,3 +1,4 @@
+import { criarAuditorOpenRouter } from './auditar'
 import { loadConfig } from './config'
 import { conectarMongo } from './repo'
 import { Service } from './service'
@@ -13,7 +14,9 @@ try {
   process.exit(1)
 }
 
-const service = new Service(mongo.repo)
+// auditor só existe com OPENROUTER_API_KEY + OPENROUTER_MODEL; sem ele, o comando auditoria avisa que a IA está desligada
+const auditor = config.openrouter ? criarAuditorOpenRouter(config.openrouter) : undefined
+const service = new Service(mongo.repo, undefined, auditor)
 const wa = await iniciarWhatsApp({
   groupId: config.groupId,
   tratar: (msg, recuperada) => service.handle(msg, { recuperada }),

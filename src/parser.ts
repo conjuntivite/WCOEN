@@ -6,6 +6,7 @@ export type Relatorio = 'mensal' | 'semanal' | 'anual'
 export type Comando =
   | { tipo: 'lancamento'; natureza: Natureza; conta: string; valor: number; data?: DataLanc }
   | { tipo: 'balancete'; relatorio: Relatorio }
+  | { tipo: 'auditoria'; relatorio: Relatorio }
   | { tipo: 'uso'; comando: 'balancete' | 'auditoria' } // uso incorreto: o service responde a dica
   | { tipo: 'desfazer' }
   | { tipo: 'ajuda' }
@@ -34,14 +35,13 @@ export function parse(texto: string): Comando | null {
   if (t === 'ajuda') return { tipo: 'ajuda' }
   if (t === 'desfazer') return { tipo: 'desfazer' }
 
-  const b = /^balancete(?: (.*))?$/.exec(t)
-  if (b) {
-    const relatorio = b[1] ?? 'mensal'
-    return relatorio === 'mensal' || relatorio === 'semanal' || relatorio === 'anual'
-      ? { tipo: 'balancete', relatorio }
-      : { tipo: 'uso', comando: 'balancete' }
+  const rel = /^(balancete|auditoria)(?: (.*))?$/.exec(t)
+  if (rel) {
+    const comando = rel[1] as 'balancete' | 'auditoria'
+    const relatorio = rel[2] ?? 'mensal'
+    if (relatorio !== 'mensal' && relatorio !== 'semanal' && relatorio !== 'anual') return { tipo: 'uso', comando }
+    return comando === 'balancete' ? { tipo: 'balancete', relatorio } : { tipo: 'auditoria', relatorio }
   }
-  if (t === 'auditoria' || t.startsWith('auditoria ')) return null // reservada: vira comando na próxima etapa
 
   // "+" marca receita e "-" marca despesa; sem sinal é despesa (ex.: "mercado 45,90")
   const sinal = t.startsWith('+') || t.startsWith('-') ? t[0] : null

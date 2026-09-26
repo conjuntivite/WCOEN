@@ -25,27 +25,24 @@ describe('loadConfig', () => {
     expect(loadConfig({ MONGO_URI: 'mongodb://x', OPENROUTER_API_KEY: '', OPENROUTER_MODEL: '' }).openrouter).toBeUndefined()
   })
 
-  it('lê chave e modelo; depois do modelo principal entram os gratuitos de reserva', () => {
+  it('lê chave e modelo: só os de OPENROUTER_MODEL, sem reserva gratuita', () => {
     const c = loadConfig({ MONGO_URI: 'mongodb://x', OPENROUTER_API_KEY: 'k', OPENROUTER_MODEL: 'um/modelo' })
-    expect(c.openrouter?.apiKey).toBe('k')
-    expect(c.openrouter?.models[0]).toBe('um/modelo')
-    expect(c.openrouter!.models.length).toBeGreaterThan(1)
-    expect(c.openrouter!.models.slice(1).every((m) => m.endsWith(':free'))).toBe(true)
+    expect(c.openrouter).toEqual({ apiKey: 'k', models: ['um/modelo'] })
   })
 
   it('OPENROUTER_MODEL aceita vários modelos, em ordem', () => {
     const c = loadConfig({ MONGO_URI: 'mongodb://x', OPENROUTER_API_KEY: 'k', OPENROUTER_MODEL: 'a/1, b/2' })
-    expect(c.openrouter?.models.slice(0, 2)).toEqual(['a/1', 'b/2'])
+    expect(c.openrouter?.models).toEqual(['a/1', 'b/2'])
   })
 
-  it('OPENROUTER_FALLBACK_MODELS substitui a reserva padrão e não repete modelos', () => {
+  it('OPENROUTER_FALLBACK_MODELS é ignorada: nada de modelo fora do OPENROUTER_MODEL', () => {
     const c = loadConfig({
       MONGO_URI: 'mongodb://x',
       OPENROUTER_API_KEY: 'k',
       OPENROUTER_MODEL: 'um/modelo',
-      OPENROUTER_FALLBACK_MODELS: 'x/1:free, um/modelo, y/2:free',
+      OPENROUTER_FALLBACK_MODELS: 'x/1:free',
     })
-    expect(c.openrouter?.models).toEqual(['um/modelo', 'x/1:free', 'y/2:free'])
+    expect(c.openrouter?.models).toEqual(['um/modelo'])
   })
 
   it('exige o modelo quando há chave', () => {

@@ -24,6 +24,7 @@ Requer Node >= 20.6 (o `npm start` usa `--env-file`).
 | `balancete` / `balancete mensal` | extrato do mês atual (data, hora, receitas e despesas), totais e resumo dos últimos 12 meses |
 | `balancete semanal` | extrato da semana atual (domingo a sábado) e resumo das últimas 4 semanas |
 | `balancete anual` | o ano atual agrupado por mês e resumo dos últimos 5 anos |
+| `auditoria` / `auditoria mensal` / `semanal` / `anual` | totais, ranking de gastos, comparação com o período anterior e dicas da IA (ver abaixo) |
 | `+ plantão 450 ontem`, `mercado 45 15/09` | data opcional no fim: `hoje`, `ontem`, `anteontem`, `dd/mm`, `dd/mm/aaaa`. Sem data, vale o dia do envio da mensagem |
 | `desfazer` | desfaz o último lançamento |
 | `ajuda` | lista os comandos |
@@ -32,7 +33,11 @@ Nos resumos, períodos sem movimento não aparecem. A hora do extrato é a do en
 
 ## IA opcional
 
-O agrupamento por IA (`balancete ia <termo>`) foi removido; a IA volta no comando `auditoria` (em desenvolvimento).
+`auditoria` (= `auditoria mensal`), `auditoria semanal` e `auditoria anual` mostram os totais, o ranking dos 5 maiores gastos e a comparação com o período anterior (tudo calculado pelo bot) e, no fim, até 5 dicas escritas por uma IA (OpenRouter). A IA só escreve as dicas: não faz conta nem grava nada.
+
+Para ligar, defina no `.env` `OPENROUTER_API_KEY` e `OPENROUTER_MODEL` (um ou mais modelos **pagos**, separados por vírgula, tentados em ordem). Sem a chave, `auditoria` responde que a IA não está configurada.
+
+**Privacidade:** a auditoria envia valores, datas e descrições dos lançamentos do período ao OpenRouter, somente para os modelos de `OPENROUTER_MODEL`. Não há modelo gratuito de reserva. Se todos falharem, o relatório sai com "Indisponível agora, tente de novo." nas dicas.
 
 ## Testes
 

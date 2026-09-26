@@ -1,5 +1,6 @@
 import { parse, type Comando, type Relatorio } from './parser'
 import { formatBRL } from './money'
+import type { Auditor, DadosAuditoria } from './auditar'
 import { intervaloDaSemanaDomingo, intervaloDoAno, intervaloDoMes, mesAtual, resolverData, rotuloDia, rotuloHora, rotuloMes } from './period'
 import type { LinhaConta, Natureza, Repo } from './types'
 
@@ -22,6 +23,7 @@ const AJUDA = [
   '',
   '📊 *Consultar*',
   '• balancete mensal · semanal · anual → extrato + resumo',
+  '• auditoria mensal · semanal · anual → ranking e dicas da IA',
   '',
   '↩️ *Corrigir*',
   '• desfazer → desfaz o último lançamento',
@@ -38,13 +40,17 @@ export class Service {
   // ponytail: dedupe só em memória; um restart entre a entrega e a reentrega pode desfazer duas vezes. Persistir o msgId se acontecer.
   private tratadas = new Set<string>()
 
-  constructor(private repo: Repo, private agora: () => Date = () => new Date()) {}
+  constructor(
+    private repo: Repo,
+    private agora: () => Date = () => new Date(),
+    private auditor?: Auditor,
+  ) {}
 
   async handle(msg: Mensagem, opcoes: { recuperada?: boolean } = {}): Promise<Resposta | null> {
     if (this.tratadas.has(msg.msgId)) return null
     const cmd = parse(msg.texto)
     if (!cmd) return null
-    if (opcoes.recuperada && (cmd.tipo === 'balancete' || cmd.tipo === 'uso' || cmd.tipo === 'ajuda')) return null
+    if (opcoes.recuperada && (cmd.tipo === 'balancete' || cmd.tipo === 'auditoria' || cmd.tipo === 'uso' || cmd.tipo === 'ajuda')) return null
     try {
       const r = await this.executar(cmd, msg)
       this.tratadas.add(msg.msgId)
@@ -87,10 +93,13 @@ export class Service {
         return { texto: USO[cmd.comando], lancou: false }
       case 'balancete':
         return { texto: await this.balancete(cmd.relatorio), lancou: false }
+      case 'auditoria':
+        return { texto: await this.auditoria(cmd.relatorio), lancou: false }
     }
   }
 
-  private async balancete(rel: Relatorio): Promise<string> {
+  // períodos do relatório, compartilhados por balancete e auditoria
+  private periodos(rel: Relatorio) {
     const agora = this.agora()
     const { ano, mes } = mesAtual(agora)
     // atual = período do extrato; janela = períodos do resumo (o atual primeiro, depois os anteriores)
@@ -126,6 +135,11 @@ export class Service {
       cabResumo = '📈 *Últimos 5 anos* (só com movimento)'
     }
 
+    return { titulo, atual, janela, cabExtrato, vazio, cabResumo }
+  }
+
+  private async balancete(rel: Relatorio): Promise<string> {
+    const { titulo, atual, janela, cabExtrato, vazio, cabResumo } = this.periodos(rel)
     const extrato = await this.repo.extrato(atual)
     const linhaTotais = (rotulo: string, receitas: number, despesas: number) =>
       `${rotulo} · 🟢 ${formatBRL(receitas)} · 🔴 ${formatBRL(despesas)} · 💰 ${formatBRL(receitas - despesas)}`
@@ -165,6 +179,81 @@ export class Service {
       if (b.receitas.length || b.despesas.length) resumo.push(linhaTotais(rotulo, soma(b.receitas), soma(b.despesas)))
     }
     if (resumo.length) blocos.push([cabResumo, ...resumo].join('\n'))
+    return blocos.join('\n\n')
+  }
+  private async auditoria(rel: Relatorio): Promise<string> {
+    const { titulo, atual, janela } = this.periodos(rel)
+    const cab = `🔎 *Auditoria ${rel} · ${titulo}*`
+    const extrato = await this.repo.extrato(atual)
+    if (!extrato.length) return `${cab}\n\nSem lançamentos no período.`
+    if (!this.auditor) return `${cab}\n\n${IA_DESLIGADA}`
+
+    // tudo calculado aqui; a IA só recebe estes dados prontos e devolve texto
+    const b = await this.repo.balancete(atual)
+    const receitas = soma(b.receitas)
+    const despesas = soma(b.despesas)
+    const ranking = b.despesas.slice(0, 5).map((l) => ({ conta: l.conta, valor: formatBRL(l.total), percentual: Math.round((l.total * 100) / despesas) }))
+    const ant = await this.repo.balancete(janela[1].intervalo) // janela[1] = período anterior
+    const antReceitas = soma(ant.receitas)
+    const antDespesas = soma(ant.despesas)
+    const temAnterior = ant.receitas.length > 0 || ant.despesas.length > 0
+
+    const dados: DadosAuditoria = {
+      periodo: titulo,
+      receitas: formatBRL(receitas),
+      despesas: formatBRL(despesas),
+      saldo: formatBRL(receitas - despesas),
+      rankingDespesas: ranking,
+      receitasPorConta: b.receitas.map((l) => ({ conta: l.conta, valor: formatBRL(l.total) })),
+      ...(temAnterior && {
+        comparacao: {
+          periodo: janela[1].rotulo,
+          receitas: formatBRL(antReceitas),
+          despesas: formatBRL(antDespesas),
+          saldo: formatBRL(antReceitas - antDespesas),
+        },
+      }),
+      lancamentos: extrato.slice(-200).map((l) => ({
+        data: `${rotuloDia(l.data)}/${rotuloMes(l.data).slice(3)}`,
+        tipo: l.tipo,
+        conta: l.conta,
+        valor: formatBRL(l.valor),
+      })),
+    }
+
+    const blocos = [
+      cab,
+      [
+        `🟢 *Receitas* — ${dados.receitas}`,
+        `🔴 *Despesas* — ${dados.despesas}`,
+        `💰 *Saldo: ${dados.saldo}*`,
+      ].join('\n'),
+    ]
+    if (ranking.length) {
+      blocos.push(['🏆 *Maiores gastos*', ...ranking.map((r, i) => `${i + 1}. ${r.conta} — ${r.valor} (${r.percentual}%)`)].join('\n'))
+    }
+    if (dados.comparacao) {
+      // variação só quando o período anterior tem despesas (senão a base é zero)
+      const variacao = antDespesas > 0 ? Math.round(((despesas - antDespesas) * 100) / antDespesas) : null
+      const pct = variacao === null ? '' : ` (${variacao > 0 ? '+' : ''}${variacao}%)`
+      const c = dados.comparacao
+      blocos.push(
+        [
+          `📉 *Comparado a ${c.periodo}*`,
+          `🟢 Receitas: ${c.receitas} → ${dados.receitas}`,
+          `🔴 Despesas: ${c.despesas} → ${dados.despesas}${pct}`,
+          `💰 Saldo: ${c.saldo} → ${dados.saldo}`,
+        ].join('\n'),
+      )
+    }
+
+    let dicas: string[] = []
+    try {
+      dicas = await this.auditor.sugerir(dados)
+    } catch (err) {
+      console.error('auditoria: a IA falhou:', err instanceof Error ? err.message : err)
+    }
+    blocos.push(['💡 *Sugestões da IA*', ...(dicas.length ? dicas.map((d) => `• ${d}`) : ['Indisponível agora, tente de novo.'])].join('\n'))
     return blocos.join('\n\n')
   }
 }

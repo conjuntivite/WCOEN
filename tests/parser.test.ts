@@ -102,10 +102,23 @@ describe('parse: balancete mensal, semanal e anual', () => {
     expect(parse(entrada)).toEqual({ tipo: 'uso', comando: 'balancete' })
   })
 
-  it('auditoria é palavra reservada (por enquanto não é comando, e não vira despesa)', () => {
-    expect(parse('auditoria')).toBeNull()
-    expect(parse('auditoria 500')).toBeNull()
-    expect(parse('auditoria mensal')).toBeNull()
+  it.each([
+    ['auditoria', 'mensal'],
+    ['auditoria mensal', 'mensal'],
+    ['  AUDITORIA   Semanal ', 'semanal'],
+    ['auditoria anual', 'anual'],
+  ])('auditoria: %j', (entrada, relatorio) => {
+    expect(parse(entrada)).toEqual({ tipo: 'auditoria', relatorio })
+  })
+
+  it.each([['auditoria 500'], ['auditoria trimestre'], ['auditoria ia carro'], ['auditoria mensal 3']])(
+    'uso incorreto de auditoria: %j',
+    (entrada) => {
+      expect(parse(entrada)).toEqual({ tipo: 'uso', comando: 'auditoria' })
+    },
+  )
+
+  it('auditoria continua palavra reservada: não vira despesa', () => {
     expect(parse('- auditoria 500')).toBeNull()
   })
 })
