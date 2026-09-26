@@ -35,55 +35,6 @@ export function repoContract(nome: string, criar: () => Promise<Repo>) {
       })
     })
 
-    it('contas lista nomes distintos, ordenados, sem desfeitos e respeitando o intervalo', async () => {
-      const repo = await criar()
-      await repo.add(novo({ conta: 'oleo' }))
-      await repo.add(novo({ conta: 'gasolina' }))
-      await repo.add(novo({ conta: 'gasolina', valor: 5 }))
-      await repo.add(novo({ tipo: 'receita', conta: 'plantao' }))
-      await repo.add(novo({ conta: 'antiga', data: new Date('2026-01-10T12:00:00Z') }))
-      await repo.add(novo({ conta: 'temp' }))
-      await repo.desfazerUltimo() // desfaz "temp" (o último enviado)
-
-      expect(await repo.contas(null)).toEqual(['antiga', 'gasolina', 'oleo', 'plantao'])
-      const setembro = { de: new Date('2026-09-01T03:00:00Z'), ate: new Date('2026-10-01T03:00:00Z') }
-      expect(await repo.contas(setembro)).toEqual(['gasolina', 'oleo', 'plantao'])
-    })
-
-    it('balancete filtra por várias contas', async () => {
-      const repo = await criar()
-      await repo.add(novo({ conta: 'mercado', valor: 1000 }))
-      await repo.add(novo({ conta: 'luz', valor: 3000 }))
-      await repo.add(novo({ tipo: 'receita', conta: 'mercado', valor: 500 }))
-      await repo.add(novo({ conta: 'gasolina', valor: 700 }))
-      expect(await repo.balancete(null, { tipo: 'contas', contas: ['mercado', 'gasolina'] })).toEqual({
-        receitas: [{ conta: 'mercado', total: 500 }],
-        despesas: [{ conta: 'mercado', total: 1000 }, { conta: 'gasolina', total: 700 }],
-      })
-    })
-
-    it('balancete filtra por natureza e por conta', async () => {
-      const repo = await criar()
-      await repo.add(novo({ conta: 'mercado', valor: 1000 }))
-      await repo.add(novo({ conta: 'luz', valor: 3000 }))
-      await repo.add(novo({ tipo: 'receita', conta: 'mercado', valor: 500 }))
-      await repo.add(novo({ tipo: 'receita', conta: 'plantao', valor: 45000 }))
-
-      expect(await repo.balancete(null, { tipo: 'natureza', natureza: 'receita' })).toEqual({
-        receitas: [{ conta: 'plantao', total: 45000 }, { conta: 'mercado', total: 500 }],
-        despesas: [],
-      })
-      expect(await repo.balancete(null, { tipo: 'natureza', natureza: 'despesa' })).toEqual({
-        receitas: [],
-        despesas: [{ conta: 'luz', total: 3000 }, { conta: 'mercado', total: 1000 }],
-      })
-      expect(await repo.balancete(null, { tipo: 'conta', conta: 'mercado' })).toEqual({
-        receitas: [{ conta: 'mercado', total: 500 }],
-        despesas: [{ conta: 'mercado', total: 1000 }],
-      })
-      expect(await repo.balancete(null, { tipo: 'conta', conta: 'inexistente' })).toEqual({ receitas: [], despesas: [] })
-    })
-
     it('balancete filtra por intervalo [de, ate)', async () => {
       const repo = await criar()
       await repo.add(novo({ conta: 'antes', data: new Date('2026-09-01T02:59:59Z') }))

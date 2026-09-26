@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mesAtual, intervaloDoMes, intervaloDaSemana, intervaloDaSemanaDomingo, rotuloHora, intervaloDoTrimestre, intervaloDoAno, rotuloDia, rotuloMes, resolverData } from '../src/period'
+import { mesAtual, intervaloDoMes, intervaloDaSemanaDomingo, rotuloHora, intervaloDoAno, rotuloDia, rotuloMes, resolverData } from '../src/period'
 
 describe('period (America/Sao_Paulo, -03:00)', () => {
   it('mesAtual usa o fuso local', () => {
@@ -19,55 +19,10 @@ describe('period (America/Sao_Paulo, -03:00)', () => {
   })
 })
 
-describe('semana (segunda a domingo)', () => {
-  const terca = new Date('2026-09-15T12:00:00Z')
-
-  it('semana atual e passada', () => {
-    expect(intervaloDaSemana(terca)).toEqual({
-      de: new Date('2026-09-14T03:00:00Z'),
-      ate: new Date('2026-09-21T03:00:00Z'),
-    })
-    expect(intervaloDaSemana(terca, true)).toEqual({
-      de: new Date('2026-09-07T03:00:00Z'),
-      ate: new Date('2026-09-14T03:00:00Z'),
-    })
-  })
-
-  it('domingo 23h ainda é a mesma semana; segunda 00h já é a próxima', () => {
-    expect(intervaloDaSemana(new Date('2026-09-21T02:00:00Z')).de.toISOString()).toBe('2026-09-14T03:00:00.000Z')
-    expect(intervaloDaSemana(new Date('2026-09-21T03:00:00Z')).de.toISOString()).toBe('2026-09-21T03:00:00.000Z')
-  })
-
-  it('atravessa a virada do mês', () => {
-    // quarta 02/09/2026 → a segunda foi 31/08
-    expect(intervaloDaSemana(new Date('2026-09-02T12:00:00Z')).de.toISOString()).toBe('2026-08-31T03:00:00.000Z')
-  })
-})
-
 describe('rotuloDia', () => {
   it('usa o dia local', () => {
     expect(rotuloDia(new Date('2026-09-14T03:00:00Z'))).toBe('14/09')
     expect(rotuloDia(new Date('2026-09-14T02:59:00Z'))).toBe('13/09')
-  })
-})
-
-describe('trimestre (3 meses fechados antes do mês atual)', () => {
-  it('em 20/06 traz março, abril e maio', () => {
-    const { de, ate } = intervaloDoTrimestre(new Date('2026-06-20T12:00:00Z'))
-    expect(de.toISOString()).toBe('2026-03-01T03:00:00.000Z')
-    expect(ate.toISOString()).toBe('2026-06-01T03:00:00.000Z')
-  })
-
-  it('em janeiro cruza o ano: out, nov e dez', () => {
-    const { de, ate } = intervaloDoTrimestre(new Date('2026-01-10T12:00:00Z'))
-    expect(de.toISOString()).toBe('2025-10-01T03:00:00.000Z')
-    expect(ate.toISOString()).toBe('2026-01-01T03:00:00.000Z')
-  })
-
-  it('a virada do mês usa o fuso local', () => {
-    // 31/05 às 23:59 em SP ainda é maio: o trimestre é fev–abr
-    expect(intervaloDoTrimestre(new Date('2026-06-01T02:59:00Z')).de.toISOString()).toBe('2026-02-01T03:00:00.000Z')
-    expect(intervaloDoTrimestre(new Date('2026-06-01T03:00:00Z')).de.toISOString()).toBe('2026-03-01T03:00:00.000Z')
   })
 })
 

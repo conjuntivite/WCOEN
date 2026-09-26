@@ -1,8 +1,7 @@
-import { parse, type Comando, type FiltroPedido, type Periodo } from './parser'
-import { formatBRL, formatValor } from './money'
-import { intervaloDaSemana, intervaloDoAno, intervaloDoMes, intervaloDoTrimestre, mesAtual, resolverData, rotuloDia, rotuloMes } from './period'
-import type { Agrupador } from './agrupar'
-import type { Filtro, Intervalo, LinhaConta, Natureza, Repo } from './types'
+import { parse, type Comando, type Relatorio } from './parser'
+import { formatBRL } from './money'
+import { intervaloDaSemanaDomingo, intervaloDoAno, intervaloDoMes, mesAtual, resolverData, rotuloDia, rotuloHora, rotuloMes } from './period'
+import type { LinhaConta, Natureza, Repo } from './types'
 
 export type Mensagem = { msgId: string; remetente: string; texto: string; enviadoEm: Date }
 export type Resposta = { texto: string; lancou: boolean }
@@ -22,41 +21,30 @@ const AJUDA = [
   '📅 Data no fim (opcional): ontem · 15/09',
   '',
   '📊 *Consultar*',
-  '• balancete → mês atual',
-  '• balancete semana · semana passada',
-  '• balancete trimestre · ano · 2025 · tudo',
-  '• balancete receitas · despesas',
-  '• balancete mercado → só uma conta',
-  '• balancete ia carro → agrupa por tema (IA)',
+  '• balancete mensal · semanal · anual → extrato + resumo',
   '',
   '↩️ *Corrigir*',
   '• desfazer → desfaz o último lançamento',
 ].join('\n')
 
-const soma = (linhas: LinhaConta[]) => linhas.reduce((s, l) => s + l.total, 0)
+const USO = {
+  balancete: '⚠️ Use *balancete mensal*, *balancete semanal* ou *balancete anual*.',
+  auditoria: '⚠️ Use *auditoria mensal*, *auditoria semanal* ou *auditoria anual*.',
+}
 
-const rotuloDoFiltro = (f: FiltroPedido) =>
-  f.tipo === 'conta'
-    ? f.conta
-    : f.tipo === 'tema'
-      ? f.termo
-      : f.tipo === 'contas'
-        ? f.contas.join(', ')
-        : f.natureza === 'receita'
-          ? 'receitas'
-          : 'despesas'
+const soma = (linhas: LinhaConta[]) => linhas.reduce((s, l) => s + l.total, 0)
 
 export class Service {
   // ponytail: dedupe só em memória; um restart entre a entrega e a reentrega pode desfazer duas vezes. Persistir o msgId se acontecer.
   private tratadas = new Set<string>()
 
-  constructor(private repo: Repo, private agora: () => Date = () => new Date(), private agrupador?: Agrupador) {}
+  constructor(private repo: Repo, private agora: () => Date = () => new Date()) {}
 
   async handle(msg: Mensagem, opcoes: { recuperada?: boolean } = {}): Promise<Resposta | null> {
     if (this.tratadas.has(msg.msgId)) return null
     const cmd = parse(msg.texto)
     if (!cmd) return null
-    if (opcoes.recuperada && (cmd.tipo === 'balancete' || cmd.tipo === 'ajuda')) return null
+    if (opcoes.recuperada && (cmd.tipo === 'balancete' || cmd.tipo === 'uso' || cmd.tipo === 'ajuda')) return null
     try {
       const r = await this.executar(cmd, msg)
       this.tratadas.add(msg.msgId)
@@ -95,73 +83,88 @@ export class Service {
       }
       case 'ajuda':
         return { texto: AJUDA, lancou: false }
+      case 'uso':
+        return { texto: USO[cmd.comando], lancou: false }
       case 'balancete':
-        return { texto: await this.balancete(cmd.periodo, cmd.filtro), lancou: false }
+        return { texto: await this.balancete(cmd.relatorio), lancou: false }
     }
   }
 
-  private async balancete(p: Periodo, pedido?: FiltroPedido): Promise<string> {
+  private async balancete(rel: Relatorio): Promise<string> {
     const agora = this.agora()
-    let titulo = 'tudo'
-    let intervalo: Intervalo = null
-    if (p.tipo === 'semana') {
-      intervalo = intervaloDaSemana(agora, p.passada)
-      titulo = `semana ${rotuloDia(intervalo.de)} a ${rotuloDia(new Date(intervalo.ate.getTime() - 1))}`
-    } else if (p.tipo === 'trimestre') {
-      intervalo = intervaloDoTrimestre(agora)
-      titulo = `trimestre ${rotuloMes(intervalo.de)} a ${rotuloMes(new Date(intervalo.ate.getTime() - 1))}`
-    } else if (p.tipo === 'ano') {
-      const ano = p.ano ?? mesAtual(agora).ano
-      intervalo = intervaloDoAno(ano)
-      titulo = String(ano)
-    } else if (p.tipo !== 'tudo') {
-      const { ano, mes } = p.tipo === 'mes' ? p : mesAtual(agora)
-      titulo = `${String(mes).padStart(2, '0')}/${ano}`
-      intervalo = intervaloDoMes(ano, mes)
-    }
-
-    const base = `📊 *Balancete · ${titulo}${pedido ? ` · ${rotuloDoFiltro(pedido)}` : ''}*`
-
-    // "ia <termo>": só aqui a IA é chamada, e só porque o usuário pediu. Ela escolhe, entre as contas do período, as relacionadas ao termo.
-    let filtro: Filtro | undefined
-    if (pedido?.tipo === 'tema') {
-      if (!this.agrupador) return `${base}\n\n${IA_DESLIGADA}`
-      const existentes = await this.repo.contas(intervalo)
-      if (existentes.length === 0) return `${base}\n\nSem lançamentos no período.`
-      let escolhidas: string[]
-      try {
-        escolhidas = await this.agrupador.agrupar(pedido.termo, existentes)
-      } catch (err) {
-        console.error('erro ao agrupar contas', err)
-        return `${base}\n\nNão consegui agrupar agora, tente de novo.`
+    const { ano, mes } = mesAtual(agora)
+    // atual = período do extrato; janela = períodos do resumo (o atual primeiro, depois os anteriores)
+    let titulo: string
+    let atual: { de: Date; ate: Date }
+    let janela: { rotulo: string; intervalo: { de: Date; ate: Date } }[]
+    let cabExtrato = '📅 *Extrato*'
+    let vazio: string
+    let cabResumo: string
+    const n = (qtd: number) => Array.from({ length: qtd }, (_, i) => i)
+    if (rel === 'mensal') {
+      titulo = rotuloMes(agora)
+      atual = intervaloDoMes(ano, mes)
+      janela = n(12).map((i) => ({ rotulo: rotuloMes(intervaloDoMes(ano, mes - i).de), intervalo: intervaloDoMes(ano, mes - i) }))
+      vazio = 'Sem lançamentos neste mês.'
+      cabResumo = '📈 *Últimos meses* (até 12, só com movimento)'
+    } else if (rel === 'semanal') {
+      const rotulo = (i: number) => {
+        const w = intervaloDaSemanaDomingo(agora, -i)
+        return `${rotuloDia(w.de)} a ${rotuloDia(new Date(w.ate.getTime() - 1))}`
       }
-      if (!escolhidas.length) return `${base}\n\nNão achei contas relacionadas a "${pedido.termo}" no período.`
-      filtro = { tipo: 'contas', contas: escolhidas }
+      titulo = rotulo(0)
+      atual = intervaloDaSemanaDomingo(agora)
+      janela = n(4).map((i) => ({ rotulo: rotulo(i), intervalo: intervaloDaSemanaDomingo(agora, -i) }))
+      vazio = 'Sem lançamentos nesta semana.'
+      cabResumo = '📈 *Últimas 4 semanas* (só com movimento)'
     } else {
-      filtro = pedido
+      titulo = String(ano)
+      atual = intervaloDoAno(ano)
+      janela = n(5).map((i) => ({ rotulo: String(ano - i), intervalo: intervaloDoAno(ano - i) }))
+      cabExtrato = '📅 *Por mês*'
+      vazio = 'Sem lançamentos neste ano.'
+      cabResumo = '📈 *Últimos 5 anos* (só com movimento)'
     }
-    const cabecalho = pedido?.tipo === 'tema' ? `${base} (agrupado por IA)` : base
 
-    const b = await this.repo.balancete(intervalo, filtro)
-    if (!b.receitas.length && !b.despesas.length) return `${cabecalho}\n\nSem lançamentos no período.`
+    const extrato = await this.repo.extrato(atual)
+    const linhaTotais = (rotulo: string, receitas: number, despesas: number) =>
+      `${rotulo} · 🟢 ${formatBRL(receitas)} · 🔴 ${formatBRL(despesas)} · 💰 ${formatBRL(receitas - despesas)}`
 
-    // sem filtro: os dois blocos. Filtro por natureza: só aquele bloco. Filtro por conta(s): só os blocos que existem.
-    const mostrar = (nat: Natureza, linhas: LinhaConta[]) =>
-      filtro?.tipo === 'natureza' ? filtro.natureza === nat : filtro ? linhas.length > 0 : true
-    // cada bloco: título em negrito com o total, e uma linha com marcador por conta (o WhatsApp não alinha colunas por espaços)
-    const bloco = (nome: string, linhas: LinhaConta[]) =>
-      [
-        `${nome} — ${formatBRL(soma(linhas))}`,
-        // filtrando por uma conta, o total já é a resposta: sem listar a própria conta
-        ...(filtro?.tipo === 'conta' ? [] : linhas.map((l) => `• ${l.conta} — ${formatValor(l.total)}`)),
-      ].join('\n')
-    const comReceitas = mostrar('receita', b.receitas)
-    const comDespesas = mostrar('despesa', b.despesas)
-    return [
-      cabecalho,
-      ...(comReceitas ? [bloco('🟢 *Receitas*', b.receitas)] : []),
-      ...(comDespesas ? [bloco('🔴 *Despesas*', b.despesas)] : []),
-      ...(comReceitas && comDespesas ? [`💰 *Saldo: ${formatBRL(soma(b.receitas) - soma(b.despesas))}*`] : []),
-    ].join('\n\n')
+    // extrato: uma linha por lançamento; no anual, uma linha por mês com movimento (ordem crescente)
+    let linhas: string[]
+    if (rel === 'anual') {
+      const meses = new Map<string, [number, number]>()
+      for (const l of extrato) {
+        const m = meses.get(rotuloMes(l.data)) ?? [0, 0]
+        m[l.tipo === 'receita' ? 0 : 1] += l.valor
+        meses.set(rotuloMes(l.data), m)
+      }
+      linhas = [...meses].map(([rotulo, [r, d]]) => linhaTotais(rotulo, r, d))
+    } else {
+      linhas = extrato.map(
+        (l) => `${rotuloDia(l.data)} ${rotuloHora(l.enviadoEm)} · ${l.tipo === 'receita' ? '🟢' : '🔴'} ${l.conta} — ${formatBRL(l.valor)}`,
+      )
+    }
+
+    const blocos = [`📊 *Balancete ${rel} · ${titulo}*`, [cabExtrato, ...(extrato.length ? linhas : [vazio])].join('\n')]
+    if (extrato.length) {
+      const total = (t: Natureza) => extrato.filter((l) => l.tipo === t).reduce((s, l) => s + l.valor, 0)
+      blocos.push(
+        [
+          `🟢 *Receitas* — ${formatBRL(total('receita'))}`,
+          `🔴 *Despesas* — ${formatBRL(total('despesa'))}`,
+          `💰 *Saldo: ${formatBRL(total('receita') - total('despesa'))}*`,
+        ].join('\n'),
+      )
+    }
+
+    // resumo: um balancete por período da janela; os sem movimento não aparecem
+    const resumo: string[] = []
+    for (const { rotulo, intervalo } of janela) {
+      const b = await this.repo.balancete(intervalo)
+      if (b.receitas.length || b.despesas.length) resumo.push(linhaTotais(rotulo, soma(b.receitas), soma(b.despesas)))
+    }
+    if (resumo.length) blocos.push([cabResumo, ...resumo].join('\n'))
+    return blocos.join('\n\n')
   }
 }

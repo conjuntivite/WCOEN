@@ -1,4 +1,3 @@
-import { criarAgrupadorOpenRouter } from './agrupar'
 import { loadConfig } from './config'
 import { conectarMongo } from './repo'
 import { Service } from './service'
@@ -14,8 +13,7 @@ try {
   process.exit(1)
 }
 
-const agrupador = config.openrouter ? criarAgrupadorOpenRouter(config.openrouter) : undefined
-const service = new Service(mongo.repo, undefined, agrupador)
+const service = new Service(mongo.repo)
 const wa = await iniciarWhatsApp({
   groupId: config.groupId,
   tratar: (msg, recuperada) => service.handle(msg, { recuperada }),

@@ -23,16 +23,6 @@ export function intervaloDoMes(ano: number, mes: number): { de: Date; ate: Date 
   }
 }
 
-export function intervaloDaSemana(agora: Date, passada = false): { de: Date; ate: Date } {
-  const h = diaLocal(agora)
-  const diaSemana = new Date(Date.UTC(h.ano, h.mes - 1, h.dia)).getUTCDay() // 0 = domingo
-  const segunda = h.dia - ((diaSemana + 6) % 7) - (passada ? 7 : 0)
-  return {
-    de: new Date(Date.UTC(h.ano, h.mes - 1, segunda, OFFSET_H)),
-    ate: new Date(Date.UTC(h.ano, h.mes - 1, segunda + 7, OFFSET_H)),
-  }
-}
-
 // semana de domingo 00:00 a domingo 00:00 seguinte (local); deslocamento em semanas
 export function intervaloDaSemanaDomingo(agora: Date, deslocamento = 0): { de: Date; ate: Date } {
   const h = diaLocal(agora)
@@ -41,14 +31,6 @@ export function intervaloDaSemanaDomingo(agora: Date, deslocamento = 0): { de: D
   return {
     de: new Date(Date.UTC(h.ano, h.mes - 1, domingo, OFFSET_H)),
     ate: new Date(Date.UTC(h.ano, h.mes - 1, domingo + 7, OFFSET_H)),
-  }
-}
-
-export function intervaloDoTrimestre(agora: Date): { de: Date; ate: Date } {
-  const { ano, mes } = diaLocal(agora)
-  return {
-    de: new Date(Date.UTC(ano, mes - 1 - 3, 1, OFFSET_H)),
-    ate: new Date(Date.UTC(ano, mes - 1, 1, OFFSET_H)),
   }
 }
 

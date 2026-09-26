@@ -21,20 +21,18 @@ Requer Node >= 20.6 (o `npm start` usa `--env-file`).
 | `mercado 45,90` | despesa |
 | `+ 70 plantão` ou `+ plantão 70` | receita (o `+` no início marca receita; o valor pode vir antes ou depois) |
 | `- 130 role na avenida` ou `- role 130` | despesa (o `-` no início marca despesa; o valor pode vir antes ou depois) |
-| `balancete` / `balancete tudo` / `balancete 08/2026` | resumo do mês / de tudo / de um mês |
-| `balancete semana` / `balancete semana passada` | resumo da semana (segunda a domingo) |
-| `balancete trimestre` | os 3 meses fechados antes do mês atual (em 20/06: março, abril e maio) |
-| `balancete ano` / `balancete 2025` | ano do calendário atual / um ano específico |
-| `balancete receitas` / `balancete despesas` | só receitas / só despesas (aceita período: `balancete semana despesas`) |
-| `balancete mercado` | só a conta "mercado" (aceita período: `balancete ano mercado`) |
-| `balancete ia carro` | soma, por IA, as contas do período relacionadas a "carro" (opcional: precisa do OpenRouter) |
+| `balancete` / `balancete mensal` | extrato do mês atual (data, hora, receitas e despesas), totais e resumo dos últimos 12 meses |
+| `balancete semanal` | extrato da semana atual (domingo a sábado) e resumo das últimas 4 semanas |
+| `balancete anual` | o ano atual agrupado por mês e resumo dos últimos 5 anos |
 | `+ plantão 450 ontem`, `mercado 45 15/09` | data opcional no fim: `hoje`, `ontem`, `anteontem`, `dd/mm`, `dd/mm/aaaa`. Sem data, vale o dia do envio da mensagem |
 | `desfazer` | desfaz o último lançamento |
 | `ajuda` | lista os comandos |
 
-## IA opcional (agrupar contas)
+Nos resumos, períodos sem movimento não aparecem. A hora do extrato é a do envio da mensagem; a data é a do lançamento. Qualquer outro uso de `balancete` (`trimestre`, `tudo`, uma conta...) responde com a dica dos três relatórios.
 
-Com `OPENROUTER_API_KEY` e `OPENROUTER_MODEL` no `.env`, `balancete ia carro` pede à IA para escolher, entre as contas do período, as que se relacionam com "carro" (gasolina, óleo, mecânico...) e soma todas (aceita período: `balancete ano ia carro`). A IA **só é chamada quando você escreve `ia`**: `balancete carro` sempre soma apenas a conta "carro". Só os **nomes** das contas vão para o OpenRouter, nunca valores ou datas. A resposta traz `(agrupado por IA)` e lista o que entrou. `balancete ia <termo>` pode levar até ~45 s no pior caso (modelos de reserva); como as mensagens são processadas uma de cada vez, o bot só responde às outras depois dele. Sem a chave, o recurso fica desligado. Se o modelo principal falhar (rede, erro, resposta inválida), o bot tenta o próximo: `OPENROUTER_MODEL` aceita vários modelos separados por vírgula e, depois deles, entram modelos gratuitos de reserva (padrão do código ou `OPENROUTER_FALLBACK_MODELS`).
+## IA opcional
+
+O agrupamento por IA (`balancete ia <termo>`) foi removido; a IA volta no comando `auditoria` (em desenvolvimento).
 
 ## Testes
 

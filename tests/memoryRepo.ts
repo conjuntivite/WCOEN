@@ -1,4 +1,4 @@
-import type { Balancete, Filtro, Intervalo, Lancamento, LinhaConta, NovoLancamento, Repo } from '../src/types'
+import type { Balancete, Intervalo, Lancamento, LinhaConta, NovoLancamento, Repo } from '../src/types'
 
 export class MemoryRepo implements Repo {
   private itens: Lancamento[] = []
@@ -22,17 +22,6 @@ export class MemoryRepo implements Repo {
     return { ...alvo }
   }
 
-  async contas(intervalo: Intervalo) {
-    const nomes = this.itens
-      .filter(
-        (i) =>
-          !i.desfeitoEm &&
-          (!intervalo || (i.data.getTime() >= intervalo.de.getTime() && i.data.getTime() < intervalo.ate.getTime())),
-      )
-      .map((i) => i.conta)
-    return [...new Set(nomes)].sort()
-  }
-
   async extrato(intervalo: { de: Date; ate: Date }) {
     return this.itens
       .map((item, ordem) => ({ item, ordem }))
@@ -41,13 +30,10 @@ export class MemoryRepo implements Repo {
       .map((x) => ({ ...x.item }))
   }
 
-  async balancete(intervalo: Intervalo, filtro?: Filtro): Promise<Balancete> {
+  async balancete(intervalo: Intervalo): Promise<Balancete> {
     const somas = { receita: new Map<string, number>(), despesa: new Map<string, number>() }
     for (const i of this.itens) {
       if (i.desfeitoEm) continue
-      if (filtro?.tipo === 'natureza' && i.tipo !== filtro.natureza) continue
-      if (filtro?.tipo === 'conta' && i.conta !== filtro.conta) continue
-      if (filtro?.tipo === 'contas' && !filtro.contas.includes(i.conta)) continue
       if (intervalo && (i.data.getTime() < intervalo.de.getTime() || i.data.getTime() >= intervalo.ate.getTime())) continue
       const m = somas[i.tipo]
       m.set(i.conta, (m.get(i.conta) ?? 0) + i.valor)
