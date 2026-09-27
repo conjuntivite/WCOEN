@@ -62,6 +62,10 @@ O bot roda como serviço: cada cliente se cadastra no portal, conecta o próprio
 2. `docker compose up -d`. O Caddy emite o HTTPS sozinho; o Mongo não é exposto fora da rede do compose.
 3. Acesse `https://SEU_DOMINIO`, cadastre-se com o convite e conecte o WhatsApp.
 
+### Administração
+
+Definir `ADMIN_EMAILS` (e-mails já cadastrados, separados por vírgula) libera `/admin` para essas contas — um link "Administração" aparece no painel delas. Lá dá para gerar convites de uso único (com uma nota opcional para lembrar quem é) e revogar os que ainda não foram usados. O `CONVITE` do `.env` continua funcionando como plano B, multiuso, para não depender só do banco de convites.
+
 ### Operação
 
 - **Migrar lançamentos de antes do portal:** `npm run migrar -- seu@email` (idempotente).

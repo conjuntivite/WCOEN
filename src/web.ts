@@ -1,12 +1,15 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import QRCode from 'qrcode'
 import { criarLimitador, type Conta, type Contas, type ErroCadastro } from './contas'
-import { ERROS_PAINEL, SCRIPT_PAINEL, fragmentoPainel, paginaCadastro, paginaEntrar, paginaPainel, passoDe, type CampoCadastro } from './paginas'
+import type { Convites } from './convites'
+import { ERROS_PAINEL, SCRIPT_PAINEL, fragmentoPainel, paginaAdmin, paginaCadastro, paginaEntrar, paginaPainel, passoDe, type CampoCadastro } from './paginas'
 import type { Sessoes } from './sessoes'
 
 export type OpcoesWeb = {
   contas: Contas
   sessoes: Sessoes
+  convites: Convites
+  adminEmails?: string[] // veem /admin; comparado ao e-mail já normalizado da conta
   limitador?: ReturnType<typeof criarLimitador>
   cookieSeguro?: boolean // com HTTPS (DOMINIO definido)
   confiarProxy?: boolean // lê o IP de X-Forwarded-For (atrás do Caddy)
@@ -56,8 +59,9 @@ function origemOk(req: IncomingMessage): boolean {
 }
 
 export function criarWeb(op: OpcoesWeb): Server {
-  const { contas, sessoes } = op
+  const { contas, sessoes, convites } = op
   const limitador = op.limitador ?? criarLimitador(5, 15 * 60_000)
+  const isAdmin = (email: string) => (op.adminEmails ?? []).includes(email)
 
   const html = (res: ServerResponse, status: number, corpo: string) => {
     res.writeHead(status, { ...CABECALHOS, 'Content-Type': 'text/html; charset=utf-8' })
@@ -105,7 +109,12 @@ export function criarWeb(op: OpcoesWeb): Server {
         if (!conta) return ir(res, '/entrar')
         const f = (await montarFragmento(conta.id))!
         const chave = url.searchParams.get('erro') ?? ''
-        return html(res, 200, paginaPainel(conta.email, f.html, f.passo, Object.hasOwn(ERROS_PAINEL, chave) ? ERROS_PAINEL[chave] : undefined))
+        return html(res, 200, paginaPainel(conta.email, f.html, f.passo, Object.hasOwn(ERROS_PAINEL, chave) ? ERROS_PAINEL[chave] : undefined, isAdmin(conta.email)))
+      }
+      if (caminho === '/admin') {
+        if (!conta) return ir(res, '/entrar')
+        if (!isAdmin(conta.email)) throw new HttpErro(403)
+        return html(res, 200, paginaAdmin(conta.email, await convites.listar()))
       }
       if (caminho === '/painel/eventos') {
         if (!conta) throw new HttpErro(401)
@@ -191,6 +200,16 @@ export function criarWeb(op: OpcoesWeb): Server {
     if (caminho === '/painel/desconectar') {
       await sessoes.desconectar(conta.id)
       return ir(res, '/painel')
+    }
+    if (caminho === '/admin/convites') {
+      if (!isAdmin(conta.email)) throw new HttpErro(403)
+      await convites.criar(conta.id, f.get('nota') ?? undefined)
+      return ir(res, '/admin')
+    }
+    if (caminho === '/admin/convites/revogar') {
+      if (!isAdmin(conta.email)) throw new HttpErro(403)
+      await convites.revogar(f.get('id') ?? '')
+      return ir(res, '/admin')
     }
     throw new HttpErro(404)
   }

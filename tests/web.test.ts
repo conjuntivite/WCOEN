@@ -3,6 +3,7 @@ import type { Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { MongoClient } from 'mongodb'
 import { criarContas, criarLimitador, type Contas } from '../src/contas'
+import { criarConvites, type Convites } from '../src/convites'
 import { criarWeb } from '../src/web'
 import type { Sessoes, Visao } from '../src/sessoes'
 
@@ -28,7 +29,9 @@ function sessoesFalsas() {
   return f
 }
 
+const EMAIL_ADMIN = 'admin@x.com'
 let contas: Contas
+let convites: Convites
 let sessoes: ReturnType<typeof sessoesFalsas>
 let server: Server
 let base = ''
@@ -36,9 +39,11 @@ let base = ''
 beforeAll(async () => {
   await db.collection('contas').deleteMany({})
   await db.collection('logins').deleteMany({})
-  contas = await criarContas(db, { convite: 'segredo' })
+  await db.collection('convites').deleteMany({})
+  convites = await criarConvites(db)
+  contas = await criarContas(db, { convite: 'segredo', convites })
   sessoes = sessoesFalsas()
-  server = criarWeb({ contas, sessoes: sessoes as unknown as Sessoes, limitador: criarLimitador(5, 60_000), cookieSeguro: true, confiarProxy: true })
+  server = criarWeb({ contas, sessoes: sessoes as unknown as Sessoes, convites, adminEmails: [EMAIL_ADMIN], limitador: criarLimitador(5, 60_000), cookieSeguro: true, confiarProxy: true })
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
 })
@@ -242,5 +247,71 @@ describe('estáticos', () => {
     expect(js.headers.get('content-type')).toContain('javascript')
     expect(await js.text()).toContain('EventSource')
     expect((await get('/nao-existe')).status).toBe(404)
+  })
+})
+
+describe('admin', () => {
+  const codigoPorNota = (html: string, nota: string) => new RegExp('<code>([0-9a-f]{10})</code> <span class="sub">· ' + nota + '</span>').exec(html)?.[1]
+  // uma conta admin só, reaproveitada nos testes (cadastrar de novo com o mesmo e-mail falharia com email_em_uso)
+  let cookieAdmin: string
+  beforeAll(async () => {
+    ;({ cookie: cookieAdmin } = await entrar(EMAIL_ADMIN))
+  })
+
+  it('/admin sem login redireciona para /entrar', async () => {
+    expect((await get('/admin')).headers.get('location')).toBe('/entrar')
+  })
+
+  it('/admin logado, mas não-admin: 403 (GET e POST)', async () => {
+    const { cookie } = await entrar()
+    expect((await get('/admin', cookie)).status).toBe(403)
+    expect((await post('/admin/convites', { nota: 'x' }, { cookie })).status).toBe(403)
+    expect((await post('/admin/convites/revogar', { id: 'x' }, { cookie })).status).toBe(403)
+  })
+
+  it('admin vê a página e o link "Administração" aparece só para ele no painel', async () => {
+    const { cookie: cookieComum } = await entrar()
+    expect((await get('/admin', cookieAdmin)).status).toBe(200)
+    expect(await (await get('/painel', cookieAdmin)).text()).toContain('href="/admin"')
+    expect(await (await get('/painel', cookieComum)).text()).not.toContain('href="/admin"')
+  })
+
+  it('admin cria um convite (com nota escapada) e ele aparece na lista como aberto', async () => {
+    const r = await post('/admin/convites', { nota: '<b>fulano</b>' }, { cookie: cookieAdmin })
+    expect(r.headers.get('location')).toBe('/admin')
+    const html = await (await get('/admin', cookieAdmin)).text()
+    expect(html).toContain('&lt;b&gt;fulano&lt;/b&gt;')
+    expect(html).toMatch(/&lt;b&gt;fulano&lt;\/b&gt;<\/span>[\s\S]{0,80}Aberto/)
+  })
+
+  it('o convite criado pelo admin serve para um cadastro (uso único) e some de "abertos"', async () => {
+    await post('/admin/convites', { nota: 'nota-uso-unico' }, { cookie: cookieAdmin })
+    const codigo = codigoPorNota(await (await get('/admin', cookieAdmin)).text(), 'nota-uso-unico')!
+    expect(codigo).toBeTruthy()
+
+    const cad1 = await post('/cadastro', { email: 'via-convite@x.com', senha: 'senha-boa-123', convite: codigo })
+    expect(cad1.status).toBe(303)
+    const cad2 = await post('/cadastro', { email: 'outro@x.com', senha: 'senha-boa-123', convite: codigo })
+    expect(cad2.status).toBe(400)
+
+    const htmlDepois = await (await get('/admin', cookieAdmin)).text()
+    expect(htmlDepois).toMatch(new RegExp(`<code>${codigo}</code>[\\s\\S]{0,150}Usado`))
+  })
+
+  it('revogar remove um convite aberto; o código revogado não serve mais para cadastro', async () => {
+    await post('/admin/convites', { nota: 'nota-para-revogar' }, { cookie: cookieAdmin })
+    const html1 = await (await get('/admin', cookieAdmin)).text()
+    const codigo = codigoPorNota(html1, 'nota-para-revogar')!
+    // id do form de revogar associado a esse código: procura o bloco <li> inteiro
+    const bloco = new RegExp(`<li class="convite"><div><code>${codigo}</code>[\\s\\S]*?</li>`).exec(html1)?.[0] ?? ''
+    const id = /value="([0-9a-f]{24})"/.exec(bloco)?.[1]
+    expect(id).toBeTruthy()
+
+    const r = await post('/admin/convites/revogar', { id: id! }, { cookie: cookieAdmin })
+    expect(r.headers.get('location')).toBe('/admin')
+    expect(await (await get('/admin', cookieAdmin)).text()).not.toContain(codigo)
+
+    const cad = await post('/cadastro', { email: 'depois-de-revogado@x.com', senha: 'senha-boa-123', convite: codigo })
+    expect(cad.status).toBe(400)
   })
 })

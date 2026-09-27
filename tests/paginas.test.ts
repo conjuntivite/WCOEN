@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { fragmentoPainel, paginaCadastro, paginaEntrar, paginaPainel, passoDe } from '../src/paginas'
+import { fragmentoPainel, paginaAdmin, paginaCadastro, paginaEntrar, paginaPainel, passoDe } from '../src/paginas'
 import type { Conta } from '../src/contas'
+import type { Convite } from '../src/convites'
 import type { Visao } from '../src/sessoes'
 
 const conta: Conta = { id: 'c1', email: 'ana@x.com' }
@@ -119,5 +120,42 @@ describe('regras gerais das páginas', () => {
     const html = frag({ estado: 'desconectado' })
     expect(html).toMatch(/<svg[^>]*aria-hidden="true"/)
     expect(html).not.toMatch(/<button[^>]*>[^<]*[\u{1F300}-\u{1FAFF}]/u)
+  })
+})
+
+describe('link de administração no painel', () => {
+  it('só aparece quando admin=true', () => {
+    expect(paginaPainel('a@x.com', 'x', 'desconectado')).not.toContain('href="/admin"')
+    expect(paginaPainel('a@x.com', 'x', 'desconectado', undefined, true)).toContain('href="/admin"')
+  })
+})
+
+describe('página de administração (convites)', () => {
+  const aberto: Convite = { id: 'i1', codigo: 'aaaa11111', nota: 'para o <b>João</b>', criadoEm: new Date('2026-09-27T12:00:00Z') }
+  const usado: Convite = { id: 'i2', codigo: 'bbbb22222', criadoEm: new Date('2026-09-20T12:00:00Z'), usadoEm: new Date('2026-09-21T12:00:00Z') }
+
+  it('sem convites: mensagem vazia e o formulário de criação continua lá', () => {
+    const html = paginaAdmin('admin@x.com', [])
+    expect(html).toContain('Nenhum convite')
+    expect(html).toMatch(/<form[^>]*action="\/admin\/convites"/)
+  })
+
+  it('lista convites com código, nota escapada, status e botão de revogar só no aberto', () => {
+    const html = paginaAdmin('admin@x.com', [aberto, usado])
+    expect(html).toContain('aaaa11111')
+    expect(html).toContain('bbbb22222')
+    expect(html).toContain('para o &lt;b&gt;João&lt;/b&gt;')
+    expect(html).not.toContain('para o <b>João</b>')
+    expect(html).toMatch(/aaaa11111[\s\S]*Aberto/)
+    expect(html).toMatch(/bbbb22222[\s\S]*Usado/)
+    const revogarPorId = (id: string) => new RegExp('action="/admin/convites/revogar"[\\s\\S]*?value="' + id + '"')
+    expect(html).toMatch(revogarPorId('i1'))
+    // o convite usado não tem form de revogar com o seu id
+    const formsRevogar = [...html.matchAll(/<form method="post" action="\/admin\/convites\/revogar">[\s\S]*?<\/form>/g)]
+    expect(formsRevogar).toHaveLength(1)
+  })
+
+  it('e-mail do admin aparece escapado no topo', () => {
+    expect(paginaAdmin('<i>@x.com', [])).toContain('&lt;i&gt;@x.com')
   })
 })

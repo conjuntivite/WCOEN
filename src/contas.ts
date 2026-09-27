@@ -1,6 +1,7 @@
 import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto'
 import { promisify } from 'node:util'
 import { ObjectId, type Db } from 'mongodb'
+import type { Convites } from './convites'
 
 const scrypt = promisify(scryptCb) as (senha: string, sal: Buffer, tamanho: number) => Promise<Buffer>
 const TRINTA_DIAS_MS = 30 * 24 * 3600_000
@@ -28,7 +29,8 @@ async function senhaConfere(senha: string, hash: string): Promise<boolean> {
   return obtido.length === alvo.length && timingSafeEqual(obtido, alvo)
 }
 
-export async function criarContas(db: Db, { convite }: { convite: string }) {
+// `convite` é o código mestre do .env (plano B); `convites`, os criados por um admin no painel (uso único cada)
+export async function criarContas(db: Db, { convite, convites }: { convite: string; convites?: Convites }) {
   const contas = db.collection<DocConta>('contas')
   const logins = db.collection<DocLogin>('logins')
   await contas.createIndex({ email: 1 }, { unique: true })
@@ -46,10 +48,15 @@ export async function criarContas(db: Db, { convite }: { convite: string }) {
 
     async cadastrar(email: string, senha: string, conviteInformado: string): Promise<{ ok: true; conta: Conta } | { ok: false; erro: ErroCadastro }> {
       const e = normalizar(email)
-      if (!convite || !igual(conviteInformado, convite)) return { ok: false, erro: 'convite_invalido' } // sem convite configurado, ninguém entra
+      const codigo = conviteInformado ?? ''
+      const viaMestre = Boolean(convite) && igual(codigo, convite) // sem convite configurado no .env, o mestre nunca bate
+      const viaConvites = !viaMestre && Boolean(convites) && (await convites!.existe(codigo)) // só espia; não consome antes de validar e-mail/senha
+      if (!viaMestre && !viaConvites) return { ok: false, erro: 'convite_invalido' }
       if (!EMAIL.test(e)) return { ok: false, erro: 'email_invalido' }
       if (senha.length < 8) return { ok: false, erro: 'senha_curta' }
       const doc: DocConta = { _id: new ObjectId(), email: e, senhaHash: await hashSenha(senha), criadaEm: new Date() }
+      // consome só agora, logo antes de gravar: fecha a corrida de dois cadastros com o mesmo código dinâmico
+      if (viaConvites && !(await convites!.consumir(codigo, doc._id.toHexString()))) return { ok: false, erro: 'convite_invalido' }
       try {
         await contas.insertOne(doc)
       } catch (err) {

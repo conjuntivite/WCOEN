@@ -8,6 +8,7 @@ export type Config = {
   convite: string // código exigido no cadastro (cadastro fechado)
   chaveCripto: Buffer // 32 bytes; criptografa as credenciais do WhatsApp no Mongo
   maxSessoes: number
+  adminEmails: string[] // veem /admin e podem criar/revogar convites; normalizados (minúsculo, sem espaços)
   openrouter?: { apiKey: string; models: string[] } // opcional: sem chave, a auditoria fica desligada; models (só pagos) em ordem de tentativa
 }
 
@@ -35,6 +36,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     convite,
     chaveCripto: Buffer.from(chave, 'hex'),
     maxSessoes: Number(env.MAX_SESSOES) || 20,
+    adminEmails: lista(env.ADMIN_EMAILS).map((e) => e.toLowerCase()),
     openrouter,
   }
 }

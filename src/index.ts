@@ -3,6 +3,7 @@ import { apagarAuth, criarAuthState, garantirIndiceAuth, type DocAuth } from './
 import { criarSocketBaileys } from './baileys'
 import { loadConfig } from './config'
 import { criarContas, criarLimitador } from './contas'
+import { criarConvites } from './convites'
 import { conectarMongo } from './repo'
 import { Service } from './service'
 import { criarSessoes } from './sessoes'
@@ -18,7 +19,8 @@ try {
   process.exit(1)
 }
 
-const contas = await criarContas(mongo.db, { convite: config.convite })
+const convites = await criarConvites(mongo.db)
+const contas = await criarContas(mongo.db, { convite: config.convite, convites })
 const authCol = mongo.db.collection<DocAuth>('wa_auth')
 await garantirIndiceAuth(authCol)
 
@@ -39,6 +41,8 @@ const sessoes = criarSessoes({
 const web = criarWeb({
   contas,
   sessoes,
+  convites,
+  adminEmails: config.adminEmails,
   limitador: criarLimitador(5, 15 * 60_000),
   cookieSeguro: Boolean(config.dominio),
   confiarProxy: Boolean(config.dominio),

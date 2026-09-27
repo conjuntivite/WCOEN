@@ -13,7 +13,14 @@ describe('loadConfig', () => {
       convite: 'convite-piloto',
       chaveCripto: Buffer.from(CHAVE, 'hex'),
       maxSessoes: 20,
+      adminEmails: [],
     })
+  })
+
+  it('ADMIN_EMAILS: normaliza (minúsculo, sem espaços) e ignora vazios; sem a variável, lista vazia', () => {
+    expect(loadConfig(base).adminEmails).toEqual([])
+    const c = loadConfig({ ...base, ADMIN_EMAILS: ' Ana@X.com, , bob@X.COM ' })
+    expect(c.adminEmails).toEqual(['ana@x.com', 'bob@x.com'])
   })
 
   it('respeita MONGO_DB, PORTA, DOMINIO e MAX_SESSOES', () => {

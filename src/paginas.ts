@@ -1,4 +1,5 @@
 import type { Conta } from './contas'
+import type { Convite } from './convites'
 import type { Aviso, Visao } from './sessoes'
 
 const ENTIDADES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
@@ -44,6 +45,7 @@ input[aria-invalid=true]{border-color:var(--erro)}
 .btn.sec:hover{background:var(--marca-suave);color:var(--texto)}
 .btn.pequeno{width:auto;margin:0;min-height:44px;padding:8px 14px}
 .rodape-form{margin:16px 0 0;text-align:center;color:var(--suave);font-size:.94rem}
+.link-admin{font-size:.88rem;font-weight:600;white-space:nowrap}
 /* prévia do bot */
 .balao{background:#fff;color:#14201c;border-radius:4px 16px 16px 16px;padding:14px 16px;font-size:.92rem;line-height:1.5;box-shadow:0 8px 24px rgba(0,0,0,.18);max-width:320px}
 .balao p{margin:0 0 8px}.balao hr{border:0;border-top:1px solid #d8e2dd;margin:8px 0}
@@ -77,6 +79,11 @@ input[aria-invalid=true]{border-color:var(--erro)}
 .comandos .rot{display:block;color:var(--suave);font-size:.8rem;margin-bottom:2px}
 code{font:600 .92rem ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}
 details{margin-top:14px}summary{cursor:pointer;color:var(--suave);font-weight:600;min-height:44px;display:flex;align-items:center}
+/* admin */
+.convites{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.convite{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border:1px solid var(--borda);border-radius:12px}
+.convite>div:first-child{flex:1;min-width:160px}
+.convite form{margin:0}
 @media (min-width:860px){
 .auth{display:grid;grid-template-columns:1.05fr 1fr}
 .vitrine{position:sticky;top:0;height:100vh;padding:48px 56px;display:flex;flex-direction:column;justify-content:center}
@@ -153,11 +160,27 @@ new EventSource('/painel/eventos').onmessage = (e) => {
 }
 `
 
-export const paginaPainel = (email: string, fragmento: string, passo: string, erro?: string) =>
+export const paginaPainel = (email: string, fragmento: string, passo: string, erro?: string, admin = false) =>
   layout(
     'Painel',
-    `<div class="pagina"><header class="topo">${marca('/painel')}<div class="usuario"><span class="email" title="${esc(email)}">${esc(email)}</span><form method="post" action="/sair"><button class="btn sec pequeno">${ic('sair')}Sair</button></form></div></header><main id="conteudo">${aviso(erro)}<div class="cartao" id="estado" data-passo="${esc(passo)}" aria-live="polite">${fragmento}</div></main></div>`,
+    `<div class="pagina"><header class="topo">${marca('/painel')}<div class="usuario">${admin ? '<a class="link-admin" href="/admin">Administração</a>' : ''}<span class="email" title="${esc(email)}">${esc(email)}</span><form method="post" action="/sair"><button class="btn sec pequeno">${ic('sair')}Sair</button></form></div></header><main id="conteudo">${aviso(erro)}<div class="cartao" id="estado" data-passo="${esc(passo)}" aria-live="polite">${fragmento}</div></main></div>`,
     '<script src="/painel.js"></script>',
+  )
+
+// --- administração (convites) --------------------------------------------
+
+const dataHora = (d: Date) => new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }).format(d)
+
+const itemConvite = (c: Convite) => {
+  const aberto = !c.usadoEm
+  const revogar = aberto ? `<form method="post" action="/admin/convites/revogar"><input type="hidden" name="id" value="${esc(c.id)}"><button class="btn sec pequeno">Revogar</button></form>` : ''
+  return `<li class="convite"><div><code>${esc(c.codigo)}</code>${c.nota ? ` <span class="sub">· ${esc(c.nota)}</span>` : ''}<div class="sub">${dataHora(c.criadoEm)}</div></div><span class="chip ${aberto ? 'chip-ok' : ''}">${aberto ? 'Aberto' : 'Usado'}</span>${revogar}</li>`
+}
+
+export const paginaAdmin = (email: string, convites: Convite[]) =>
+  layout(
+    'Administração',
+    `<div class="pagina"><header class="topo">${marca('/painel')}<div class="usuario"><span class="email" title="${esc(email)}">${esc(email)}</span><form method="post" action="/sair"><button class="btn sec pequeno">${ic('sair')}Sair</button></form></div></header><main id="conteudo"><div class="cartao"><h2>Novo convite</h2><p class="sub">Gera um código de uso único para um cadastro.</p><form method="post" action="/admin/convites"><div class="campo"><label for="nota">Nota (opcional)</label><input id="nota" name="nota" type="text" maxlength="80" placeholder="Ex.: para o João"></div><button class="btn">Gerar convite</button></form></div><div class="cartao"><h2>Convites</h2>${convites.length ? `<ul class="convites">${convites.map(itemConvite).join('')}</ul>` : '<p class="sub">Nenhum convite ainda.</p>'}</div></main></div>`,
   )
 
 const AVISOS: Record<Aviso, string> = {
