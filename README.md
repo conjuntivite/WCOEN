@@ -73,3 +73,23 @@ Definir `ADMIN_EMAILS` (e-mails já cadastrados, separados por vírgula) libera 
 - **Redefinir senha de um cliente:** `npm run senha -- email@cliente.com nova-senha-123`.
 - **Backup do banco:** `docker compose exec -T postgres pg_dump -U postgres wcoen | gzip > backup-$(date +%F).gz`. Guarde `CHAVE_CRIPTO` fora do servidor: sem ela, as sessões do WhatsApp gravadas não abrem.
 - **Testar antes de liberar um piloto:** `docs/roteiro-manual-portal.md`.
+
+### Subir no Fly.io (grátis)
+
+1. Crie a conta em https://fly.io e instale o `flyctl` (`iwr https://fly.io/install.ps1 -useb | iex` no
+   PowerShell).
+2. `fly auth login`.
+3. Crie o projeto no Supabase (https://supabase.com), copie a "Connection string" (URI) do banco em
+   Project Settings → Database, e acrescente `?sslmode=require` no final.
+4. Gere `CHAVE_CRIPTO` (comando no `.env.example`) e escolha um `CONVITE`.
+5. `fly launch --no-deploy` na pasta do projeto (usa o `Dockerfile` e o `fly.toml` já existentes; não deixe
+   o assistente criar banco de dados, o banco é o Supabase).
+6. Defina os segredos (nunca vão pro `.env` do servidor):
+   ```
+   fly secrets set DATABASE_URL="postgresql://postgres:SENHA@db.SEUPROJETO.supabase.co:5432/postgres?sslmode=require" \
+     CONVITE="..." CHAVE_CRIPTO="..." DOMINIO="wcoen.fly.dev" ADMIN_EMAILS="voce@seudominio.com"
+   ```
+7. `fly deploy`.
+8. Acesse `https://wcoen.fly.dev`, cadastre-se com o convite e conecte o WhatsApp.
+
+Backup do Supabase: veja Database → Backups no painel do projeto (o plano gratuito guarda alguns dias).
