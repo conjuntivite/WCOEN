@@ -9,7 +9,6 @@
     "start": "node --env-file=.env --import tsx src/index.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "migrar": "node --env-file=.env --import tsx src/cli/migrar.ts",
     "senha": "node --env-file=.env --import tsx src/cli/senha.ts"
   },
   "dependencies": {

@@ -1,37 +1,38 @@
 import { criarAuditorOpenRouter } from './auditar'
-import { apagarAuth, criarAuthState, garantirIndiceAuth, type DocAuth } from './authstate'
+import { apagarAuth, criarAuthState, garantirTabelaAuth } from './authstate'
 import { criarSocketBaileys } from './baileys'
 import { loadConfig } from './config'
 import { criarContas, criarLimitador } from './contas'
 import { criarConvites } from './convites'
-import { conectarMongo } from './repo'
+import { conectarPostgres } from './db'
+import { criarRepo } from './repo'
 import { Service } from './service'
 import { criarSessoes } from './sessoes'
 import { criarWeb } from './web'
 
 const config = loadConfig()
 
-let mongo: Awaited<ReturnType<typeof conectarMongo>>
+let banco: Awaited<ReturnType<typeof conectarPostgres>>
 try {
-  mongo = await conectarMongo(config.mongoUri, config.mongoDb)
+  banco = await conectarPostgres(config.databaseUrl)
 } catch (err) {
-  console.error('Não consegui conectar ao Mongo (o container está de pé?):', (err as Error).message)
+  console.error('Não consegui conectar ao Postgres (a DATABASE_URL está certa?):', (err as Error).message)
   process.exit(1)
 }
 
-const convites = await criarConvites(mongo.db)
-const contas = await criarContas(mongo.db, { convite: config.convite, convites })
-const authCol = mongo.db.collection<DocAuth>('wa_auth')
-await garantirIndiceAuth(authCol)
+const convites = await criarConvites(banco.pool)
+const contas = await criarContas(banco.pool, { convite: config.convite, convites })
+const repo = await criarRepo(banco.pool)
+await garantirTabelaAuth(banco.pool)
 
 // auditor só existe com OPENROUTER_API_KEY + OPENROUTER_MODEL; sem ele, o comando auditoria avisa que a IA está desligada
 const auditor = config.openrouter ? criarAuditorOpenRouter(config.openrouter) : undefined
 
 const sessoes = criarSessoes({
-  criarAuth: (id) => criarAuthState(authCol, id, config.chaveCripto),
-  apagarAuth: (id) => apagarAuth(authCol, id),
+  criarAuth: (id) => criarAuthState(banco.pool, id, config.chaveCripto),
+  apagarAuth: (id) => apagarAuth(banco.pool, id),
   criarSocket: criarSocketBaileys,
-  criarService: (id) => new Service(mongo.repoDe(id), undefined, auditor),
+  criarService: (id) => new Service(repo.repoDe(id), undefined, auditor),
   grupoDa: async (id) => (await contas.porId(id))?.grupoId,
   salvarGrupo: (id, grupoId, nome) => contas.definirGrupo(id, grupoId, nome),
   marcarConectada: (id, conectada) => contas.marcarConectada(id, conectada),
@@ -59,7 +60,7 @@ async function sair() {
   web.close()
   web.closeAllConnections()
   await sessoes.encerrar()
-  await mongo.close()
+  await banco.close()
   process.exit(0)
 }
 process.on('SIGINT', sair)

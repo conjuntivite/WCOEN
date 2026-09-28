@@ -48,9 +48,10 @@ describe('criarAuthState', () => {
 
   it('grava, lê e apaga chaves de sinal', async () => {
     const a = await criarAuthState(pool, 'c1', chave)
-    await a.state.keys.set({ 'pre-key': { '1': { algum: 'valor' } } })
+    const par = { public: Buffer.from([1]), private: Buffer.from([2]) }
+    await a.state.keys.set({ 'pre-key': { '1': par } })
     const lidas = await a.state.keys.get('pre-key', ['1'])
-    expect(lidas['1']).toEqual({ algum: 'valor' })
+    expect(lidas['1']).toEqual(par)
     await a.state.keys.set({ 'pre-key': { '1': null } }) // null remove
     const depois = await a.state.keys.get('pre-key', ['1'])
     expect(depois['1']).toBeNull()
