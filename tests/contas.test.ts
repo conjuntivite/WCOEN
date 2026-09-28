@@ -1,8 +1,10 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import { createHash } from 'node:crypto'
 import { Pool } from 'pg'
 import { criarContas, type Contas } from '../src/contas'
+import { criarConvites } from '../src/convites'
 
-const URL = process.env.TEST_DATABASE_URL ?? 'postgres://postgres:wcoen@localhost:5432/wcoen'
+const URL = process.env.TEST_DATABASE_URL ?? 'postgres://postgres:wcoen@localhost:5432/wcoen_test'
 const pool = new Pool({ connectionString: URL })
 let contas: Contas
 
@@ -40,6 +42,15 @@ describe('cadastro', () => {
     expect(await semConvite.cadastrar('ana@x.com', 'senha-boa-123', '')).toEqual({ ok: false, erro: 'convite_invalido' })
   })
 
+  it('cadastro com convite dinâmico e e-mail inválido não consome o convite', async () => {
+    await pool.query('DROP TABLE IF EXISTS convites')
+    const convites = await criarConvites(pool)
+    const comConvites = await criarContas(pool, { convite: 'segredo', convites })
+    const { codigo } = await convites.criar('admin1')
+    expect(await comConvites.cadastrar('sem-arroba', 'senha-boa-123', codigo)).toEqual({ ok: false, erro: 'email_invalido' })
+    expect(await convites.existe(codigo)).toBe(true)
+  })
+
   it('cadastro concorrente com o mesmo e-mail: só um vence, o outro recebe email_em_uso', async () => {
     const [r1, r2] = await Promise.all([cadastrar('corrida@x.com'), cadastrar('corrida@x.com')])
     const oks = [r1, r2].filter((r) => r.ok)
@@ -64,6 +75,31 @@ describe('login', () => {
     expect(await contas.redefinirSenha('ana@x.com', 'nova-senha-123')).toBe(true)
     expect(await contas.contaDoLogin(token)).toBeNull()
     expect(await contas.verificar('ana@x.com', 'nova-senha-123')).not.toBeNull()
+  })
+
+  // Review Focus do plano: login expirado precisa continuar recusando mesmo sem o TTL automático que o Mongo tinha.
+  it('login expirado (contaDoLogin) recusa mesmo sem TTL automático do banco', async () => {
+    const { conta } = (await cadastrar()) as { ok: true; conta: { id: string } }
+    const token = await contas.criarLogin(conta.id)
+    const idLogin = createHash('sha256').update(token).digest('hex')
+    await pool.query("UPDATE logins SET expira_em = now() - interval '1 second' WHERE id = $1", [idLogin])
+    expect(await contas.contaDoLogin(token)).toBeNull()
+  })
+
+  it('senha errada ou e-mail desconhecido em verificar dá null', async () => {
+    await cadastrar()
+    expect(await contas.verificar('ana@x.com', 'senha-errada')).toBeNull()
+    expect(await contas.verificar('ninguem@x.com', 'senha-boa-123')).toBeNull()
+  })
+
+  it('redefinirSenha com e-mail inexistente ou senha curta dá false', async () => {
+    await cadastrar()
+    expect(await contas.redefinirSenha('ninguem@x.com', 'nova-senha-123')).toBe(false)
+    expect(await contas.redefinirSenha('ana@x.com', '123')).toBe(false)
+  })
+
+  it('token desconhecido em contaDoLogin dá null', async () => {
+    expect(await contas.contaDoLogin('token-que-nunca-existiu')).toBeNull()
   })
 })
 

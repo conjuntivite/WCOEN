@@ -3,7 +3,7 @@ import { Pool } from 'pg'
 import { criarRepo } from '../src/repo'
 import { repoContract } from './repo.contract'
 
-const URL = process.env.TEST_DATABASE_URL ?? 'postgres://postgres:wcoen@localhost:5432/wcoen'
+const URL = process.env.TEST_DATABASE_URL ?? 'postgres://postgres:wcoen@localhost:5432/wcoen_test'
 const limpador = new Pool({ connectionString: URL })
 const fechar: Array<() => Promise<void>> = []
 

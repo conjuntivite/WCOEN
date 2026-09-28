@@ -47,8 +47,9 @@ Para ligar, defina no `.env` `OPENROUTER_API_KEY` e `OPENROUTER_MODEL` (um ou ma
 ## Testes
 
 `npm test` (precisa do Postgres de pé — `docker compose up -d postgres`; `TEST_DATABASE_URL` define o
-endereço, padrão `postgres://postgres:wcoen@localhost:5432/wcoen`; os testes recriam as tabelas a cada
-execução).
+endereço, padrão `postgres://postgres:wcoen@localhost:5432/wcoen_test`; os testes usam um banco **separado**
+do de desenvolvimento (`wcoen_test`), criado automaticamente na primeira execução, e recriam as tabelas a
+cada execução).
 
 ## Se o WhatsApp desconectar o aparelho
 

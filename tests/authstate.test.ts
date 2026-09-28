@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto'
 import { Pool } from 'pg'
 import { apagarAuth, cifrar, criarAuthState, decifrar, garantirTabelaAuth } from '../src/authstate'
 
-const URL = process.env.TEST_DATABASE_URL ?? 'postgres://postgres:wcoen@localhost:5432/wcoen'
+const URL = process.env.TEST_DATABASE_URL ?? 'postgres://postgres:wcoen@localhost:5432/wcoen_test'
 const pool = new Pool({ connectionString: URL })
 const chave = randomBytes(32)
 
@@ -34,6 +34,15 @@ describe('criarAuthState', () => {
     const a = await criarAuthState(pool, 'c1', chave)
     await a.saveCreds()
     await expect(criarAuthState(pool, 'c1', randomBytes(32))).rejects.toThrow('CHAVE_CRIPTO')
+  })
+
+  it('credenciais gravadas não são sobrescritas por uma tentativa de leitura com chave errada', async () => {
+    const a = await criarAuthState(pool, 'c1', chave)
+    await a.saveCreds()
+    const antes = (await pool.query('SELECT valor FROM wa_auth WHERE conta_id = $1 AND chave = $2', ['c1', 'creds'])).rows[0].valor
+    await expect(criarAuthState(pool, 'c1', randomBytes(32))).rejects.toThrow('CHAVE_CRIPTO')
+    const depois = (await pool.query('SELECT valor FROM wa_auth WHERE conta_id = $1 AND chave = $2', ['c1', 'creds'])).rows[0].valor
+    expect(depois).toEqual(antes)
   })
 
   it('apagarAuth remove só a conta indicada', async () => {

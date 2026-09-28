@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { criarConvites } from '../src/convites'
 
-const URL = process.env.TEST_DATABASE_URL ?? 'postgres://postgres:wcoen@localhost:5432/wcoen'
+const URL = process.env.TEST_DATABASE_URL ?? 'postgres://postgres:wcoen@localhost:5432/wcoen_test'
 const pool = new Pool({ connectionString: URL })
 
 beforeEach(() => pool.query('DROP TABLE IF EXISTS convites'))
@@ -25,6 +25,11 @@ describe('criarConvites', () => {
     const { codigo } = await convites.criar('admin1')
     expect(await convites.existe(codigo)).toBe(true)
     expect(await convites.existe('nao-existe')).toBe(false)
+  })
+
+  it('consumir com código inexistente dá false', async () => {
+    const convites = await criarConvites(pool)
+    expect(await convites.consumir('nao-existe', 'contaA')).toBe(false)
   })
 
   it('consumir é atômico: só um de dois cadastros simultâneos com o mesmo código vence', async () => {
