@@ -182,3 +182,23 @@ describe('redefinição de senha por e-mail', () => {
     expect(await contas.porEmail('r4@x.com')).toBeNull()
   })
 })
+
+describe('conta DEV e exclusão definitiva', () => {
+  it('semearDev cria a conta na primeira vez e atualiza a senha nas próximas chamadas', async () => {
+    await contas.semearDev('Dev@X.com', 'senha-dev-1')
+    expect(await contas.verificar('dev@x.com', 'senha-dev-1')).not.toBeNull()
+    await contas.semearDev('dev@x.com', 'senha-dev-2')
+    expect(await contas.verificar('dev@x.com', 'senha-dev-1')).toBeNull()
+    expect(await contas.verificar('dev@x.com', 'senha-dev-2')).not.toBeNull()
+  })
+
+  it('excluirConta apaga logins, redefinições pendentes e a conta', async () => {
+    const { conta } = (await cadastrar('excluir@x.com')) as { ok: true; conta: { id: string } }
+    const token = await contas.criarLogin(conta.id)
+    await contas.criarRedefinicao(conta.id)
+    await contas.excluirConta(conta.id)
+    expect(await contas.contaDoLogin(token)).toBeNull()
+    expect((await pool.query('SELECT 1 FROM redefinicoes_senha WHERE conta_id = $1', [conta.id])).rowCount).toBe(0)
+    expect((await pool.query('SELECT 1 FROM contas WHERE id = $1', [conta.id])).rowCount).toBe(0)
+  })
+})

@@ -181,6 +181,20 @@ export async function criarContas(pool: Pool, { convite, convites }: { convite: 
       )
       return r.rows[0]?.conta_id ?? null
     },
+
+    async semearDev(email: string, senha: string): Promise<void> {
+      const e = normalizar(email)
+      await pool.query(
+        'INSERT INTO contas (id, email, senha_hash, criada_em) VALUES ($1,$2,$3,now()) ON CONFLICT (email) DO UPDATE SET senha_hash = $3',
+        [randomUUID(), e, await hashSenha(senha)],
+      )
+    },
+
+    async excluirConta(contaId: string): Promise<void> {
+      await pool.query('DELETE FROM logins WHERE conta_id = $1', [contaId])
+      await pool.query('DELETE FROM redefinicoes_senha WHERE conta_id = $1', [contaId])
+      await pool.query('DELETE FROM contas WHERE id = $1', [contaId])
+    },
   }
 }
 
