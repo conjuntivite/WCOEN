@@ -5,6 +5,7 @@ import { loadConfig } from './config'
 import { criarContas, criarLimitador } from './contas'
 import { criarConvites } from './convites'
 import { conectarPostgres } from './db'
+import { criarMailer } from './mailer'
 import { criarRepo } from './repo'
 import { Service } from './service'
 import { criarSessoes } from './sessoes'
@@ -25,6 +26,9 @@ const contas = await criarContas(banco.pool, { convite: config.convite, convites
 const repo = await criarRepo(banco.pool)
 await garantirTabelaAuth(banco.pool)
 
+const mailer = config.smtp ? criarMailer(config.smtp) : undefined
+if (config.dev) await contas.semearDev(config.dev.email, config.dev.senha)
+
 // auditor só existe com OPENROUTER_API_KEY + OPENROUTER_MODEL; sem ele, o comando auditoria avisa que a IA está desligada
 const auditor = config.openrouter ? criarAuditorOpenRouter(config.openrouter) : undefined
 
@@ -43,10 +47,14 @@ const web = criarWeb({
   contas,
   sessoes,
   convites,
+  repo,
+  mailer,
   adminEmails: config.adminEmails,
+  devEmail: config.dev?.email,
   limitador: criarLimitador(5, 15 * 60_000),
   cookieSeguro: Boolean(config.dominio),
   confiarProxy: Boolean(config.dominio),
+  dominio: config.dominio,
 })
 web.listen(config.porta, () => console.log(`Portal em http://localhost:${config.porta}`))
 
