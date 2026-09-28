@@ -1,8 +1,6 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
 import { BufferJSON, initAuthCreds, proto, type AuthenticationState } from '@whiskeysockets/baileys'
-import type { Collection } from 'mongodb'
-
-export type DocAuth = { contaId: string; chave: string; valor: string }
+import type { Pool } from 'pg'
 
 // AES-256-GCM; o valor guardado é base64(iv[12] | tag[16] | texto cifrado)
 export function cifrar(texto: string, chave: Buffer): string {
@@ -19,24 +17,34 @@ export function decifrar(valor: string, chave: Buffer): string {
   return Buffer.concat([d.update(b.subarray(28)), d.final()]).toString('utf8')
 }
 
-export async function garantirIndiceAuth(col: Collection<DocAuth>) {
-  await col.createIndex({ contaId: 1, chave: 1 }, { unique: true })
+export async function garantirTabelaAuth(pool: Pool) {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS wa_auth (
+      conta_id TEXT NOT NULL,
+      chave TEXT NOT NULL,
+      valor TEXT NOT NULL,
+      PRIMARY KEY (conta_id, chave)
+    )
+  `)
 }
 
-export async function apagarAuth(col: Collection<DocAuth>, contaId: string) {
-  await col.deleteMany({ contaId })
+export async function apagarAuth(pool: Pool, contaId: string) {
+  await pool.query('DELETE FROM wa_auth WHERE conta_id = $1', [contaId])
 }
 
-// Mesmo contrato do useMultiFileAuthState do Baileys, mas no Mongo, por conta e criptografado.
-export async function criarAuthState(col: Collection<DocAuth>, contaId: string, chave: Buffer) {
+// Mesmo contrato do useMultiFileAuthState do Baileys, mas no Postgres, por conta e criptografado.
+export async function criarAuthState(pool: Pool, contaId: string, chave: Buffer) {
   const gravar = (k: string, v: unknown) =>
-    col.updateOne({ contaId, chave: k }, { $set: { valor: cifrar(JSON.stringify(v, BufferJSON.replacer), chave) } }, { upsert: true })
-  const remover = (k: string) => col.deleteOne({ contaId, chave: k })
+    pool.query(
+      'INSERT INTO wa_auth (conta_id, chave, valor) VALUES ($1,$2,$3) ON CONFLICT (conta_id, chave) DO UPDATE SET valor = EXCLUDED.valor',
+      [contaId, k, cifrar(JSON.stringify(v, BufferJSON.replacer), chave)],
+    )
+  const remover = (k: string) => pool.query('DELETE FROM wa_auth WHERE conta_id = $1 AND chave = $2', [contaId, k])
   const ler = async (k: string) => {
-    const d = await col.findOne({ contaId, chave: k })
-    if (!d) return null
+    const r = await pool.query<{ valor: string }>('SELECT valor FROM wa_auth WHERE conta_id = $1 AND chave = $2', [contaId, k])
+    if (!r.rows[0]) return null
     try {
-      return JSON.parse(decifrar(d.valor, chave), BufferJSON.reviver)
+      return JSON.parse(decifrar(r.rows[0].valor, chave), BufferJSON.reviver)
     } catch {
       // nunca devolver null aqui: o Baileys criaria credenciais novas e sobrescreveria as gravadas
       throw new Error('CHAVE_CRIPTO não confere com a usada ao gravar as credenciais')
