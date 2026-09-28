@@ -7,6 +7,7 @@ import { criarConvites, type Convites } from '../src/convites'
 import { criarWeb } from '../src/web'
 import type { Sessoes, Visao } from '../src/sessoes'
 import type { Mailer } from '../src/mailer'
+import type { Repositorio } from '../src/repo'
 
 // nome DB_URL (não URL): o global URL é usado nos testes de esqueci-senha pra extrair o token do link
 const DB_URL = process.env.TEST_DATABASE_URL ?? 'postgres://postgres:wcoen@localhost:5432/wcoen_test'
@@ -35,22 +36,39 @@ function mailerFalso() {
 }
 
 const EMAIL_ADMIN = 'admin@x.com'
+const EMAIL_DEV = 'dev@x.com'
 let contas: Contas
 let convites: Convites
 let sessoes: ReturnType<typeof sessoesFalsas>
 let mailer: ReturnType<typeof mailerFalso>
+let repoFalso: { repoDe: ReturnType<typeof vi.fn>; apagarConta: ReturnType<typeof vi.fn> }
+let cookieAdmin: string
 let server: Server
 let base = ''
 
 beforeAll(async () => {
   await pool.query('DROP TABLE IF EXISTS logins')
+  await pool.query('DROP TABLE IF EXISTS redefinicoes_senha')
   await pool.query('DROP TABLE IF EXISTS contas')
   await pool.query('DROP TABLE IF EXISTS convites')
   convites = await criarConvites(pool)
   contas = await criarContas(pool, { convite: 'segredo', convites })
+  await contas.semearDev(EMAIL_DEV, 'senha-dev-123')
+  repoFalso = { repoDe: vi.fn(), apagarConta: vi.fn(async (_id: string) => {}) }
   sessoes = sessoesFalsas()
   mailer = mailerFalso()
-  server = criarWeb({ contas, sessoes: sessoes as unknown as Sessoes, convites, mailer, adminEmails: [EMAIL_ADMIN], limitador: criarLimitador(5, 60_000), cookieSeguro: true, confiarProxy: true })
+  server = criarWeb({
+    contas,
+    sessoes: sessoes as unknown as Sessoes,
+    convites,
+    mailer,
+    adminEmails: [EMAIL_ADMIN],
+    limitador: criarLimitador(5, 60_000),
+    cookieSeguro: true,
+    confiarProxy: true,
+    repo: repoFalso as unknown as Repositorio,
+    devEmail: EMAIL_DEV,
+  })
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
 })
@@ -84,6 +102,12 @@ async function entrar(email = `u${++seq}@x.com`) {
   const cookie = r.headers.getSetCookie()[0].split(';')[0]
   const conta = (await contas.verificar(email, 'senha-boa-123'))!
   return { cookie, conta }
+}
+
+async function entrarComo(email: string, senha: string) {
+  const r = await post('/entrar', { email, senha })
+  expect(r.status).toBe(303)
+  return r.headers.getSetCookie()[0].split(';')[0]
 }
 
 describe('cadastro e login', () => {
@@ -270,8 +294,8 @@ describe('saúde', () => {
 
 describe('admin', () => {
   const codigoPorNota = (html: string, nota: string) => new RegExp('<code>([0-9a-f]{10})</code> <span class="sub">· ' + nota + '</span>').exec(html)?.[1]
-  // uma conta admin só, reaproveitada nos testes (cadastrar de novo com o mesmo e-mail falharia com email_em_uso)
-  let cookieAdmin: string
+  // uma conta admin só, reaproveitada nos testes (cadastrar de novo com o mesmo e-mail falharia com email_em_uso);
+  // cookieAdmin é módulo-escopo (declarado acima) porque describe('admin: contas') também usa
   beforeAll(async () => {
     ;({ cookie: cookieAdmin } = await entrar(EMAIL_ADMIN))
   })
@@ -424,7 +448,16 @@ describe('esqueci a senha', () => {
   })
 
   it('sem mailer configurado, ainda funciona: loga o link no console em vez de falhar', async () => {
-    const semMailer = criarWeb({ contas, sessoes: sessoes as unknown as Sessoes, convites, adminEmails: [EMAIL_ADMIN], limitador: criarLimitador(5, 60_000), cookieSeguro: true, confiarProxy: true })
+    const semMailer = criarWeb({
+      contas,
+      sessoes: sessoes as unknown as Sessoes,
+      convites,
+      adminEmails: [EMAIL_ADMIN],
+      limitador: criarLimitador(5, 60_000),
+      cookieSeguro: true,
+      confiarProxy: true,
+      repo: repoFalso as unknown as Repositorio,
+    })
     await new Promise<void>((r) => semMailer.listen(0, '127.0.0.1', r))
     const baseSemMailer = `http://127.0.0.1:${(semMailer.address() as AddressInfo).port}`
     const postSemMailer = (caminho: string, dados: Record<string, string>) =>
@@ -455,6 +488,7 @@ describe('esqueci a senha', () => {
       cookieSeguro: true,
       confiarProxy: true,
       dominio: 'app.exemplo.com',
+      repo: repoFalso as unknown as Repositorio,
     })
     await new Promise<void>((r) => comDominio.listen(0, '127.0.0.1', r))
     const baseComDominio = `http://127.0.0.1:${(comDominio.address() as AddressInfo).port}`
@@ -471,5 +505,75 @@ describe('esqueci a senha', () => {
 
     comDominio.closeAllConnections()
     await new Promise((r) => comDominio.close(r))
+  })
+})
+
+describe('admin: contas', () => {
+  let cookieDev: string
+  beforeAll(async () => {
+    cookieDev = await entrarComo(EMAIL_DEV, 'senha-dev-123')
+  })
+
+  it('conta DEV é admin e some da lista de contas do admin comum', async () => {
+    const htmlAdmin = await (await get('/admin', cookieAdmin)).text()
+    expect(htmlAdmin).not.toContain(EMAIL_DEV)
+    expect((await get('/admin', cookieDev)).status).toBe(200)
+  })
+
+  it('lista a conta na tela; desativar bloqueia login e desconecta o WhatsApp; reativar libera de novo', async () => {
+    const { conta } = await entrar('contaadmin1@x.com')
+    const html1 = await (await get('/admin', cookieAdmin)).text()
+    expect(html1).toContain('contaadmin1@x.com')
+
+    const desativar = await post('/admin/contas/desativar', { id: conta.id }, { cookie: cookieAdmin })
+    expect(desativar.headers.get('location')).toBe('/admin')
+    expect(sessoes.desconectar).toHaveBeenCalledWith(conta.id)
+    expect((await post('/entrar', { email: 'contaadmin1@x.com', senha: 'senha-boa-123' })).status).toBe(401)
+
+    await post('/admin/contas/reativar', { id: conta.id }, { cookie: cookieAdmin })
+    expect((await post('/entrar', { email: 'contaadmin1@x.com', senha: 'senha-boa-123' })).status).toBe(303)
+  })
+
+  it('"enviar link de redefinição" dispara o e-mail pra conta certa', async () => {
+    const { conta } = await entrar('contaadmin2@x.com')
+    const r = await post('/admin/contas/redefinir', { id: conta.id }, { cookie: cookieAdmin })
+    expect(r.headers.get('location')).toBe('/admin')
+    expect(mailer.enviarRedefinicaoSenha).toHaveBeenCalledWith('contaadmin2@x.com', expect.stringContaining('/redefinir-senha?token='))
+  })
+
+  it('rotas de contas exigem admin (403 pra quem não é)', async () => {
+    const { cookie } = await entrar('naoadmin@x.com')
+    expect((await post('/admin/contas/desativar', { id: 'x' }, { cookie })).status).toBe(403)
+    expect((await post('/admin/contas/reativar', { id: 'x' }, { cookie })).status).toBe(403)
+    expect((await post('/admin/contas/redefinir', { id: 'x' }, { cookie })).status).toBe(403)
+    expect((await post('/admin/contas/excluir', { id: 'x', confirmarEmail: 'x' }, { cookie })).status).toBe(403)
+  })
+
+  it('excluir exige ser a conta DEV: admin comum toma 403 mesmo sendo admin', async () => {
+    const { conta } = await entrar('naoexcluivel@x.com')
+    const r = await post('/admin/contas/excluir', { id: conta.id, confirmarEmail: 'naoexcluivel@x.com' }, { cookie: cookieAdmin })
+    expect(r.status).toBe(403)
+    expect(await contas.porId(conta.id)).not.toBeNull()
+  })
+
+  it('excluir com e-mail de confirmação errado não apaga nada; certo apaga tudo (WhatsApp, lançamentos, conta)', async () => {
+    const { conta } = await entrar('excluivel@x.com')
+    const errado = await post('/admin/contas/excluir', { id: conta.id, confirmarEmail: 'errado@x.com' }, { cookie: cookieDev })
+    expect(errado.headers.get('location')).toBe('/admin')
+    expect(await contas.porId(conta.id)).not.toBeNull()
+    expect(repoFalso.apagarConta).not.toHaveBeenCalled()
+
+    const certo = await post('/admin/contas/excluir', { id: conta.id, confirmarEmail: 'excluivel@x.com' }, { cookie: cookieDev })
+    expect(certo.headers.get('location')).toBe('/admin')
+    expect(sessoes.desconectar).toHaveBeenCalledWith(conta.id)
+    expect(repoFalso.apagarConta).toHaveBeenCalledWith(conta.id)
+    expect((await pool.query('SELECT 1 FROM contas WHERE id = $1', [conta.id])).rowCount).toBe(0)
+  })
+
+  // Review Focus do plano: id forjado/inexistente não pode quebrar nem apagar nada.
+  it('excluir com id inexistente não quebra e não apaga nada', async () => {
+    const r = await post('/admin/contas/excluir', { id: 'nunca-existiu', confirmarEmail: 'qualquer@x.com' }, { cookie: cookieDev })
+    expect(r.status).toBe(303)
+    expect(r.headers.get('location')).toBe('/admin')
   })
 })

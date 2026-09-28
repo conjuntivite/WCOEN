@@ -4,14 +4,17 @@ import { criarLimitador, type Conta, type Contas, type ErroCadastro } from './co
 import type { Convites } from './convites'
 import type { Mailer } from './mailer'
 import { ERROS_PAINEL, SCRIPT_PAINEL, fragmentoPainel, paginaAdmin, paginaCadastro, paginaEntrar, paginaEsqueciSenha, paginaPainel, paginaRedefinirSenha, passoDe, type CampoCadastro } from './paginas'
+import type { Repositorio } from './repo'
 import type { Sessoes } from './sessoes'
 
 export type OpcoesWeb = {
   contas: Contas
   sessoes: Sessoes
   convites: Convites
+  repo: Repositorio // usado pra apagar o histórico de lançamentos ao excluir uma conta definitivamente
   mailer?: Mailer
   adminEmails?: string[] // veem /admin; comparado ao e-mail já normalizado da conta
+  devEmail?: string // além de admin, pode excluir contas definitivamente; some da lista de contas do admin comum
   limitador?: ReturnType<typeof criarLimitador>
   cookieSeguro?: boolean // com HTTPS (DOMINIO definido)
   confiarProxy?: boolean // lê o IP de X-Forwarded-For (atrás do Caddy ou do proxy do Render)
@@ -64,7 +67,7 @@ function origemOk(req: IncomingMessage): boolean {
 export function criarWeb(op: OpcoesWeb): Server {
   const { contas, sessoes, convites } = op
   const limitador = op.limitador ?? criarLimitador(5, 15 * 60_000)
-  const isAdmin = (email: string) => (op.adminEmails ?? []).includes(email)
+  const isAdmin = (email: string) => (op.adminEmails ?? []).includes(email) || email === op.devEmail
 
   const html = (res: ServerResponse, status: number, corpo: string) => {
     res.writeHead(status, { ...CABECALHOS, 'Content-Type': 'text/html; charset=utf-8' })
@@ -130,7 +133,8 @@ export function criarWeb(op: OpcoesWeb): Server {
       if (caminho === '/admin') {
         if (!conta) return ir(res, '/entrar')
         if (!isAdmin(conta.email)) throw new HttpErro(403)
-        return html(res, 200, paginaAdmin(conta.email, await convites.listar()))
+        const contasAdmin = (await contas.listarContas()).filter((c) => c.email !== op.devEmail)
+        return html(res, 200, paginaAdmin(conta.email, await convites.listar(), contasAdmin, conta.email === op.devEmail))
       }
       if (caminho === '/painel/eventos') {
         if (!conta) throw new HttpErro(401)
@@ -256,6 +260,41 @@ export function criarWeb(op: OpcoesWeb): Server {
     if (caminho === '/admin/convites/revogar') {
       if (!isAdmin(conta.email)) throw new HttpErro(403)
       await convites.revogar(f.get('id') ?? '')
+      return ir(res, '/admin')
+    }
+    if (caminho === '/admin/contas/desativar') {
+      if (!isAdmin(conta.email)) throw new HttpErro(403)
+      const id = f.get('id') ?? ''
+      await sessoes.desconectar(id)
+      await contas.definirAtiva(id, false)
+      return ir(res, '/admin')
+    }
+    if (caminho === '/admin/contas/reativar') {
+      if (!isAdmin(conta.email)) throw new HttpErro(403)
+      await contas.definirAtiva(f.get('id') ?? '', true)
+      return ir(res, '/admin')
+    }
+    if (caminho === '/admin/contas/redefinir') {
+      if (!isAdmin(conta.email)) throw new HttpErro(403)
+      const alvo = await contas.porId(f.get('id') ?? '')
+      if (alvo) {
+        const token = await contas.criarRedefinicao(alvo.id)
+        const link = `${baseUrl(req)}/redefinir-senha?token=${token}`
+        if (op.mailer) op.mailer.enviarRedefinicaoSenha(alvo.email, link).catch((err) => console.error('mailer:', err instanceof Error ? err.message : err))
+        else console.log(`[mailer] SMTP não configurado. Link de redefinição para ${alvo.email}: ${link}`)
+      }
+      return ir(res, '/admin')
+    }
+    if (caminho === '/admin/contas/excluir') {
+      if (!isAdmin(conta.email)) throw new HttpErro(403)
+      if (conta.email !== op.devEmail) throw new HttpErro(403)
+      const id = f.get('id') ?? ''
+      const alvo = (await contas.listarContas()).find((c) => c.id === id)
+      if (alvo && (f.get('confirmarEmail') ?? '').trim().toLowerCase() === alvo.email) {
+        await sessoes.desconectar(id)
+        await op.repo.apagarConta(id)
+        await contas.excluirConta(id)
+      }
       return ir(res, '/admin')
     }
     throw new HttpErro(404)
