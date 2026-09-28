@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fragmentoPainel, paginaAdmin, paginaCadastro, paginaEntrar, paginaPainel, passoDe } from '../src/paginas'
+import { fragmentoPainel, paginaAdmin, paginaCadastro, paginaEsqueciSenha, paginaEntrar, paginaPainel, paginaRedefinirSenha, passoDe } from '../src/paginas'
 import type { Conta } from '../src/contas'
 import type { Convite } from '../src/convites'
 import type { Visao } from '../src/sessoes'
@@ -157,5 +157,37 @@ describe('página de administração (convites)', () => {
 
   it('e-mail do admin aparece escapado no topo', () => {
     expect(paginaAdmin('<i>@x.com', [])).toContain('&lt;i&gt;@x.com')
+  })
+})
+
+describe('esqueci a senha / redefinir senha', () => {
+  it('tela de entrar tem o link para /esqueci-senha', () => {
+    expect(paginaEntrar()).toContain('href="/esqueci-senha"')
+  })
+
+  it('paginaEsqueciSenha: formulário por padrão, com e-mail preservado', () => {
+    const html = paginaEsqueciSenha(false, 'ana@x.com')
+    expect(html).toMatch(/<label[^>]*for="email"/)
+    expect(html).toContain('value="ana@x.com"')
+    expect(html).toContain('action="/esqueci-senha"')
+  })
+
+  it('e-mail com HTML no formulário sai escapado', () => {
+    const html = paginaEsqueciSenha(false, '<b>@x.com')
+    expect(html).toContain('value="&lt;b&gt;@x.com"')
+    expect(html).not.toContain('value="<b>')
+  })
+
+  it('paginaEsqueciSenha(true): mensagem genérica, sem formulário', () => {
+    const html = paginaEsqueciSenha(true)
+    expect(html).toContain('Se esse e-mail existir na nossa base')
+    expect(html).not.toContain('action="/esqueci-senha"')
+  })
+
+  it('paginaRedefinirSenha: token no campo oculto, senha mínima 8, erro escapado', () => {
+    const html = paginaRedefinirSenha('tok<script>', 'Link inválido ou expirado.')
+    expect(html).toContain('name="token" value="tok&lt;script&gt;"')
+    expect(html).toContain('minlength="8"')
+    expect(html).toMatch(/role="alert"[^>]*>[\s\S]*Link inválido ou expirado\./)
   })
 })
