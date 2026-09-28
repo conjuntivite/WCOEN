@@ -1,20 +1,19 @@
 const lista = (v?: string) => (v ?? '').split(',').map((m) => m.trim()).filter(Boolean)
 
 export type Config = {
-  mongoUri: string
-  mongoDb: string
+  databaseUrl: string
   porta: number
-  dominio?: string // com DOMINIO o portal assume HTTPS atrás do Caddy (cookie Secure, IP do X-Forwarded-For)
+  dominio?: string // com DOMINIO o portal assume HTTPS atrás do proxy (cookie Secure, IP do X-Forwarded-For)
   convite: string // código exigido no cadastro (cadastro fechado)
-  chaveCripto: Buffer // 32 bytes; criptografa as credenciais do WhatsApp no Mongo
+  chaveCripto: Buffer // 32 bytes; criptografa as credenciais do WhatsApp no banco
   maxSessoes: number
   adminEmails: string[] // veem /admin e podem criar/revogar convites; normalizados (minúsculo, sem espaços)
   openrouter?: { apiKey: string; models: string[] } // opcional: sem chave, a auditoria fica desligada; models (só pagos) em ordem de tentativa
 }
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
-  const mongoUri = env.MONGO_URI
-  if (!mongoUri) throw new Error('MONGO_URI não definido no .env')
+  const databaseUrl = env.DATABASE_URL
+  if (!databaseUrl) throw new Error('DATABASE_URL não definido no .env')
   const convite = env.CONVITE
   if (!convite) throw new Error('CONVITE não definido no .env')
   const chave = env.CHAVE_CRIPTO ?? ''
@@ -29,8 +28,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     openrouter = { apiKey: env.OPENROUTER_API_KEY, models }
   }
   return {
-    mongoUri,
-    mongoDb: env.MONGO_DB || 'wcoen',
+    databaseUrl,
     porta: Number(env.PORTA) || 3000,
     dominio: env.DOMINIO || undefined,
     convite,

@@ -2,13 +2,12 @@ import { describe, it, expect } from 'vitest'
 import { loadConfig } from '../src/config'
 
 const CHAVE = 'a'.repeat(64)
-const base = { MONGO_URI: 'mongodb://x', CONVITE: 'convite-piloto', CHAVE_CRIPTO: CHAVE }
+const base = { DATABASE_URL: 'postgres://x', CONVITE: 'convite-piloto', CHAVE_CRIPTO: CHAVE }
 
 describe('loadConfig', () => {
   it('lê variáveis e aplica defaults', () => {
     expect(loadConfig(base)).toEqual({
-      mongoUri: 'mongodb://x',
-      mongoDb: 'wcoen',
+      databaseUrl: 'postgres://x',
       porta: 3000,
       convite: 'convite-piloto',
       chaveCripto: Buffer.from(CHAVE, 'hex'),
@@ -23,13 +22,13 @@ describe('loadConfig', () => {
     expect(c.adminEmails).toEqual(['ana@x.com', 'bob@x.com'])
   })
 
-  it('respeita MONGO_DB, PORTA, DOMINIO e MAX_SESSOES', () => {
-    const c = loadConfig({ ...base, MONGO_DB: 'outro', PORTA: '8080', DOMINIO: 'app.exemplo.com', MAX_SESSOES: '5' })
-    expect(c).toMatchObject({ mongoDb: 'outro', porta: 8080, dominio: 'app.exemplo.com', maxSessoes: 5 })
+  it('respeita PORTA, DOMINIO e MAX_SESSOES', () => {
+    const c = loadConfig({ ...base, PORTA: '8080', DOMINIO: 'app.exemplo.com', MAX_SESSOES: '5' })
+    expect(c).toMatchObject({ porta: 8080, dominio: 'app.exemplo.com', maxSessoes: 5 })
   })
 
-  it('falha sem MONGO_URI', () => {
-    expect(() => loadConfig({ ...base, MONGO_URI: undefined })).toThrow('MONGO_URI não definido no .env')
+  it('falha sem DATABASE_URL', () => {
+    expect(() => loadConfig({ ...base, DATABASE_URL: undefined })).toThrow('DATABASE_URL não definido')
   })
 
   it('cadastro fechado: exige CONVITE', () => {
