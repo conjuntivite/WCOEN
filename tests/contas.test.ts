@@ -9,6 +9,7 @@ const pool = new Pool({ connectionString: URL })
 let contas: Contas
 
 beforeEach(async () => {
+  await pool.query('DROP TABLE IF EXISTS redefinicoes_senha')
   await pool.query('DROP TABLE IF EXISTS logins')
   await pool.query('DROP TABLE IF EXISTS contas')
   contas = await criarContas(pool, { convite: 'segredo' })
@@ -137,5 +138,47 @@ describe('admin: contas', () => {
     await contas.definirAtiva(conta.id, true)
     expect(await contas.porId(conta.id)).not.toBeNull()
     expect(await contas.verificar('c@x.com', 'senha-boa-123')).not.toBeNull()
+  })
+})
+
+describe('redefinição de senha por e-mail', () => {
+  it('token válido: consumirRedefinicao devolve o contaId; token some depois (uso único)', async () => {
+    const { conta } = (await cadastrar('r1@x.com')) as { ok: true; conta: { id: string } }
+    const token = await contas.criarRedefinicao(conta.id)
+    expect(await contas.consumirRedefinicao(token)).toBe(conta.id)
+    expect(await contas.consumirRedefinicao(token)).toBeNull()
+  })
+
+  it('token expirado é recusado', async () => {
+    const { conta } = (await cadastrar('r2@x.com')) as { ok: true; conta: { id: string } }
+    const token = await contas.criarRedefinicao(conta.id)
+    await pool.query("UPDATE redefinicoes_senha SET expira_em = now() - interval '1 second' WHERE conta_id = $1", [conta.id])
+    expect(await contas.consumirRedefinicao(token)).toBeNull()
+  })
+
+  it('pedido novo invalida o token anterior da mesma conta', async () => {
+    const { conta } = (await cadastrar('r3@x.com')) as { ok: true; conta: { id: string } }
+    const antigo = await contas.criarRedefinicao(conta.id)
+    await contas.criarRedefinicao(conta.id)
+    expect(await contas.consumirRedefinicao(antigo)).toBeNull()
+  })
+
+  it('token desconhecido dá null', async () => {
+    expect(await contas.consumirRedefinicao('token-que-nunca-existiu')).toBeNull()
+  })
+
+  it('consumirRedefinicao em concorrência: exatamente um sucede', async () => {
+    const { conta } = (await cadastrar('corrida-token@x.com')) as { ok: true; conta: { id: string } }
+    const token = await contas.criarRedefinicao(conta.id)
+    const [r1, r2] = await Promise.all([contas.consumirRedefinicao(token), contas.consumirRedefinicao(token)])
+    expect([r1, r2].filter((r) => r !== null)).toEqual([conta.id])
+  })
+
+  it('porEmail acha a conta ativa; e-mail desconhecido ou conta inativa dá null', async () => {
+    const { conta } = (await cadastrar('r4@x.com')) as { ok: true; conta: { id: string } }
+    expect((await contas.porEmail('R4@X.com'))?.id).toBe(conta.id)
+    expect(await contas.porEmail('ninguem@x.com')).toBeNull()
+    await contas.definirAtiva(conta.id, false)
+    expect(await contas.porEmail('r4@x.com')).toBeNull()
   })
 })

@@ -5,6 +5,7 @@ import type { Convites } from './convites'
 
 const scrypt = promisify(scryptCb) as (senha: string, sal: Buffer, tamanho: number) => Promise<Buffer>
 const TRINTA_DIAS_MS = 30 * 24 * 3600_000
+const UMA_HORA_MS = 60 * 60_000
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 
 export type Conta = { id: string; email: string; grupoId?: string; grupoNome?: string }
@@ -55,6 +56,11 @@ export async function criarContas(pool: Pool, { convite, convites }: { convite: 
     -- contaDoLogin, então linhas expiradas só ficam paradas na tabela. Nos pilotos (poucas contas) não
     -- importa; se crescer, apagar as expiradas de tempos em tempos (ex.: um DELETE agendado).
     CREATE TABLE IF NOT EXISTS logins (
+      id TEXT PRIMARY KEY,
+      conta_id TEXT NOT NULL,
+      expira_em TIMESTAMPTZ NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS redefinicoes_senha (
       id TEXT PRIMARY KEY,
       conta_id TEXT NOT NULL,
       expira_em TIMESTAMPTZ NOT NULL
@@ -149,6 +155,31 @@ export async function criarContas(pool: Pool, { convite, convites }: { convite: 
       if (!r.rows[0]) return false
       await pool.query('DELETE FROM logins WHERE conta_id = $1', [r.rows[0].id])
       return true
+    },
+
+    async porEmail(email: string): Promise<Conta | null> {
+      const r = await pool.query<RowConta>('SELECT * FROM contas WHERE email = $1', [normalizar(email)])
+      const d = r.rows[0]
+      return d && d.ativa ? paraConta(d) : null
+    },
+
+    async criarRedefinicao(contaId: string): Promise<string> {
+      await pool.query('DELETE FROM redefinicoes_senha WHERE conta_id = $1', [contaId])
+      const token = randomBytes(32).toString('base64url')
+      await pool.query('INSERT INTO redefinicoes_senha (id, conta_id, expira_em) VALUES ($1,$2,$3)', [
+        sha256(token).toString('hex'),
+        contaId,
+        new Date(Date.now() + UMA_HORA_MS),
+      ])
+      return token
+    },
+
+    async consumirRedefinicao(token: string): Promise<string | null> {
+      const r = await pool.query<{ conta_id: string }>(
+        'DELETE FROM redefinicoes_senha WHERE id = $1 AND expira_em > now() RETURNING conta_id',
+        [sha256(token).toString('hex')],
+      )
+      return r.rows[0]?.conta_id ?? null
     },
   }
 }
