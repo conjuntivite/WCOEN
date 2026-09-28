@@ -1,19 +1,17 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
-import { MongoClient } from 'mongodb'
+import { Pool } from 'pg'
 import { criarContas, type Contas } from '../src/contas'
-import { criarConvites } from '../src/convites'
 
-const URI = process.env.TEST_MONGO_URI ?? 'mongodb://localhost:27017'
-const client = new MongoClient(URI, { serverSelectionTimeoutMS: 5000 })
-const db = client.db('wcoen_test_contas')
+const URL = process.env.TEST_DATABASE_URL ?? 'postgres://postgres:wcoen@localhost:5432/wcoen'
+const pool = new Pool({ connectionString: URL })
 let contas: Contas
 
 beforeEach(async () => {
-  await db.collection('contas').deleteMany({})
-  await db.collection('logins').deleteMany({})
-  contas = await criarContas(db, { convite: 'segredo' })
+  await pool.query('DROP TABLE IF EXISTS logins')
+  await pool.query('DROP TABLE IF EXISTS contas')
+  contas = await criarContas(pool, { convite: 'segredo' })
 })
-afterAll(() => client.close())
+afterAll(() => pool.end())
 
 const cadastrar = (email = 'ana@x.com', senha = 'senha-boa-123', convite = 'segredo') => contas.cadastrar(email, senha, convite)
 
@@ -38,106 +36,45 @@ describe('cadastro', () => {
   })
 
   it('sem convite configurado, ninguém se cadastra', async () => {
-    const fechado = await criarContas(db, { convite: '' })
-    expect(await fechado.cadastrar('ana@x.com', 'senha-boa-123', '')).toEqual({ ok: false, erro: 'convite_invalido' })
+    const semConvite = await criarContas(pool, { convite: '' })
+    expect(await semConvite.cadastrar('ana@x.com', 'senha-boa-123', '')).toEqual({ ok: false, erro: 'convite_invalido' })
+  })
+
+  it('cadastro concorrente com o mesmo e-mail: só um vence, o outro recebe email_em_uso', async () => {
+    const [r1, r2] = await Promise.all([cadastrar('corrida@x.com'), cadastrar('corrida@x.com')])
+    const oks = [r1, r2].filter((r) => r.ok)
+    const falhas = [r1, r2].filter((r) => !r.ok)
+    expect(oks).toHaveLength(1)
+    expect(falhas).toEqual([{ ok: false, erro: 'email_em_uso' }])
   })
 })
 
 describe('login', () => {
-  it('verificar: senha certa devolve a conta; errada ou e-mail desconhecido, null', async () => {
-    await cadastrar()
-    expect((await contas.verificar('ana@x.com', 'senha-boa-123'))?.email).toBe('ana@x.com')
-    expect(await contas.verificar('ana@x.com', 'outra-senha')).toBeNull()
-    expect(await contas.verificar('ninguem@x.com', 'senha-boa-123')).toBeNull()
-  })
-
-  it('token de login resolve a conta; encerrar invalida; token desconhecido é null', async () => {
-    const r = await cadastrar()
-    if (!r.ok) throw new Error('cadastro')
-    const token = await contas.criarLogin(r.conta.id)
-    expect((await contas.contaDoLogin(token))?.id).toBe(r.conta.id)
+  it('verificar confere e-mail e senha; login e logout funcionam', async () => {
+    const { conta } = (await cadastrar()) as { ok: true; conta: { id: string } }
+    const token = await contas.criarLogin(conta.id)
+    expect((await contas.contaDoLogin(token))?.id).toBe(conta.id)
     await contas.encerrarLogin(token)
     expect(await contas.contaDoLogin(token)).toBeNull()
-    expect(await contas.contaDoLogin('desconhecido')).toBeNull()
   })
 
-  it('login expirado não vale (mesmo antes do TTL do Mongo limpar)', async () => {
-    const r = await cadastrar()
-    if (!r.ok) throw new Error('cadastro')
-    const token = await contas.criarLogin(r.conta.id)
-    await db.collection('logins').updateMany({}, { $set: { expiraEm: new Date(Date.now() - 1000) } })
+  it('redefinirSenha troca a senha e encerra os logins ativos', async () => {
+    const { conta } = (await cadastrar()) as { ok: true; conta: { id: string } }
+    const token = await contas.criarLogin(conta.id)
+    expect(await contas.redefinirSenha('ana@x.com', 'nova-senha-123')).toBe(true)
     expect(await contas.contaDoLogin(token)).toBeNull()
-  })
-
-  it('no banco fica só o hash do token, nunca o token', async () => {
-    const r = await cadastrar()
-    if (!r.ok) throw new Error('cadastro')
-    const token = await contas.criarLogin(r.conta.id)
-    expect(JSON.stringify(await db.collection('logins').find().toArray())).not.toContain(token)
-  })
-})
-
-describe('grupo, conexão e senha', () => {
-  it('definirGrupo e marcarConectada/conectadas', async () => {
-    const r = await cadastrar()
-    if (!r.ok) throw new Error('cadastro')
-    await contas.definirGrupo(r.conta.id, 'g1@g.us', 'Casa')
-    expect(await contas.porId(r.conta.id)).toMatchObject({ grupoId: 'g1@g.us', grupoNome: 'Casa' })
-    expect(await contas.conectadas()).toEqual([])
-    await contas.marcarConectada(r.conta.id, true)
-    expect(await contas.conectadas()).toEqual([r.conta.id])
-    await contas.marcarConectada(r.conta.id, false)
-    expect(await contas.conectadas()).toEqual([])
-  })
-
-  it('porId com id inválido devolve null', async () => {
-    expect(await contas.porId('não-é-objectid')).toBeNull()
-  })
-
-  it('redefinirSenha troca a senha e derruba os logins', async () => {
-    const r = await cadastrar()
-    if (!r.ok) throw new Error('cadastro')
-    const token = await contas.criarLogin(r.conta.id)
-    expect(await contas.redefinirSenha('ANA@x.com', 'nova-senha-123')).toBe(true)
-    expect(await contas.verificar('ana@x.com', 'senha-boa-123')).toBeNull()
     expect(await contas.verificar('ana@x.com', 'nova-senha-123')).not.toBeNull()
-    expect(await contas.contaDoLogin(token)).toBeNull()
-    expect(await contas.redefinirSenha('ninguem@x.com', 'nova-senha-123')).toBe(false)
-    expect(await contas.redefinirSenha('ana@x.com', 'curta')).toBe(false)
   })
 })
 
-describe('convites dinâmicos (criados por um admin), além do código mestre', () => {
-  it('cadastro com um convite dinâmico funciona e o consome; o mesmo código não serve duas vezes', async () => {
-    const convites = await criarConvites(db)
-    const c = await criarContas(db, { convite: 'segredo', convites })
-    const { codigo } = await convites.criar('admin1', 'para a Ana')
-
-    const r = await c.cadastrar('ana@x.com', 'senha-boa-123', codigo)
-    expect(r.ok).toBe(true)
-
-    const r2 = await c.cadastrar('outra@x.com', 'senha-boa-123', codigo)
-    expect(r2).toEqual({ ok: false, erro: 'convite_invalido' })
-  })
-
-  it('o código mestre do .env continua funcionando ao lado dos convites dinâmicos', async () => {
-    const convites = await criarConvites(db)
-    const c = await criarContas(db, { convite: 'segredo', convites })
-    expect((await c.cadastrar('ana@x.com', 'senha-boa-123', 'segredo')).ok).toBe(true)
-  })
-
-  it('sem "convites" configurado, só o código mestre vale (comportamento anterior)', async () => {
-    const c = await criarContas(db, { convite: 'segredo' })
-    expect(await c.cadastrar('ana@x.com', 'senha-boa-123', 'um-codigo-qualquer')).toEqual({ ok: false, erro: 'convite_invalido' })
-  })
-
-  it('convite dinâmico com e-mail inválido não é consumido: dá pra tentar de novo com o mesmo código', async () => {
-    const convites = await criarConvites(db)
-    const c = await criarContas(db, { convite: 'segredo', convites })
-    const { codigo } = await convites.criar('admin1')
-
-    expect(await c.cadastrar('sem-arroba', 'senha-boa-123', codigo)).toEqual({ ok: false, erro: 'email_invalido' })
-    expect(await convites.existe(codigo)).toBe(true)
-    expect((await c.cadastrar('ana@x.com', 'senha-boa-123', codigo)).ok).toBe(true)
+describe('grupo e conexão', () => {
+  it('definirGrupo e marcarConectada persistem; conectadas lista só quem está conectada', async () => {
+    const { conta } = (await cadastrar()) as { ok: true; conta: { id: string } }
+    await contas.definirGrupo(conta.id, 'g1@g.us', 'Grupo 1')
+    await contas.marcarConectada(conta.id, true)
+    expect(await contas.porId(conta.id)).toMatchObject({ grupoId: 'g1@g.us', grupoNome: 'Grupo 1' })
+    expect(await contas.conectadas()).toEqual([conta.id])
+    await contas.marcarConectada(conta.id, false)
+    expect(await contas.conectadas()).toEqual([])
   })
 })

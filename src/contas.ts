@@ -1,6 +1,6 @@
-import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto'
+import { createHash, randomBytes, randomUUID, scrypt as scryptCb, timingSafeEqual } from 'node:crypto'
 import { promisify } from 'node:util'
-import { ObjectId, type Db } from 'mongodb'
+import type { Pool } from 'pg'
 import type { Convites } from './convites'
 
 const scrypt = promisify(scryptCb) as (senha: string, sal: Buffer, tamanho: number) => Promise<Buffer>
@@ -9,11 +9,10 @@ const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 
 export type Conta = { id: string; email: string; grupoId?: string; grupoNome?: string }
 export type ErroCadastro = 'convite_invalido' | 'email_invalido' | 'senha_curta' | 'email_em_uso'
-type DocConta = { _id: ObjectId; email: string; senhaHash: string; criadaEm: Date; grupoId?: string; grupoNome?: string; conectada?: boolean }
-type DocLogin = { _id: string; contaId: string; expiraEm: Date } // _id = SHA-256 do token
+type RowConta = { id: string; email: string; senha_hash: string; criada_em: Date; grupo_id: string | null; grupo_nome: string | null; conectada: boolean | null }
 
 const normalizar = (email: string) => email.trim().toLowerCase()
-const paraConta = (d: DocConta): Conta => ({ id: d._id.toHexString(), email: d.email, grupoId: d.grupoId, grupoNome: d.grupoNome })
+const paraConta = (d: RowConta): Conta => ({ id: d.id, email: d.email, grupoId: d.grupo_id ?? undefined, grupoNome: d.grupo_nome ?? undefined })
 const sha256 = (s: string) => createHash('sha256').update(s).digest()
 const igual = (a: string, b: string) => timingSafeEqual(sha256(a), sha256(b))
 
@@ -30,17 +29,31 @@ async function senhaConfere(senha: string, hash: string): Promise<boolean> {
 }
 
 // `convite` é o código mestre do .env (plano B); `convites`, os criados por um admin no painel (uso único cada)
-export async function criarContas(db: Db, { convite, convites }: { convite: string; convites?: Convites }) {
-  const contas = db.collection<DocConta>('contas')
-  const logins = db.collection<DocLogin>('logins')
-  await contas.createIndex({ email: 1 }, { unique: true })
-  await logins.createIndex({ expiraEm: 1 }, { expireAfterSeconds: 0 })
+export async function criarContas(pool: Pool, { convite, convites }: { convite: string; convites?: Convites }) {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS contas (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL UNIQUE,
+      senha_hash TEXT NOT NULL,
+      criada_em TIMESTAMPTZ NOT NULL,
+      grupo_id TEXT,
+      grupo_nome TEXT,
+      conectada BOOLEAN
+    );
+    -- ponytail: sem TTL automático (o Mongo tinha expireAfterSeconds); a validade já é checada em
+    -- contaDoLogin, então linhas expiradas só ficam paradas na tabela. Nos pilotos (poucas contas) não
+    -- importa; se crescer, apagar as expiradas de tempos em tempos (ex.: um DELETE agendado).
+    CREATE TABLE IF NOT EXISTS logins (
+      id TEXT PRIMARY KEY,
+      conta_id TEXT NOT NULL,
+      expira_em TIMESTAMPTZ NOT NULL
+    );
+  `)
   const hashFalso = await hashSenha('senha-inexistente') // e-mail desconhecido gasta o mesmo tempo de um conhecido
 
   const porId = async (id: string): Promise<Conta | null> => {
-    if (!ObjectId.isValid(id)) return null
-    const d = await contas.findOne({ _id: new ObjectId(id) })
-    return d ? paraConta(d) : null
+    const r = await pool.query<RowConta>('SELECT * FROM contas WHERE id = $1', [id])
+    return r.rows[0] ? paraConta(r.rows[0]) : null
   }
 
   return {
@@ -54,58 +67,65 @@ export async function criarContas(db: Db, { convite, convites }: { convite: stri
       if (!viaMestre && !viaConvites) return { ok: false, erro: 'convite_invalido' }
       if (!EMAIL.test(e)) return { ok: false, erro: 'email_invalido' }
       if (senha.length < 8) return { ok: false, erro: 'senha_curta' }
-      const doc: DocConta = { _id: new ObjectId(), email: e, senhaHash: await hashSenha(senha), criadaEm: new Date() }
+      const id = randomUUID()
       // consome só agora, logo antes de gravar: fecha a corrida de dois cadastros com o mesmo código dinâmico
-      if (viaConvites && !(await convites!.consumir(codigo, doc._id.toHexString()))) return { ok: false, erro: 'convite_invalido' }
+      if (viaConvites && !(await convites!.consumir(codigo, id))) return { ok: false, erro: 'convite_invalido' }
       try {
-        await contas.insertOne(doc)
+        await pool.query('INSERT INTO contas (id, email, senha_hash, criada_em) VALUES ($1,$2,$3,now())', [id, e, await hashSenha(senha)])
       } catch (err) {
-        if ((err as { code?: number }).code === 11000) return { ok: false, erro: 'email_em_uso' }
+        if ((err as { code?: string }).code === '23505') return { ok: false, erro: 'email_em_uso' }
         throw err
       }
-      return { ok: true, conta: paraConta(doc) }
+      return { ok: true, conta: { id, email: e } }
     },
 
     async verificar(email: string, senha: string): Promise<Conta | null> {
-      const d = await contas.findOne({ email: normalizar(email) })
-      const ok = await senhaConfere(senha, d?.senhaHash ?? hashFalso)
+      const r = await pool.query<RowConta>('SELECT * FROM contas WHERE email = $1', [normalizar(email)])
+      const d = r.rows[0]
+      const ok = await senhaConfere(senha, d?.senha_hash ?? hashFalso)
       return d && ok ? paraConta(d) : null
     },
 
     async criarLogin(contaId: string): Promise<string> {
       const token = randomBytes(32).toString('base64url')
-      await logins.insertOne({ _id: sha256(token).toString('hex'), contaId, expiraEm: new Date(Date.now() + TRINTA_DIAS_MS) })
+      await pool.query('INSERT INTO logins (id, conta_id, expira_em) VALUES ($1,$2,$3)', [
+        sha256(token).toString('hex'),
+        contaId,
+        new Date(Date.now() + TRINTA_DIAS_MS),
+      ])
       return token
     },
 
     async contaDoLogin(token: string): Promise<Conta | null> {
-      const l = await logins.findOne({ _id: sha256(token).toString('hex') })
-      if (!l || l.expiraEm.getTime() <= Date.now()) return null // o TTL do Mongo só limpa a cada ~60 s
-      return porId(l.contaId)
+      const r = await pool.query<{ conta_id: string; expira_em: Date }>('SELECT conta_id, expira_em FROM logins WHERE id = $1', [sha256(token).toString('hex')])
+      const l = r.rows[0]
+      if (!l || l.expira_em.getTime() <= Date.now()) return null
+      return porId(l.conta_id)
     },
 
     async encerrarLogin(token: string) {
-      await logins.deleteOne({ _id: sha256(token).toString('hex') })
+      await pool.query('DELETE FROM logins WHERE id = $1', [sha256(token).toString('hex')])
     },
 
     async definirGrupo(contaId: string, grupoId: string, grupoNome: string) {
-      await contas.updateOne({ _id: new ObjectId(contaId) }, { $set: { grupoId, grupoNome } })
+      await pool.query('UPDATE contas SET grupo_id = $2, grupo_nome = $3 WHERE id = $1', [contaId, grupoId, grupoNome])
     },
 
     async marcarConectada(contaId: string, conectada: boolean) {
-      await contas.updateOne({ _id: new ObjectId(contaId) }, { $set: { conectada } })
+      await pool.query('UPDATE contas SET conectada = $2 WHERE id = $1', [contaId, conectada])
     },
 
     async conectadas(): Promise<string[]> {
-      return (await contas.find({ conectada: true }, { projection: { _id: 1 } }).toArray()).map((d) => d._id.toHexString())
+      const r = await pool.query<{ id: string }>('SELECT id FROM contas WHERE conectada = true')
+      return r.rows.map((d) => d.id)
     },
 
     async redefinirSenha(email: string, senha: string): Promise<boolean> {
       if (senha.length < 8) return false
       const e = normalizar(email)
-      const r = await contas.findOneAndUpdate({ email: e }, { $set: { senhaHash: await hashSenha(senha) } })
-      if (!r) return false
-      await logins.deleteMany({ contaId: r._id.toHexString() })
+      const r = await pool.query<{ id: string }>('UPDATE contas SET senha_hash = $2 WHERE email = $1 RETURNING id', [e, await hashSenha(senha)])
+      if (!r.rows[0]) return false
+      await pool.query('DELETE FROM logins WHERE conta_id = $1', [r.rows[0].id])
       return true
     },
   }

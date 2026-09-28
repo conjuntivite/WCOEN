@@ -1,15 +1,14 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { MongoClient } from 'mongodb'
+import { Pool } from 'pg'
 import { criarContas, criarLimitador, type Contas } from '../src/contas'
 import { criarConvites, type Convites } from '../src/convites'
 import { criarWeb } from '../src/web'
 import type { Sessoes, Visao } from '../src/sessoes'
 
-const URI = process.env.TEST_MONGO_URI ?? 'mongodb://localhost:27017'
-const client = new MongoClient(URI, { serverSelectionTimeoutMS: 5000 })
-const db = client.db('wcoen_test_web')
+const URL = process.env.TEST_DATABASE_URL ?? 'postgres://postgres:wcoen@localhost:5432/wcoen'
+const pool = new Pool({ connectionString: URL })
 
 function sessoesFalsas() {
   const visoes = new Map<string, Visao>()
@@ -37,11 +36,11 @@ let server: Server
 let base = ''
 
 beforeAll(async () => {
-  await db.collection('contas').deleteMany({})
-  await db.collection('logins').deleteMany({})
-  await db.collection('convites').deleteMany({})
-  convites = await criarConvites(db)
-  contas = await criarContas(db, { convite: 'segredo', convites })
+  await pool.query('DROP TABLE IF EXISTS logins')
+  await pool.query('DROP TABLE IF EXISTS contas')
+  await pool.query('DROP TABLE IF EXISTS convites')
+  convites = await criarConvites(pool)
+  contas = await criarContas(pool, { convite: 'segredo', convites })
   sessoes = sessoesFalsas()
   server = criarWeb({ contas, sessoes: sessoes as unknown as Sessoes, convites, adminEmails: [EMAIL_ADMIN], limitador: criarLimitador(5, 60_000), cookieSeguro: true, confiarProxy: true })
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
@@ -50,7 +49,7 @@ beforeAll(async () => {
 afterAll(async () => {
   server.closeAllConnections()
   await new Promise((r) => server.close(r))
-  await client.close()
+  await pool.end()
 })
 beforeEach(() => vi.clearAllMocks())
 
@@ -304,7 +303,7 @@ describe('admin', () => {
     const codigo = codigoPorNota(html1, 'nota-para-revogar')!
     // id do form de revogar associado a esse código: procura o bloco <li> inteiro
     const bloco = new RegExp(`<li class="convite"><div><code>${codigo}</code>[\\s\\S]*?</li>`).exec(html1)?.[0] ?? ''
-    const id = /value="([0-9a-f]{24})"/.exec(bloco)?.[1]
+    const id = /value="([0-9a-f-]{36})"/.exec(bloco)?.[1]
     expect(id).toBeTruthy()
 
     const r = await post('/admin/convites/revogar', { id: id! }, { cookie: cookieAdmin })
