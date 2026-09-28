@@ -48,7 +48,7 @@ class PgRepo implements Repo {
          ORDER BY enviado_em DESC, id DESC LIMIT 1
        )
        UPDATE lancamentos l SET desfeito_em = now()
-       FROM alvo WHERE l.id = alvo.id
+       FROM alvo WHERE l.id = alvo.id AND l.desfeito_em IS NULL
        RETURNING l.tipo, l.conta, l.valor, l.remetente, l.msg_id, l.data, l.enviado_em, l.desfeito_em`,
       [this.contaId],
     )

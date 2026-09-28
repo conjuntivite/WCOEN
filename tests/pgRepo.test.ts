@@ -36,3 +36,16 @@ it('add rejeita msgId repetido na mesma conta com "duplicado", sem estourar erro
   expect(await repo.add(l)).toBe('ok')
   expect(await repo.add(l)).toBe('duplicado')
 })
+
+it('desfazerUltimo em concorrência: exatamente um sucede, outro retorna null', async () => {
+  const repoDe = await abrir()
+  const repo = repoDe('d')
+  const l = { tipo: 'despesa' as const, conta: 'x', valor: 100, remetente: 'u', msgId: 'm2', data: new Date(), enviadoEm: new Date() }
+  expect(await repo.add(l)).toBe('ok')
+  // Simula corrida concorrente: ambas chamadas veem o mesmo lançamento como "último"
+  const [r1, r2] = await Promise.all([repo.desfazerUltimo(), repo.desfazerUltimo()])
+  // Exatamente um sucede e retorna o lançamento, o outro retorna null
+  const resultados = [r1, r2]
+  expect(resultados.filter((x) => x !== null)).toHaveLength(1)
+  expect(resultados.filter((x) => x === null)).toHaveLength(1)
+})
