@@ -97,5 +97,10 @@ export async function criarRepo(pool: Pool) {
     CREATE UNIQUE INDEX IF NOT EXISTS lancamentos_conta_msg ON lancamentos (conta_id, msg_id);
     CREATE INDEX IF NOT EXISTS lancamentos_conta_data ON lancamentos (conta_id, data);
   `)
-  return { repoDe: (contaId: string) => new PgRepo(pool, contaId) as Repo }
+  return {
+    repoDe: (contaId: string) => new PgRepo(pool, contaId) as Repo,
+    apagarConta: (contaId: string) => pool.query('DELETE FROM lancamentos WHERE conta_id = $1', [contaId]).then(() => undefined),
+  }
 }
+
+export type Repositorio = Awaited<ReturnType<typeof criarRepo>>
