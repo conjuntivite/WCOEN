@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { fragmentoPainel, paginaAdmin, paginaCadastro, paginaEsqueciSenha, paginaEntrar, paginaPainel, paginaRedefinirSenha, passoDe } from '../src/paginas'
-import type { Conta } from '../src/contas'
+import type { Conta, ContaResumo } from '../src/contas'
 import type { Convite } from '../src/convites'
 import type { Visao } from '../src/sessoes'
 
@@ -189,5 +189,35 @@ describe('esqueci a senha / redefinir senha', () => {
     expect(html).toContain('name="token" value="tok&lt;script&gt;"')
     expect(html).toContain('minlength="8"')
     expect(html).toMatch(/role="alert"[^>]*>[\s\S]*Link inválido ou expirado\./)
+  })
+})
+
+describe('admin: contas', () => {
+  const contaAtiva: ContaResumo = { id: 'c1', email: 'ana@x.com', criadaEm: new Date('2026-09-10T12:00:00Z'), conectada: true, grupoNome: 'Casa', ativa: true }
+  const contaInativa: ContaResumo = { id: 'c2', email: 'bob@x.com', criadaEm: new Date('2026-09-11T12:00:00Z'), conectada: false, ativa: false }
+
+  it('lista as contas com e-mail e ação de alternar status', () => {
+    const html = paginaAdmin('admin@x.com', [], [contaAtiva, contaInativa], false)
+    expect(html).toContain('ana@x.com')
+    expect(html).toMatch(/action="\/admin\/contas\/desativar"[\s\S]*?value="c1"/)
+    expect(html).toMatch(/action="\/admin\/contas\/reativar"[\s\S]*?value="c2"/)
+  })
+
+  it('"Enviar link de redefinição" só aparece para conta ativa', () => {
+    const html = paginaAdmin('admin@x.com', [], [contaAtiva, contaInativa], false)
+    expect(html).toMatch(/value="c1"[\s\S]{0,300}Enviar link de redefinição/)
+    expect(html).not.toMatch(/value="c2"[\s\S]{0,300}Enviar link de redefinição/)
+  })
+
+  it('"Excluir definitivamente" só aparece quando souDev é true', () => {
+    const semDev = paginaAdmin('admin@x.com', [], [contaAtiva], false)
+    const comDev = paginaAdmin('dev@x.com', [], [contaAtiva], true)
+    expect(semDev).not.toContain('Excluir definitivamente')
+    expect(comDev).toContain('Excluir definitivamente')
+    expect(comDev).toContain('Digite ana@x.com para confirmar')
+  })
+
+  it('sem contas: mensagem de lista vazia', () => {
+    expect(paginaAdmin('admin@x.com', [], [], false)).toContain('Nenhuma conta cadastrada ainda.')
   })
 })
