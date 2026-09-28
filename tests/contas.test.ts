@@ -114,6 +114,15 @@ describe('grupo e conexão', () => {
     await contas.marcarConectada(conta.id, false)
     expect(await contas.conectadas()).toEqual([])
   })
+
+  // Correção da revisão final: defesa em profundidade — mesmo sem passar pela rota HTTP (que já desconecta
+  // antes de desativar), conectadas() sozinha não pode listar uma conta inativa.
+  it('conectadas() não lista uma conta marcada como conectada mas desativada diretamente', async () => {
+    const { conta } = (await cadastrar()) as { ok: true; conta: { id: string } }
+    await contas.marcarConectada(conta.id, true)
+    await contas.definirAtiva(conta.id, false)
+    expect(await contas.conectadas()).toEqual([])
+  })
 })
 
 describe('admin: contas', () => {
@@ -190,6 +199,17 @@ describe('conta DEV e exclusão definitiva', () => {
     await contas.semearDev('dev@x.com', 'senha-dev-2')
     expect(await contas.verificar('dev@x.com', 'senha-dev-1')).toBeNull()
     expect(await contas.verificar('dev@x.com', 'senha-dev-2')).not.toBeNull()
+  })
+
+  // Correção da revisão final: a conta DEV é o último recurso de recuperação — reiniciar tem que trazê-la de volta.
+  it('semearDev reativa a conta DEV se ela estiver desativada', async () => {
+    await contas.semearDev('dev2@x.com', 'senha-dev-1')
+    const viva = await contas.verificar('dev2@x.com', 'senha-dev-1')
+    await contas.definirAtiva(viva!.id, false)
+    expect(await contas.verificar('dev2@x.com', 'senha-dev-1')).toBeNull()
+
+    await contas.semearDev('dev2@x.com', 'senha-dev-1')
+    expect(await contas.verificar('dev2@x.com', 'senha-dev-1')).not.toBeNull()
   })
 
   it('excluirConta apaga logins, redefinições pendentes e a conta', async () => {

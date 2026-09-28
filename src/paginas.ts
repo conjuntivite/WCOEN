@@ -162,6 +162,13 @@ export const ERROS_PAINEL: Record<string, string> = {
   grupo: 'Grupo inválido. Escolha um da lista.',
 }
 
+export const ERROS_ADMIN: Record<string, string> = {
+  confirmacao: 'E-mail de confirmação não confere.',
+}
+export const AVISOS_ADMIN: Record<string, string> = {
+  redefinicao: 'Link de redefinição enviado.',
+}
+
 export const SCRIPT_PAINEL = `const alvo = document.getElementById('estado')
 let passo = alvo.dataset.passo
 new EventSource('/painel/eventos').onmessage = (e) => {
@@ -206,10 +213,10 @@ const itemConta = (c: ContaResumo, souDev: boolean) => {
   return `<li class="convite"><div><code>${esc(c.email)}</code> <span class="sub">· ${dataHoraCurta(c.criadaEm)}</span>${conexao}</div>${status}${alternar}${redefinir}${excluir}</li>`
 }
 
-export const paginaAdmin = (email: string, convites: Convite[], contasAdmin: ContaResumo[] = [], souDev = false) =>
+export const paginaAdmin = (email: string, convites: Convite[], contasAdmin: ContaResumo[] = [], souDev = false, mensagem?: string) =>
   layout(
     'Administração',
-    `<div class="pagina"><header class="topo">${marca('/painel')}<div class="usuario"><span class="email" title="${esc(email)}">${esc(email)}</span><form method="post" action="/sair"><button class="btn sec pequeno">${ic('sair')}Sair</button></form></div></header><main id="conteudo"><div class="cartao"><h2>Novo convite</h2><p class="sub">Gera um código de uso único para um cadastro.</p><form method="post" action="/admin/convites"><div class="campo"><label for="nota">Nota (opcional)</label><input id="nota" name="nota" type="text" maxlength="80" placeholder="Ex.: para o João"></div><button class="btn">Gerar convite</button></form></div><div class="cartao"><h2>Convites</h2>${convites.length ? `<ul class="convites">${convites.map(itemConvite).join('')}</ul>` : '<p class="sub">Nenhum convite ainda.</p>'}</div><div class="cartao"><h2>Contas</h2>${contasAdmin.length ? `<ul class="convites">${contasAdmin.map((c) => itemConta(c, souDev)).join('')}</ul>` : '<p class="sub">Nenhuma conta cadastrada ainda.</p>'}</div></main></div>`,
+    `<div class="pagina"><header class="topo">${marca('/painel')}<div class="usuario"><span class="email" title="${esc(email)}">${esc(email)}</span><form method="post" action="/sair"><button class="btn sec pequeno">${ic('sair')}Sair</button></form></div></header><main id="conteudo">${aviso(mensagem)}<div class="cartao"><h2>Novo convite</h2><p class="sub">Gera um código de uso único para um cadastro.</p><form method="post" action="/admin/convites"><div class="campo"><label for="nota">Nota (opcional)</label><input id="nota" name="nota" type="text" maxlength="80" placeholder="Ex.: para o João"></div><button class="btn">Gerar convite</button></form></div><div class="cartao"><h2>Convites</h2>${convites.length ? `<ul class="convites">${convites.map(itemConvite).join('')}</ul>` : '<p class="sub">Nenhum convite ainda.</p>'}</div><div class="cartao"><h2>Contas</h2>${contasAdmin.length ? `<ul class="convites">${contasAdmin.map((c) => itemConta(c, souDev)).join('')}</ul>` : '<p class="sub">Nenhuma conta cadastrada ainda.</p>'}</div></main></div>`,
   )
 
 const AVISOS: Record<Aviso, string> = {

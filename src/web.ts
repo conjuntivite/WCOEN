@@ -3,7 +3,7 @@ import QRCode from 'qrcode'
 import { criarLimitador, type Conta, type Contas, type ErroCadastro } from './contas'
 import type { Convites } from './convites'
 import type { Mailer } from './mailer'
-import { ERROS_PAINEL, SCRIPT_PAINEL, fragmentoPainel, paginaAdmin, paginaCadastro, paginaEntrar, paginaEsqueciSenha, paginaPainel, paginaRedefinirSenha, passoDe, type CampoCadastro } from './paginas'
+import { AVISOS_ADMIN, ERROS_ADMIN, ERROS_PAINEL, SCRIPT_PAINEL, fragmentoPainel, paginaAdmin, paginaCadastro, paginaEntrar, paginaEsqueciSenha, paginaPainel, paginaRedefinirSenha, passoDe, type CampoCadastro } from './paginas'
 import type { Repositorio } from './repo'
 import type { Sessoes } from './sessoes'
 
@@ -134,7 +134,10 @@ export function criarWeb(op: OpcoesWeb): Server {
         if (!conta) return ir(res, '/entrar')
         if (!isAdmin(conta.email)) throw new HttpErro(403)
         const contasAdmin = (await contas.listarContas()).filter((c) => c.email !== op.devEmail)
-        return html(res, 200, paginaAdmin(conta.email, await convites.listar(), contasAdmin, conta.email === op.devEmail))
+        const chaveErro = url.searchParams.get('erro') ?? ''
+        const chaveOk = url.searchParams.get('ok') ?? ''
+        const mensagem = Object.hasOwn(ERROS_ADMIN, chaveErro) ? ERROS_ADMIN[chaveErro] : Object.hasOwn(AVISOS_ADMIN, chaveOk) ? AVISOS_ADMIN[chaveOk] : undefined
+        return html(res, 200, paginaAdmin(conta.email, await convites.listar(), contasAdmin, conta.email === op.devEmail, mensagem))
       }
       if (caminho === '/painel/eventos') {
         if (!conta) throw new HttpErro(401)
@@ -189,7 +192,9 @@ export function criarWeb(op: OpcoesWeb): Server {
 
     if (caminho === '/esqueci-senha') {
       const email = (f.get('email') ?? '').trim().toLowerCase()
-      const chaves = [`f:${email}`, `i:${ipDe(req)}`]
+      // chave de IP própria (`fi:`), não `i:` — senão um IP já bloqueado em /entrar (senha errada) ficaria
+      // impedido de pedir "esqueci minha senha", que é justamente o caminho de recuperação nesse caso
+      const chaves = [`f:${email}`, `fi:${ipDe(req)}`]
       if (!chaves.some((k) => limitador.bloqueado(k))) {
         chaves.forEach((k) => limitador.falhou(k))
         // fire-and-forget: se isso fosse `await`ado, o tempo de resposta variaria entre "conta existe" (DELETE+INSERT
@@ -283,18 +288,18 @@ export function criarWeb(op: OpcoesWeb): Server {
         if (op.mailer) op.mailer.enviarRedefinicaoSenha(alvo.email, link).catch((err) => console.error('mailer:', err instanceof Error ? err.message : err))
         else console.log(`[mailer] SMTP não configurado. Link de redefinição para ${alvo.email}: ${link}`)
       }
-      return ir(res, '/admin')
+      return ir(res, '/admin?ok=redefinicao')
     }
     if (caminho === '/admin/contas/excluir') {
       if (!isAdmin(conta.email)) throw new HttpErro(403)
       if (conta.email !== op.devEmail) throw new HttpErro(403)
       const id = f.get('id') ?? ''
       const alvo = (await contas.listarContas()).find((c) => c.id === id)
-      if (alvo && (f.get('confirmarEmail') ?? '').trim().toLowerCase() === alvo.email) {
-        await sessoes.desconectar(id)
-        await op.repo.apagarConta(id)
-        await contas.excluirConta(id)
-      }
+      if (!alvo) return ir(res, '/admin') // id forjado/inexistente: sem alvo para mostrar erro de confirmação
+      if ((f.get('confirmarEmail') ?? '').trim().toLowerCase() !== alvo.email) return ir(res, '/admin?erro=confirmacao')
+      await sessoes.desconectar(id)
+      await op.repo.apagarConta(id)
+      await contas.excluirConta(id)
       return ir(res, '/admin')
     }
     throw new HttpErro(404)

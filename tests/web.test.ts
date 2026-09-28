@@ -447,6 +447,20 @@ describe('esqueci a senha', () => {
     expect(mailer.enviarRedefinicaoSenha).toHaveBeenCalledTimes(5)
   })
 
+  // Correção da revisão final: IP bloqueado em /entrar (senha errada) não pode bloquear /esqueci-senha,
+  // senão a pessoa fica sem conseguir recuperar a senha justamente quando mais precisa.
+  it('IP bloqueado em /entrar por senha errada não impede /esqueci-senha de mandar o e-mail', async () => {
+    const mesmoIp = { 'X-Forwarded-For': '203.0.113.77' }
+    await entrar('bloqueado-entrar@x.com')
+    for (let i = 0; i < 5; i++) await post('/entrar', { email: 'bloqueado-entrar@x.com', senha: 'errada-errada' }, mesmoIp)
+    expect((await post('/entrar', { email: 'bloqueado-entrar@x.com', senha: 'senha-boa-123' }, mesmoIp)).status).toBe(429)
+
+    const r = await post('/esqueci-senha', { email: 'bloqueado-entrar@x.com' }, mesmoIp)
+    expect(r.status).toBe(200)
+    await esperarAte(() => mailer.enviarRedefinicaoSenha.mock.calls.length >= 1)
+    expect(mailer.enviarRedefinicaoSenha).toHaveBeenCalledWith('bloqueado-entrar@x.com', expect.stringContaining('/redefinir-senha?token='))
+  })
+
   it('sem mailer configurado, ainda funciona: loga o link no console em vez de falhar', async () => {
     const semMailer = criarWeb({
       contas,
@@ -537,7 +551,7 @@ describe('admin: contas', () => {
   it('"enviar link de redefinição" dispara o e-mail pra conta certa', async () => {
     const { conta } = await entrar('contaadmin2@x.com')
     const r = await post('/admin/contas/redefinir', { id: conta.id }, { cookie: cookieAdmin })
-    expect(r.headers.get('location')).toBe('/admin')
+    expect(r.headers.get('location')).toBe('/admin?ok=redefinicao')
     expect(mailer.enviarRedefinicaoSenha).toHaveBeenCalledWith('contaadmin2@x.com', expect.stringContaining('/redefinir-senha?token='))
   })
 
@@ -559,7 +573,7 @@ describe('admin: contas', () => {
   it('excluir com e-mail de confirmação errado não apaga nada; certo apaga tudo (WhatsApp, lançamentos, conta)', async () => {
     const { conta } = await entrar('excluivel@x.com')
     const errado = await post('/admin/contas/excluir', { id: conta.id, confirmarEmail: 'errado@x.com' }, { cookie: cookieDev })
-    expect(errado.headers.get('location')).toBe('/admin')
+    expect(errado.headers.get('location')).toBe('/admin?erro=confirmacao')
     expect(await contas.porId(conta.id)).not.toBeNull()
     expect(repoFalso.apagarConta).not.toHaveBeenCalled()
 
@@ -575,5 +589,22 @@ describe('admin: contas', () => {
     const r = await post('/admin/contas/excluir', { id: 'nunca-existiu', confirmarEmail: 'qualquer@x.com' }, { cookie: cookieDev })
     expect(r.status).toBe(303)
     expect(r.headers.get('location')).toBe('/admin')
+  })
+
+  // Correção da revisão final: as duas ações redirecionavam pra /admin sem feedback nenhum.
+  it('confirmação de e-mail errada ao excluir mostra aviso em /admin', async () => {
+    const { conta } = await entrar('feedback-excluir@x.com')
+    const r = await post('/admin/contas/excluir', { id: conta.id, confirmarEmail: 'errado@x.com' }, { cookie: cookieDev })
+    expect(r.headers.get('location')).toBe('/admin?erro=confirmacao')
+    const html = await (await get('/admin?erro=confirmacao', cookieDev)).text()
+    expect(html).toContain('E-mail de confirmação não confere.')
+  })
+
+  it('redefinir com sucesso mostra aviso em /admin', async () => {
+    const { conta } = await entrar('feedback-redefinir@x.com')
+    const r = await post('/admin/contas/redefinir', { id: conta.id }, { cookie: cookieAdmin })
+    expect(r.headers.get('location')).toBe('/admin?ok=redefinicao')
+    const html = await (await get('/admin?ok=redefinicao', cookieAdmin)).text()
+    expect(html).toContain('Link de redefinição enviado.')
   })
 })

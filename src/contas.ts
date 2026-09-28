@@ -134,7 +134,7 @@ export async function criarContas(pool: Pool, { convite, convites }: { convite: 
     },
 
     async conectadas(): Promise<string[]> {
-      const r = await pool.query<{ id: string }>('SELECT id FROM contas WHERE conectada = true')
+      const r = await pool.query<{ id: string }>('SELECT id FROM contas WHERE conectada = true AND ativa')
       return r.rows.map((d) => d.id)
     },
 
@@ -185,7 +185,7 @@ export async function criarContas(pool: Pool, { convite, convites }: { convite: 
     async semearDev(email: string, senha: string): Promise<void> {
       const e = normalizar(email)
       await pool.query(
-        'INSERT INTO contas (id, email, senha_hash, criada_em) VALUES ($1,$2,$3,now()) ON CONFLICT (email) DO UPDATE SET senha_hash = $3',
+        'INSERT INTO contas (id, email, senha_hash, criada_em) VALUES ($1,$2,$3,now()) ON CONFLICT (email) DO UPDATE SET senha_hash = $3, ativa = true',
         [randomUUID(), e, await hashSenha(senha)],
       )
     },
