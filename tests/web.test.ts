@@ -249,6 +249,13 @@ describe('estáticos', () => {
   })
 })
 
+describe('saúde', () => {
+  it('/saude responde 200 sem exigir login (usado pelo auto-ping e pelo health check do host)', async () => {
+    const r = await get('/saude')
+    expect(r.status).toBe(200)
+  })
+})
+
 describe('admin', () => {
   const codigoPorNota = (html: string, nota: string) => new RegExp('<code>([0-9a-f]{10})</code> <span class="sub">· ' + nota + '</span>').exec(html)?.[1]
   // uma conta admin só, reaproveitada nos testes (cadastrar de novo com o mesmo e-mail falharia com email_em_uso)

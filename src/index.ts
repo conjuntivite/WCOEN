@@ -53,10 +53,17 @@ web.listen(config.porta, () => console.log(`Portal em http://localhost:${config.
 // reabre as sessões que estavam conectadas antes do reinício, escalonadas
 void sessoes.reabrir(await contas.conectadas())
 
+// ponytail: "self-ping" para plataformas free-tier (ex.: Render) que hibernam o serviço sem tráfego
+// HTTP por um tempo — comportamento observado, não uma garantia documentada da plataforma; se o
+// critério de "atividade" mudar, ou a conta tiver uma cota de horas separada, isso sozinho não basta.
+// Sem DOMINIO (dev local), o ping nem começa.
+const autoPing = config.dominio ? setInterval(() => void fetch(`https://${config.dominio}/saude`).catch(() => {}), 10 * 60_000) : undefined
+
 let saindo = false
 async function sair() {
   if (saindo) process.exit(1) // segundo sinal: sai já
   saindo = true
+  if (autoPing) clearInterval(autoPing)
   web.close()
   web.closeAllConnections()
   await sessoes.encerrar()

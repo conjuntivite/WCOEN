@@ -1,0 +1,21 @@
+services:
+  - name: wcoen
+    type: web
+    runtime: docker
+    plan: free
+    healthCheckPath: /saude
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: CONVITE
+        sync: false
+      - key: CHAVE_CRIPTO
+        sync: false
+      - key: DOMINIO
+        sync: false
+      - key: ADMIN_EMAILS
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        sync: false

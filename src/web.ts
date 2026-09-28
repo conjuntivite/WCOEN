@@ -12,7 +12,7 @@ export type OpcoesWeb = {
   adminEmails?: string[] // veem /admin; comparado ao e-mail já normalizado da conta
   limitador?: ReturnType<typeof criarLimitador>
   cookieSeguro?: boolean // com HTTPS (DOMINIO definido)
-  confiarProxy?: boolean // lê o IP de X-Forwarded-For (atrás do Caddy ou do Fly Proxy)
+  confiarProxy?: boolean // lê o IP de X-Forwarded-For (atrás do Caddy ou do proxy do Render)
 }
 
 const CABECALHOS = {
@@ -94,6 +94,8 @@ export function criarWeb(op: OpcoesWeb): Server {
     const url = new URL(req.url ?? '/', 'http://x')
     const caminho = url.pathname
     const metodo = req.method ?? 'GET'
+    // sem login/banco: usado pelo health check do host e pelo auto-ping que mantém o app acordado
+    if (metodo === 'GET' && caminho === '/saude') return void res.writeHead(200).end('ok')
     if (metodo === 'POST' && !origemOk(req)) throw new HttpErro(403)
     const conta = await contaDe(req)
 
