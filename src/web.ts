@@ -12,7 +12,7 @@ export type OpcoesWeb = {
   adminEmails?: string[] // veem /admin; comparado ao e-mail já normalizado da conta
   limitador?: ReturnType<typeof criarLimitador>
   cookieSeguro?: boolean // com HTTPS (DOMINIO definido)
-  confiarProxy?: boolean // lê o IP de X-Forwarded-For (atrás do Caddy)
+  confiarProxy?: boolean // lê o IP de X-Forwarded-For (atrás do Caddy ou do Fly Proxy)
 }
 
 const CABECALHOS = {
@@ -77,7 +77,9 @@ export function criarWeb(op: OpcoesWeb): Server {
     const t = tokenDe(req)
     return t ? contas.contaDoLogin(t) : null
   }
-  const ipDe = (req: IncomingMessage) => (op.confiarProxy ? String(req.headers['x-forwarded-for'] ?? '').split(',')[0].trim() : '') || req.socket.remoteAddress || '?'
+  // Pega o ÚLTIMO valor de X-Forwarded-For: é o hop mais próximo, escrito pelo proxy confiável na borda
+  // (Caddy ou Fly Proxy) — nunca pelo cliente. O primeiro valor pode ser forjado pelo próprio atacante.
+  const ipDe = (req: IncomingMessage) => (op.confiarProxy ? String(req.headers['x-forwarded-for'] ?? '').split(',').pop()?.trim() : '') || req.socket.remoteAddress || '?'
 
   async function montarFragmento(contaId: string) {
     const conta = await contas.porId(contaId)
