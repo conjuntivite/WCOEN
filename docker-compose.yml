@@ -1,9 +1,12 @@
 services:
-  mongo:
-    image: mongo:7
+  postgres:
+    image: postgres:16-alpine
     restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: wcoen
+      POSTGRES_DB: wcoen
     volumes:
-      - mongo-data:/data/db
+      - postgres-data:/var/lib/postgresql/data
     # sem "ports": o banco só é acessível pela rede interna do compose
 
   app:
@@ -11,9 +14,9 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      MONGO_URI: mongodb://mongo:27017
+      DATABASE_URL: postgres://postgres:wcoen@postgres:5432/wcoen
     depends_on:
-      - mongo
+      - postgres
 
   caddy:
     image: caddy:2
@@ -31,6 +34,6 @@ services:
       - app
 
 volumes:
-  mongo-data:
+  postgres-data:
   caddy-data:
   caddy-config:

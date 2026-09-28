@@ -1,13 +1,13 @@
 # WCOEN
 
-Bot de WhatsApp (Baileys) que registra despesas e receitas num grupo seu e monta o balancete. Dados no seu MongoDB (Docker).
+Bot de WhatsApp (Baileys) que registra despesas e receitas num grupo seu e monta o balancete. Dados no seu Postgres (Docker ou Supabase).
 
 ## Rodar
 
 Requer Node >= 20.6 (o `npm start` usa `--env-file`).
 
-1. Suba o Mongo do Docker.
-2. `copy .env.example .env` e ajuste `MONGO_URI`.
+1. Suba o Postgres do Docker: `docker compose up -d postgres`.
+2. `copy .env.example .env` e ajuste `DATABASE_URL` (o padrão já aponta pro Postgres local do compose).
 3. `npm install`
 4. Crie um grupo no WhatsApp só seu.
 5. `npm start` com `GROUP_ID` vazio: escaneie o QR (WhatsApp > Aparelhos conectados). O bot lista os grupos e sai. Logo depois de escanear o QR, uma linha como `Conexão caiu (código 515); nova tentativa em 1s` é NORMAL e esperada, não é erro.
@@ -46,7 +46,9 @@ Para ligar, defina no `.env` `OPENROUTER_API_KEY` e `OPENROUTER_MODEL` (um ou ma
 
 ## Testes
 
-`npm test` (precisa do Mongo de pé; `TEST_MONGO_URI` define o endereço, padrão `mongodb://localhost:27017`; os testes só mexem no banco `wcoen_test`).
+`npm test` (precisa do Postgres de pé — `docker compose up -d postgres`; `TEST_DATABASE_URL` define o
+endereço, padrão `postgres://postgres:wcoen@localhost:5432/wcoen`; os testes recriam as tabelas a cada
+execução).
 
 ## Se o WhatsApp desconectar o aparelho
 
@@ -59,7 +61,7 @@ O bot roda como serviço: cada cliente se cadastra no portal, conecta o próprio
 ### Subir em um servidor
 
 1. Copie `.env.example` para `.env` e preencha `CONVITE`, `CHAVE_CRIPTO` e `DOMINIO` (o DNS do domínio deve apontar para o servidor; portas 80 e 443 abertas).
-2. `docker compose up -d`. O Caddy emite o HTTPS sozinho; o Mongo não é exposto fora da rede do compose.
+2. `docker compose up -d`. O Caddy emite o HTTPS sozinho; o Postgres não é exposto fora da rede do compose.
 3. Acesse `https://SEU_DOMINIO`, cadastre-se com o convite e conecte o WhatsApp.
 
 ### Administração
@@ -68,7 +70,6 @@ Definir `ADMIN_EMAILS` (e-mails já cadastrados, separados por vírgula) libera 
 
 ### Operação
 
-- **Migrar lançamentos de antes do portal:** `npm run migrar -- seu@email` (idempotente).
 - **Redefinir senha de um cliente:** `npm run senha -- email@cliente.com nova-senha-123`.
-- **Backup do banco:** `docker compose exec -T mongo mongodump --archive --gzip > backup-$(date +%F).gz`. Guarde `CHAVE_CRIPTO` fora do servidor: sem ela, as sessões do WhatsApp gravadas não abrem.
+- **Backup do banco:** `docker compose exec -T postgres pg_dump -U postgres wcoen | gzip > backup-$(date +%F).gz`. Guarde `CHAVE_CRIPTO` fora do servidor: sem ela, as sessões do WhatsApp gravadas não abrem.
 - **Testar antes de liberar um piloto:** `docs/roteiro-manual-portal.md`.
