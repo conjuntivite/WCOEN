@@ -114,3 +114,28 @@ describe('grupo e conexão', () => {
     expect(await contas.conectadas()).toEqual([])
   })
 })
+
+describe('admin: contas', () => {
+  it('listarContas lista todas (inclusive inativas), da mais nova pra mais velha', async () => {
+    const a = ((await cadastrar('a@x.com')) as { ok: true; conta: { id: string } }).conta
+    const b = ((await cadastrar('b@x.com')) as { ok: true; conta: { id: string } }).conta
+    await contas.definirAtiva(a.id, false)
+    const lista = await contas.listarContas()
+    expect(lista.map((c) => c.email)).toEqual(['b@x.com', 'a@x.com'])
+    expect(lista.find((c) => c.id === a.id)?.ativa).toBe(false)
+    expect(lista.find((c) => c.id === b.id)?.ativa).toBe(true)
+  })
+
+  // Review Focus do plano: porId é o único ponto de checagem de sessão — precisa barrar conta inativa sozinho.
+  it('definirAtiva(false) derruba os logins ativos e bloqueia porId/verificar; reativar libera de novo', async () => {
+    const { conta } = (await cadastrar('c@x.com')) as { ok: true; conta: { id: string } }
+    const token = await contas.criarLogin(conta.id)
+    await contas.definirAtiva(conta.id, false)
+    expect(await contas.contaDoLogin(token)).toBeNull()
+    expect(await contas.porId(conta.id)).toBeNull()
+    expect(await contas.verificar('c@x.com', 'senha-boa-123')).toBeNull()
+    await contas.definirAtiva(conta.id, true)
+    expect(await contas.porId(conta.id)).not.toBeNull()
+    expect(await contas.verificar('c@x.com', 'senha-boa-123')).not.toBeNull()
+  })
+})

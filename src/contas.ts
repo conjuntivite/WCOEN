@@ -9,7 +9,17 @@ const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 
 export type Conta = { id: string; email: string; grupoId?: string; grupoNome?: string }
 export type ErroCadastro = 'convite_invalido' | 'email_invalido' | 'senha_curta' | 'email_em_uso'
-type RowConta = { id: string; email: string; senha_hash: string; criada_em: Date; grupo_id: string | null; grupo_nome: string | null; conectada: boolean | null }
+export type ContaResumo = { id: string; email: string; criadaEm: Date; grupoNome?: string; conectada: boolean; ativa: boolean }
+type RowConta = {
+  id: string
+  email: string
+  senha_hash: string
+  criada_em: Date
+  grupo_id: string | null
+  grupo_nome: string | null
+  conectada: boolean | null
+  ativa: boolean
+}
 
 const normalizar = (email: string) => email.trim().toLowerCase()
 const paraConta = (d: RowConta): Conta => ({ id: d.id, email: d.email, grupoId: d.grupo_id ?? undefined, grupoNome: d.grupo_nome ?? undefined })
@@ -40,6 +50,7 @@ export async function criarContas(pool: Pool, { convite, convites }: { convite: 
       grupo_nome TEXT,
       conectada BOOLEAN
     );
+    ALTER TABLE contas ADD COLUMN IF NOT EXISTS ativa BOOLEAN NOT NULL DEFAULT true;
     -- ponytail: sem TTL automático (o Mongo tinha expireAfterSeconds); a validade já é checada em
     -- contaDoLogin, então linhas expiradas só ficam paradas na tabela. Nos pilotos (poucas contas) não
     -- importa; se crescer, apagar as expiradas de tempos em tempos (ex.: um DELETE agendado).
@@ -53,7 +64,8 @@ export async function criarContas(pool: Pool, { convite, convites }: { convite: 
 
   const porId = async (id: string): Promise<Conta | null> => {
     const r = await pool.query<RowConta>('SELECT * FROM contas WHERE id = $1', [id])
-    return r.rows[0] ? paraConta(r.rows[0]) : null
+    const d = r.rows[0]
+    return d && d.ativa ? paraConta(d) : null
   }
 
   return {
@@ -83,7 +95,7 @@ export async function criarContas(pool: Pool, { convite, convites }: { convite: 
       const r = await pool.query<RowConta>('SELECT * FROM contas WHERE email = $1', [normalizar(email)])
       const d = r.rows[0]
       const ok = await senhaConfere(senha, d?.senha_hash ?? hashFalso)
-      return d && ok ? paraConta(d) : null
+      return d && ok && d.ativa ? paraConta(d) : null
     },
 
     async criarLogin(contaId: string): Promise<string> {
@@ -118,6 +130,16 @@ export async function criarContas(pool: Pool, { convite, convites }: { convite: 
     async conectadas(): Promise<string[]> {
       const r = await pool.query<{ id: string }>('SELECT id FROM contas WHERE conectada = true')
       return r.rows.map((d) => d.id)
+    },
+
+    async listarContas(): Promise<ContaResumo[]> {
+      const r = await pool.query<RowConta>('SELECT * FROM contas ORDER BY criada_em DESC')
+      return r.rows.map((d) => ({ id: d.id, email: d.email, criadaEm: d.criada_em, grupoNome: d.grupo_nome ?? undefined, conectada: Boolean(d.conectada), ativa: d.ativa }))
+    },
+
+    async definirAtiva(contaId: string, ativa: boolean): Promise<void> {
+      await pool.query('UPDATE contas SET ativa = $2 WHERE id = $1', [contaId, ativa])
+      if (!ativa) await pool.query('DELETE FROM logins WHERE conta_id = $1', [contaId])
     },
 
     async redefinirSenha(email: string, senha: string): Promise<boolean> {
