@@ -45,4 +45,24 @@ describe('criarAuthState', () => {
     const r = await pool.query('SELECT conta_id FROM wa_auth')
     expect(r.rows.map((x) => x.conta_id)).toEqual(['c2'])
   })
+
+  it('grava, lê e apaga chaves de sinal', async () => {
+    const a = await criarAuthState(pool, 'c1', chave)
+    await a.state.keys.set({ 'pre-key': { '1': { algum: 'valor' } } })
+    const lidas = await a.state.keys.get('pre-key', ['1'])
+    expect(lidas['1']).toEqual({ algum: 'valor' })
+    await a.state.keys.set({ 'pre-key': { '1': null } }) // null remove
+    const depois = await a.state.keys.get('pre-key', ['1'])
+    expect(depois['1']).toBeNull()
+  })
+
+  it('o valor bruto gravado no Postgres não contém credencial em claro', async () => {
+    const a = await criarAuthState(pool, 'c1', chave)
+    await a.saveCreds()
+    const r = await pool.query('SELECT valor FROM wa_auth WHERE conta_id = $1 AND chave = $2', ['c1', 'creds'])
+    const bruto = r.rows[0].valor
+    expect(bruto).not.toContain('noiseKey')
+    expect(bruto).not.toContain('registrationId')
+    expect(bruto).not.toContain('private')
+  })
 })
