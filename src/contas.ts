@@ -5,11 +5,22 @@ import type { Convites } from './convites'
 
 const scrypt = promisify(scryptCb) as (senha: string, sal: Buffer, tamanho: number) => Promise<Buffer>
 const TRINTA_DIAS_MS = 30 * 24 * 3600_000
+const UMA_HORA_MS = 60 * 60_000
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 
 export type Conta = { id: string; email: string; grupoId?: string; grupoNome?: string }
 export type ErroCadastro = 'convite_invalido' | 'email_invalido' | 'senha_curta' | 'email_em_uso'
-type RowConta = { id: string; email: string; senha_hash: string; criada_em: Date; grupo_id: string | null; grupo_nome: string | null; conectada: boolean | null }
+export type ContaResumo = { id: string; email: string; criadaEm: Date; grupoNome?: string; conectada: boolean; ativa: boolean }
+type RowConta = {
+  id: string
+  email: string
+  senha_hash: string
+  criada_em: Date
+  grupo_id: string | null
+  grupo_nome: string | null
+  conectada: boolean | null
+  ativa: boolean
+}
 
 const normalizar = (email: string) => email.trim().toLowerCase()
 const paraConta = (d: RowConta): Conta => ({ id: d.id, email: d.email, grupoId: d.grupo_id ?? undefined, grupoNome: d.grupo_nome ?? undefined })
@@ -40,10 +51,16 @@ export async function criarContas(pool: Pool, { convite, convites }: { convite: 
       grupo_nome TEXT,
       conectada BOOLEAN
     );
+    ALTER TABLE contas ADD COLUMN IF NOT EXISTS ativa BOOLEAN NOT NULL DEFAULT true;
     -- ponytail: sem TTL automático (o Mongo tinha expireAfterSeconds); a validade já é checada em
     -- contaDoLogin, então linhas expiradas só ficam paradas na tabela. Nos pilotos (poucas contas) não
     -- importa; se crescer, apagar as expiradas de tempos em tempos (ex.: um DELETE agendado).
     CREATE TABLE IF NOT EXISTS logins (
+      id TEXT PRIMARY KEY,
+      conta_id TEXT NOT NULL,
+      expira_em TIMESTAMPTZ NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS redefinicoes_senha (
       id TEXT PRIMARY KEY,
       conta_id TEXT NOT NULL,
       expira_em TIMESTAMPTZ NOT NULL
@@ -53,7 +70,8 @@ export async function criarContas(pool: Pool, { convite, convites }: { convite: 
 
   const porId = async (id: string): Promise<Conta | null> => {
     const r = await pool.query<RowConta>('SELECT * FROM contas WHERE id = $1', [id])
-    return r.rows[0] ? paraConta(r.rows[0]) : null
+    const d = r.rows[0]
+    return d && d.ativa ? paraConta(d) : null
   }
 
   return {
@@ -83,7 +101,7 @@ export async function criarContas(pool: Pool, { convite, convites }: { convite: 
       const r = await pool.query<RowConta>('SELECT * FROM contas WHERE email = $1', [normalizar(email)])
       const d = r.rows[0]
       const ok = await senhaConfere(senha, d?.senha_hash ?? hashFalso)
-      return d && ok ? paraConta(d) : null
+      return d && ok && d.ativa ? paraConta(d) : null
     },
 
     async criarLogin(contaId: string): Promise<string> {
@@ -116,8 +134,18 @@ export async function criarContas(pool: Pool, { convite, convites }: { convite: 
     },
 
     async conectadas(): Promise<string[]> {
-      const r = await pool.query<{ id: string }>('SELECT id FROM contas WHERE conectada = true')
+      const r = await pool.query<{ id: string }>('SELECT id FROM contas WHERE conectada = true AND ativa')
       return r.rows.map((d) => d.id)
+    },
+
+    async listarContas(): Promise<ContaResumo[]> {
+      const r = await pool.query<RowConta>('SELECT * FROM contas ORDER BY criada_em DESC')
+      return r.rows.map((d) => ({ id: d.id, email: d.email, criadaEm: d.criada_em, grupoNome: d.grupo_nome ?? undefined, conectada: Boolean(d.conectada), ativa: d.ativa }))
+    },
+
+    async definirAtiva(contaId: string, ativa: boolean): Promise<void> {
+      await pool.query('UPDATE contas SET ativa = $2 WHERE id = $1', [contaId, ativa])
+      if (!ativa) await pool.query('DELETE FROM logins WHERE conta_id = $1', [contaId])
     },
 
     async redefinirSenha(email: string, senha: string): Promise<boolean> {
@@ -127,6 +155,45 @@ export async function criarContas(pool: Pool, { convite, convites }: { convite: 
       if (!r.rows[0]) return false
       await pool.query('DELETE FROM logins WHERE conta_id = $1', [r.rows[0].id])
       return true
+    },
+
+    async porEmail(email: string): Promise<Conta | null> {
+      const r = await pool.query<RowConta>('SELECT * FROM contas WHERE email = $1', [normalizar(email)])
+      const d = r.rows[0]
+      return d && d.ativa ? paraConta(d) : null
+    },
+
+    async criarRedefinicao(contaId: string): Promise<string> {
+      await pool.query('DELETE FROM redefinicoes_senha WHERE conta_id = $1', [contaId])
+      const token = randomBytes(32).toString('base64url')
+      await pool.query('INSERT INTO redefinicoes_senha (id, conta_id, expira_em) VALUES ($1,$2,$3)', [
+        sha256(token).toString('hex'),
+        contaId,
+        new Date(Date.now() + UMA_HORA_MS),
+      ])
+      return token
+    },
+
+    async consumirRedefinicao(token: string): Promise<string | null> {
+      const r = await pool.query<{ conta_id: string }>(
+        'DELETE FROM redefinicoes_senha WHERE id = $1 AND expira_em > now() RETURNING conta_id',
+        [sha256(token).toString('hex')],
+      )
+      return r.rows[0]?.conta_id ?? null
+    },
+
+    async semearDev(email: string, senha: string): Promise<void> {
+      const e = normalizar(email)
+      await pool.query(
+        'INSERT INTO contas (id, email, senha_hash, criada_em) VALUES ($1,$2,$3,now()) ON CONFLICT (email) DO UPDATE SET senha_hash = $3, ativa = true',
+        [randomUUID(), e, await hashSenha(senha)],
+      )
+    },
+
+    async excluirConta(contaId: string): Promise<void> {
+      await pool.query('DELETE FROM logins WHERE conta_id = $1', [contaId])
+      await pool.query('DELETE FROM redefinicoes_senha WHERE conta_id = $1', [contaId])
+      await pool.query('DELETE FROM contas WHERE id = $1', [contaId])
     },
   }
 }

@@ -2,17 +2,23 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import QRCode from 'qrcode'
 import { criarLimitador, type Conta, type Contas, type ErroCadastro } from './contas'
 import type { Convites } from './convites'
-import { ERROS_PAINEL, SCRIPT_PAINEL, fragmentoPainel, paginaAdmin, paginaCadastro, paginaEntrar, paginaPainel, passoDe, type CampoCadastro } from './paginas'
+import type { Mailer } from './mailer'
+import { AVISOS_ADMIN, ERROS_ADMIN, ERROS_PAINEL, SCRIPT_PAINEL, fragmentoPainel, paginaAdmin, paginaCadastro, paginaEntrar, paginaEsqueciSenha, paginaPainel, paginaRedefinirSenha, passoDe, type CampoCadastro } from './paginas'
+import type { Repositorio } from './repo'
 import type { Sessoes } from './sessoes'
 
 export type OpcoesWeb = {
   contas: Contas
   sessoes: Sessoes
   convites: Convites
+  repo: Repositorio // usado pra apagar o histórico de lançamentos ao excluir uma conta definitivamente
+  mailer?: Mailer
   adminEmails?: string[] // veem /admin; comparado ao e-mail já normalizado da conta
+  devEmail?: string // além de admin, pode excluir contas definitivamente; some da lista de contas do admin comum
   limitador?: ReturnType<typeof criarLimitador>
   cookieSeguro?: boolean // com HTTPS (DOMINIO definido)
   confiarProxy?: boolean // lê o IP de X-Forwarded-For (atrás do Caddy ou do proxy do Render)
+  dominio?: string // usado para montar o link de redefinição de senha; sem isso, cairia no Host da requisição, que o cliente pode forjar
 }
 
 const CABECALHOS = {
@@ -61,7 +67,7 @@ function origemOk(req: IncomingMessage): boolean {
 export function criarWeb(op: OpcoesWeb): Server {
   const { contas, sessoes, convites } = op
   const limitador = op.limitador ?? criarLimitador(5, 15 * 60_000)
-  const isAdmin = (email: string) => (op.adminEmails ?? []).includes(email)
+  const isAdmin = (email: string) => (op.adminEmails ?? []).includes(email) || email === op.devEmail
 
   const html = (res: ServerResponse, status: number, corpo: string) => {
     res.writeHead(status, { ...CABECALHOS, 'Content-Type': 'text/html; charset=utf-8' })
@@ -73,6 +79,8 @@ export function criarWeb(op: OpcoesWeb): Server {
   }
   const cookieSessao = (token: string, maxAge: number) => `sid=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${op.cookieSeguro ? '; Secure' : ''}`
   const tokenDe = (req: IncomingMessage) => /(?:^|;\s*)sid=([\w-]+)/.exec(req.headers.cookie ?? '')?.[1]
+  // com `dominio` configurado, ignora o Host da requisição (que o cliente pode forjar) e usa sempre o domínio real do site
+  const baseUrl = (req: IncomingMessage) => (op.dominio ? `https://${op.dominio}` : `${op.cookieSeguro ? 'https' : 'http'}://${req.headers.host}`)
   const contaDe = async (req: IncomingMessage): Promise<Conta | null> => {
     const t = tokenDe(req)
     return t ? contas.contaDoLogin(t) : null
@@ -105,6 +113,13 @@ export function criarWeb(op: OpcoesWeb): Server {
         if (conta) return ir(res, '/painel')
         return html(res, 200, caminho === '/entrar' ? paginaEntrar() : paginaCadastro())
       }
+      if (caminho === '/esqueci-senha') {
+        if (conta) return ir(res, '/painel')
+        return html(res, 200, paginaEsqueciSenha())
+      }
+      if (caminho === '/redefinir-senha') {
+        return html(res, 200, paginaRedefinirSenha(url.searchParams.get('token') ?? ''))
+      }
       if (caminho === '/painel.js') {
         res.writeHead(200, { ...CABECALHOS, 'Content-Type': 'text/javascript; charset=utf-8' })
         return void res.end(SCRIPT_PAINEL)
@@ -118,7 +133,11 @@ export function criarWeb(op: OpcoesWeb): Server {
       if (caminho === '/admin') {
         if (!conta) return ir(res, '/entrar')
         if (!isAdmin(conta.email)) throw new HttpErro(403)
-        return html(res, 200, paginaAdmin(conta.email, await convites.listar()))
+        const contasAdmin = (await contas.listarContas()).filter((c) => c.email !== op.devEmail)
+        const chaveErro = url.searchParams.get('erro') ?? ''
+        const chaveOk = url.searchParams.get('ok') ?? ''
+        const mensagem = Object.hasOwn(ERROS_ADMIN, chaveErro) ? ERROS_ADMIN[chaveErro] : Object.hasOwn(AVISOS_ADMIN, chaveOk) ? AVISOS_ADMIN[chaveOk] : undefined
+        return html(res, 200, paginaAdmin(conta.email, await convites.listar(), contasAdmin, conta.email === op.devEmail, mensagem))
       }
       if (caminho === '/painel/eventos') {
         if (!conta) throw new HttpErro(401)
@@ -171,6 +190,39 @@ export function criarWeb(op: OpcoesWeb): Server {
       return ir(res, '/painel', cookieSessao(await contas.criarLogin(r.conta.id), TRINTA_DIAS_S))
     }
 
+    if (caminho === '/esqueci-senha') {
+      const email = (f.get('email') ?? '').trim().toLowerCase()
+      // chave de IP própria (`fi:`), não `i:` — senão um IP já bloqueado em /entrar (senha errada) ficaria
+      // impedido de pedir "esqueci minha senha", que é justamente o caminho de recuperação nesse caso
+      const chaves = [`f:${email}`, `fi:${ipDe(req)}`]
+      if (!chaves.some((k) => limitador.bloqueado(k))) {
+        chaves.forEach((k) => limitador.falhou(k))
+        // fire-and-forget: se isso fosse `await`ado, o tempo de resposta variaria entre "conta existe" (DELETE+INSERT
+        // no Postgres) e "não existe" (nada) — um timing oracle que revelaria se o e-mail está cadastrado, mesmo com
+        // a resposta idêntica nos dois casos. Devolve a resposta genérica na hora e termina o trabalho depois.
+        void (async () => {
+          const c = await contas.porEmail(email)
+          if (!c) return
+          const token = await contas.criarRedefinicao(c.id)
+          const link = `${baseUrl(req)}/redefinir-senha?token=${token}`
+          if (op.mailer) await op.mailer.enviarRedefinicaoSenha(c.email, link)
+          else console.log(`[mailer] SMTP não configurado. Link de redefinição para ${c.email}: ${link}`)
+        })().catch((err) => console.error('esqueci-senha:', err instanceof Error ? err.message : err))
+      }
+      return html(res, 200, paginaEsqueciSenha(true))
+    }
+
+    if (caminho === '/redefinir-senha') {
+      const token = f.get('token') ?? ''
+      const senha = f.get('senha') ?? ''
+      if (senha.length < 8) return html(res, 400, paginaRedefinirSenha(token, 'A senha precisa ter ao menos 8 caracteres.'))
+      const contaId = await contas.consumirRedefinicao(token)
+      const c = contaId ? await contas.porId(contaId) : null
+      if (!c) return html(res, 400, paginaRedefinirSenha(token, 'Link inválido ou expirado. Solicite um novo link.'))
+      await contas.redefinirSenha(c.email, senha)
+      return ir(res, '/painel', cookieSessao(await contas.criarLogin(contaId!), TRINTA_DIAS_S))
+    }
+
     if (caminho === '/sair') {
       const t = tokenDe(req)
       if (t) await contas.encerrarLogin(t)
@@ -213,6 +265,41 @@ export function criarWeb(op: OpcoesWeb): Server {
     if (caminho === '/admin/convites/revogar') {
       if (!isAdmin(conta.email)) throw new HttpErro(403)
       await convites.revogar(f.get('id') ?? '')
+      return ir(res, '/admin')
+    }
+    if (caminho === '/admin/contas/desativar') {
+      if (!isAdmin(conta.email)) throw new HttpErro(403)
+      const id = f.get('id') ?? ''
+      await sessoes.desconectar(id)
+      await contas.definirAtiva(id, false)
+      return ir(res, '/admin')
+    }
+    if (caminho === '/admin/contas/reativar') {
+      if (!isAdmin(conta.email)) throw new HttpErro(403)
+      await contas.definirAtiva(f.get('id') ?? '', true)
+      return ir(res, '/admin')
+    }
+    if (caminho === '/admin/contas/redefinir') {
+      if (!isAdmin(conta.email)) throw new HttpErro(403)
+      const alvo = await contas.porId(f.get('id') ?? '')
+      if (alvo) {
+        const token = await contas.criarRedefinicao(alvo.id)
+        const link = `${baseUrl(req)}/redefinir-senha?token=${token}`
+        if (op.mailer) op.mailer.enviarRedefinicaoSenha(alvo.email, link).catch((err) => console.error('mailer:', err instanceof Error ? err.message : err))
+        else console.log(`[mailer] SMTP não configurado. Link de redefinição para ${alvo.email}: ${link}`)
+      }
+      return ir(res, '/admin?ok=redefinicao')
+    }
+    if (caminho === '/admin/contas/excluir') {
+      if (!isAdmin(conta.email)) throw new HttpErro(403)
+      if (conta.email !== op.devEmail) throw new HttpErro(403)
+      const id = f.get('id') ?? ''
+      const alvo = (await contas.listarContas()).find((c) => c.id === id)
+      if (!alvo) return ir(res, '/admin') // id forjado/inexistente: sem alvo para mostrar erro de confirmação
+      if ((f.get('confirmarEmail') ?? '').trim().toLowerCase() !== alvo.email) return ir(res, '/admin?erro=confirmacao')
+      await sessoes.desconectar(id)
+      await op.repo.apagarConta(id)
+      await contas.excluirConta(id)
       return ir(res, '/admin')
     }
     throw new HttpErro(404)

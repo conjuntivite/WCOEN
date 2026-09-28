@@ -9,6 +9,8 @@ export type Config = {
   maxSessoes: number
   adminEmails: string[] // veem /admin e podem criar/revogar convites; normalizados (minúsculo, sem espaços)
   openrouter?: { apiKey: string; models: string[] } // opcional: sem chave, a auditoria fica desligada; models (só pagos) em ordem de tentativa
+  smtp?: { host: string; port: number; user: string; pass: string; from: string } // opcional: sem SMTP_HOST, o link de redefinição só é logado no console
+  dev?: { email: string; senha: string } // opcional: conta de recuperação/suporte, oculta da lista de contas do admin
 }
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
@@ -27,6 +29,20 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     if (!models.length) throw new Error('OPENROUTER_MODEL não definido no .env (obrigatório com OPENROUTER_API_KEY)')
     openrouter = { apiKey: env.OPENROUTER_API_KEY, models }
   }
+
+  let smtp: Config['smtp']
+  if (env.SMTP_HOST) {
+    const user = env.SMTP_USER ?? ''
+    const pass = env.SMTP_PASS ?? ''
+    smtp = { host: env.SMTP_HOST, port: Number(env.SMTP_PORT) || 587, user, pass, from: env.SMTP_FROM || user }
+  }
+
+  let dev: Config['dev']
+  if (env.DEV_EMAIL || env.DEV_PASSWORD) {
+    if (!env.DEV_EMAIL || !env.DEV_PASSWORD) throw new Error('DEV_EMAIL e DEV_PASSWORD precisam ser definidos juntos')
+    dev = { email: env.DEV_EMAIL.trim().toLowerCase(), senha: env.DEV_PASSWORD }
+  }
+
   return {
     databaseUrl,
     porta: Number(env.PORTA) || 3000,
@@ -36,5 +52,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     maxSessoes: Number(env.MAX_SESSOES) || 20,
     adminEmails: lista(env.ADMIN_EMAILS).map((e) => e.toLowerCase()),
     openrouter,
+    smtp,
+    dev,
   }
 }

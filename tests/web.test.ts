@@ -6,9 +6,12 @@ import { criarContas, criarLimitador, type Contas } from '../src/contas'
 import { criarConvites, type Convites } from '../src/convites'
 import { criarWeb } from '../src/web'
 import type { Sessoes, Visao } from '../src/sessoes'
+import type { Mailer } from '../src/mailer'
+import type { Repositorio } from '../src/repo'
 
-const URL = process.env.TEST_DATABASE_URL ?? 'postgres://postgres:wcoen@localhost:5432/wcoen_test'
-const pool = new Pool({ connectionString: URL })
+// nome DB_URL (não URL): o global URL é usado nos testes de esqueci-senha pra extrair o token do link
+const DB_URL = process.env.TEST_DATABASE_URL ?? 'postgres://postgres:wcoen@localhost:5432/wcoen_test'
+const pool = new Pool({ connectionString: DB_URL })
 
 function sessoesFalsas() {
   const visoes = new Map<string, Visao>()
@@ -28,21 +31,44 @@ function sessoesFalsas() {
   return f
 }
 
+function mailerFalso() {
+  return { enviarRedefinicaoSenha: vi.fn(async (_destino: string, _link: string) => {}) }
+}
+
 const EMAIL_ADMIN = 'admin@x.com'
+const EMAIL_DEV = 'dev@x.com'
 let contas: Contas
 let convites: Convites
 let sessoes: ReturnType<typeof sessoesFalsas>
+let mailer: ReturnType<typeof mailerFalso>
+let repoFalso: { repoDe: ReturnType<typeof vi.fn>; apagarConta: ReturnType<typeof vi.fn> }
+let cookieAdmin: string
 let server: Server
 let base = ''
 
 beforeAll(async () => {
   await pool.query('DROP TABLE IF EXISTS logins')
+  await pool.query('DROP TABLE IF EXISTS redefinicoes_senha')
   await pool.query('DROP TABLE IF EXISTS contas')
   await pool.query('DROP TABLE IF EXISTS convites')
   convites = await criarConvites(pool)
   contas = await criarContas(pool, { convite: 'segredo', convites })
+  await contas.semearDev(EMAIL_DEV, 'senha-dev-123')
+  repoFalso = { repoDe: vi.fn(), apagarConta: vi.fn(async (_id: string) => {}) }
   sessoes = sessoesFalsas()
-  server = criarWeb({ contas, sessoes: sessoes as unknown as Sessoes, convites, adminEmails: [EMAIL_ADMIN], limitador: criarLimitador(5, 60_000), cookieSeguro: true, confiarProxy: true })
+  mailer = mailerFalso()
+  server = criarWeb({
+    contas,
+    sessoes: sessoes as unknown as Sessoes,
+    convites,
+    mailer,
+    adminEmails: [EMAIL_ADMIN],
+    limitador: criarLimitador(5, 60_000),
+    cookieSeguro: true,
+    confiarProxy: true,
+    repo: repoFalso as unknown as Repositorio,
+    devEmail: EMAIL_DEV,
+  })
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
 })
@@ -64,6 +90,10 @@ const post = (caminho: string, dados: Record<string, string> = {}, cabecalhos: R
     body: form(dados),
   })
 const get = (caminho: string, cookie?: string) => fetch(base + caminho, { redirect: 'manual', headers: cookie ? { cookie } : {} })
+// /esqueci-senha responde antes de terminar o trabalho (fire-and-forget, contra timing oracle) — espera a condição bater
+async function esperarAte(condicao: () => boolean, tentativas = 100, intervaloMs = 5) {
+  for (let i = 0; i < tentativas && !condicao(); i++) await new Promise((r) => setTimeout(r, intervaloMs))
+}
 
 let seq = 0
 async function entrar(email = `u${++seq}@x.com`) {
@@ -72,6 +102,12 @@ async function entrar(email = `u${++seq}@x.com`) {
   const cookie = r.headers.getSetCookie()[0].split(';')[0]
   const conta = (await contas.verificar(email, 'senha-boa-123'))!
   return { cookie, conta }
+}
+
+async function entrarComo(email: string, senha: string) {
+  const r = await post('/entrar', { email, senha })
+  expect(r.status).toBe(303)
+  return r.headers.getSetCookie()[0].split(';')[0]
 }
 
 describe('cadastro e login', () => {
@@ -258,8 +294,8 @@ describe('saúde', () => {
 
 describe('admin', () => {
   const codigoPorNota = (html: string, nota: string) => new RegExp('<code>([0-9a-f]{10})</code> <span class="sub">· ' + nota + '</span>').exec(html)?.[1]
-  // uma conta admin só, reaproveitada nos testes (cadastrar de novo com o mesmo e-mail falharia com email_em_uso)
-  let cookieAdmin: string
+  // uma conta admin só, reaproveitada nos testes (cadastrar de novo com o mesmo e-mail falharia com email_em_uso);
+  // cookieAdmin é módulo-escopo (declarado acima) porque describe('admin: contas') também usa
   beforeAll(async () => {
     ;({ cookie: cookieAdmin } = await entrar(EMAIL_ADMIN))
   })
@@ -319,5 +355,256 @@ describe('admin', () => {
 
     const cad = await post('/cadastro', { email: 'depois-de-revogado@x.com', senha: 'senha-boa-123', convite: codigo })
     expect(cad.status).toBe(400)
+  })
+})
+
+describe('esqueci a senha', () => {
+  it('GET /esqueci-senha mostra o formulário; logado redireciona pro painel', async () => {
+    expect((await get('/esqueci-senha')).status).toBe(200)
+    const { cookie } = await entrar()
+    expect((await get('/esqueci-senha', cookie)).headers.get('location')).toBe('/painel')
+  })
+
+  it('POST sem Origin é recusado também nas rotas novas (403)', async () => {
+    const semOrigem = await fetch(base + '/esqueci-senha', { method: 'POST', redirect: 'manual', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: form({ email: 'x@x.com' }) })
+    expect(semOrigem.status).toBe(403)
+  })
+
+  it('e-mail existente manda o e-mail com o link; e-mail inexistente mostra a mesma mensagem genérica sem mandar nada', async () => {
+    await entrar('esqueci1@x.com')
+    const r1 = await post('/esqueci-senha', { email: 'esqueci1@x.com' })
+    expect(r1.status).toBe(200)
+    const texto1 = await r1.text()
+    expect(texto1).toContain('Se esse e-mail existir na nossa base')
+    await esperarAte(() => mailer.enviarRedefinicaoSenha.mock.calls.length >= 1)
+    expect(mailer.enviarRedefinicaoSenha).toHaveBeenCalledTimes(1)
+    const [destino, link] = mailer.enviarRedefinicaoSenha.mock.calls[0]
+    expect(destino).toBe('esqueci1@x.com')
+    expect(link).toContain('/redefinir-senha?token=')
+
+    const r2 = await post('/esqueci-senha', { email: 'nao-existe@x.com' })
+    expect(await r2.text()).toBe(texto1)
+    expect(mailer.enviarRedefinicaoSenha).toHaveBeenCalledTimes(1)
+  })
+
+  it('link do e-mail redefine a senha e já loga a pessoa', async () => {
+    await entrar('esqueci2@x.com')
+    await post('/esqueci-senha', { email: 'esqueci2@x.com' })
+    await esperarAte(() => mailer.enviarRedefinicaoSenha.mock.calls.length >= 1)
+    const [, link] = mailer.enviarRedefinicaoSenha.mock.calls.at(-1)!
+    const token = new URL(link).searchParams.get('token')!
+    const r = await post('/redefinir-senha', { token, senha: 'senha-nova-123' })
+    expect(r.status).toBe(303)
+    expect(r.headers.get('location')).toBe('/painel')
+    expect(r.headers.getSetCookie()[0]).toMatch(/^sid=/)
+    expect((await post('/entrar', { email: 'esqueci2@x.com', senha: 'senha-nova-123' })).status).toBe(303)
+  })
+
+  it('token inválido/expirado dá 400 com aviso; senha curta também', async () => {
+    const semToken = await post('/redefinir-senha', { token: 'nunca-existiu', senha: 'senha-boa-123' })
+    expect(semToken.status).toBe(400)
+    expect(await semToken.text()).toContain('Link inválido ou expirado')
+
+    const curta = await post('/redefinir-senha', { token: 'qualquer', senha: '123' })
+    expect(curta.status).toBe(400)
+    expect(await curta.text()).toContain('ao menos 8 caracteres')
+  })
+
+  it('token de redefinição é uso único', async () => {
+    await entrar('esqueci3@x.com')
+    await post('/esqueci-senha', { email: 'esqueci3@x.com' })
+    await esperarAte(() => mailer.enviarRedefinicaoSenha.mock.calls.length >= 1)
+    const [, link] = mailer.enviarRedefinicaoSenha.mock.calls.at(-1)!
+    const token = new URL(link).searchParams.get('token')!
+    await post('/redefinir-senha', { token, senha: 'senha-nova-123' })
+    const segunda = await post('/redefinir-senha', { token, senha: 'outra-senha-123' })
+    expect(segunda.status).toBe(400)
+  })
+
+  // Review Focus do plano: token válido, mas a conta foi desativada nesse meio-tempo — não pode quebrar.
+  it('token válido mas conta foi desativada nesse meio-tempo: mostra link inválido, sem quebrar', async () => {
+    const { conta } = await entrar('desativada-no-meio@x.com')
+    await post('/esqueci-senha', { email: 'desativada-no-meio@x.com' })
+    await esperarAte(() => mailer.enviarRedefinicaoSenha.mock.calls.length >= 1)
+    const [, link] = mailer.enviarRedefinicaoSenha.mock.calls.at(-1)!
+    const token = new URL(link).searchParams.get('token')!
+    await contas.definirAtiva(conta.id, false)
+    const r = await post('/redefinir-senha', { token, senha: 'senha-nova-123' })
+    expect(r.status).toBe(400)
+    expect(await r.text()).toContain('Link inválido ou expirado')
+  })
+
+  // Review Focus do plano: depois do limite, não pode mandar mais e-mail nem revelar o bloqueio.
+  it('depois de 5 pedidos, o 6º não dispara e-mail mas responde igual (não revela o bloqueio)', async () => {
+    const mesmoIp = { 'X-Forwarded-For': '203.0.113.50' }
+    await entrar('limite@x.com')
+    for (let i = 0; i < 5; i++) await post('/esqueci-senha', { email: 'limite@x.com' }, mesmoIp)
+    await esperarAte(() => mailer.enviarRedefinicaoSenha.mock.calls.length >= 5)
+    expect(mailer.enviarRedefinicaoSenha).toHaveBeenCalledTimes(5)
+    const r = await post('/esqueci-senha', { email: 'limite@x.com' }, mesmoIp)
+    expect(r.status).toBe(200)
+    expect(await r.text()).toContain('Se esse e-mail existir na nossa base')
+    expect(mailer.enviarRedefinicaoSenha).toHaveBeenCalledTimes(5)
+  })
+
+  // Correção da revisão final: IP bloqueado em /entrar (senha errada) não pode bloquear /esqueci-senha,
+  // senão a pessoa fica sem conseguir recuperar a senha justamente quando mais precisa.
+  it('IP bloqueado em /entrar por senha errada não impede /esqueci-senha de mandar o e-mail', async () => {
+    const mesmoIp = { 'X-Forwarded-For': '203.0.113.77' }
+    await entrar('bloqueado-entrar@x.com')
+    for (let i = 0; i < 5; i++) await post('/entrar', { email: 'bloqueado-entrar@x.com', senha: 'errada-errada' }, mesmoIp)
+    expect((await post('/entrar', { email: 'bloqueado-entrar@x.com', senha: 'senha-boa-123' }, mesmoIp)).status).toBe(429)
+
+    const r = await post('/esqueci-senha', { email: 'bloqueado-entrar@x.com' }, mesmoIp)
+    expect(r.status).toBe(200)
+    await esperarAte(() => mailer.enviarRedefinicaoSenha.mock.calls.length >= 1)
+    expect(mailer.enviarRedefinicaoSenha).toHaveBeenCalledWith('bloqueado-entrar@x.com', expect.stringContaining('/redefinir-senha?token='))
+  })
+
+  it('sem mailer configurado, ainda funciona: loga o link no console em vez de falhar', async () => {
+    const semMailer = criarWeb({
+      contas,
+      sessoes: sessoes as unknown as Sessoes,
+      convites,
+      adminEmails: [EMAIL_ADMIN],
+      limitador: criarLimitador(5, 60_000),
+      cookieSeguro: true,
+      confiarProxy: true,
+      repo: repoFalso as unknown as Repositorio,
+    })
+    await new Promise<void>((r) => semMailer.listen(0, '127.0.0.1', r))
+    const baseSemMailer = `http://127.0.0.1:${(semMailer.address() as AddressInfo).port}`
+    const postSemMailer = (caminho: string, dados: Record<string, string>) =>
+      fetch(baseSemMailer + caminho, { method: 'POST', redirect: 'manual', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Origin: baseSemMailer }, body: form(dados) })
+    await postSemMailer('/cadastro', { email: 'semmailer@x.com', senha: 'senha-boa-123', convite: 'segredo' })
+
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const r = await postSemMailer('/esqueci-senha', { email: 'semmailer@x.com' })
+    expect(r.status).toBe(200)
+    await esperarAte(() => log.mock.calls.length >= 1)
+    expect(log.mock.calls.flat().join(' ')).toContain('/redefinir-senha?token=')
+    log.mockRestore()
+
+    semMailer.closeAllConnections()
+    await new Promise((r) => semMailer.close(r))
+  })
+
+  // Review Focus: o link não pode confiar no Host da requisição (forjável fora de browser) — só no `dominio` configurado.
+  it('com `dominio` configurado, o link usa esse domínio, não o Host da requisição', async () => {
+    const mailerDominio = mailerFalso()
+    const comDominio = criarWeb({
+      contas,
+      sessoes: sessoes as unknown as Sessoes,
+      convites,
+      mailer: mailerDominio,
+      adminEmails: [EMAIL_ADMIN],
+      limitador: criarLimitador(5, 60_000),
+      cookieSeguro: true,
+      confiarProxy: true,
+      dominio: 'app.exemplo.com',
+      repo: repoFalso as unknown as Repositorio,
+    })
+    await new Promise<void>((r) => comDominio.listen(0, '127.0.0.1', r))
+    const baseComDominio = `http://127.0.0.1:${(comDominio.address() as AddressInfo).port}`
+    const postComDominio = (caminho: string, dados: Record<string, string>) =>
+      fetch(baseComDominio + caminho, { method: 'POST', redirect: 'manual', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Origin: baseComDominio }, body: form(dados) })
+    await postComDominio('/cadastro', { email: 'comdominio@x.com', senha: 'senha-boa-123', convite: 'segredo' })
+
+    const r = await postComDominio('/esqueci-senha', { email: 'comdominio@x.com' })
+    expect(r.status).toBe(200)
+    await esperarAte(() => mailerDominio.enviarRedefinicaoSenha.mock.calls.length >= 1)
+    const [, link] = mailerDominio.enviarRedefinicaoSenha.mock.calls[0]
+    // a requisição chegou em 127.0.0.1:<porta-efêmera> (Host real), mas o link tem que usar o domínio configurado
+    expect(link).toMatch(/^https:\/\/app\.exemplo\.com\/redefinir-senha\?token=/)
+
+    comDominio.closeAllConnections()
+    await new Promise((r) => comDominio.close(r))
+  })
+})
+
+describe('admin: contas', () => {
+  let cookieDev: string
+  beforeAll(async () => {
+    cookieDev = await entrarComo(EMAIL_DEV, 'senha-dev-123')
+  })
+
+  it('conta DEV é admin e some da lista de contas do admin comum', async () => {
+    const htmlAdmin = await (await get('/admin', cookieAdmin)).text()
+    expect(htmlAdmin).not.toContain(EMAIL_DEV)
+    expect((await get('/admin', cookieDev)).status).toBe(200)
+  })
+
+  it('lista a conta na tela; desativar bloqueia login e desconecta o WhatsApp; reativar libera de novo', async () => {
+    const { conta } = await entrar('contaadmin1@x.com')
+    const html1 = await (await get('/admin', cookieAdmin)).text()
+    expect(html1).toContain('contaadmin1@x.com')
+
+    const desativar = await post('/admin/contas/desativar', { id: conta.id }, { cookie: cookieAdmin })
+    expect(desativar.headers.get('location')).toBe('/admin')
+    expect(sessoes.desconectar).toHaveBeenCalledWith(conta.id)
+    expect((await post('/entrar', { email: 'contaadmin1@x.com', senha: 'senha-boa-123' })).status).toBe(401)
+
+    await post('/admin/contas/reativar', { id: conta.id }, { cookie: cookieAdmin })
+    expect((await post('/entrar', { email: 'contaadmin1@x.com', senha: 'senha-boa-123' })).status).toBe(303)
+  })
+
+  it('"enviar link de redefinição" dispara o e-mail pra conta certa', async () => {
+    const { conta } = await entrar('contaadmin2@x.com')
+    const r = await post('/admin/contas/redefinir', { id: conta.id }, { cookie: cookieAdmin })
+    expect(r.headers.get('location')).toBe('/admin?ok=redefinicao')
+    expect(mailer.enviarRedefinicaoSenha).toHaveBeenCalledWith('contaadmin2@x.com', expect.stringContaining('/redefinir-senha?token='))
+  })
+
+  it('rotas de contas exigem admin (403 pra quem não é)', async () => {
+    const { cookie } = await entrar('naoadmin@x.com')
+    expect((await post('/admin/contas/desativar', { id: 'x' }, { cookie })).status).toBe(403)
+    expect((await post('/admin/contas/reativar', { id: 'x' }, { cookie })).status).toBe(403)
+    expect((await post('/admin/contas/redefinir', { id: 'x' }, { cookie })).status).toBe(403)
+    expect((await post('/admin/contas/excluir', { id: 'x', confirmarEmail: 'x' }, { cookie })).status).toBe(403)
+  })
+
+  it('excluir exige ser a conta DEV: admin comum toma 403 mesmo sendo admin', async () => {
+    const { conta } = await entrar('naoexcluivel@x.com')
+    const r = await post('/admin/contas/excluir', { id: conta.id, confirmarEmail: 'naoexcluivel@x.com' }, { cookie: cookieAdmin })
+    expect(r.status).toBe(403)
+    expect(await contas.porId(conta.id)).not.toBeNull()
+  })
+
+  it('excluir com e-mail de confirmação errado não apaga nada; certo apaga tudo (WhatsApp, lançamentos, conta)', async () => {
+    const { conta } = await entrar('excluivel@x.com')
+    const errado = await post('/admin/contas/excluir', { id: conta.id, confirmarEmail: 'errado@x.com' }, { cookie: cookieDev })
+    expect(errado.headers.get('location')).toBe('/admin?erro=confirmacao')
+    expect(await contas.porId(conta.id)).not.toBeNull()
+    expect(repoFalso.apagarConta).not.toHaveBeenCalled()
+
+    const certo = await post('/admin/contas/excluir', { id: conta.id, confirmarEmail: 'excluivel@x.com' }, { cookie: cookieDev })
+    expect(certo.headers.get('location')).toBe('/admin')
+    expect(sessoes.desconectar).toHaveBeenCalledWith(conta.id)
+    expect(repoFalso.apagarConta).toHaveBeenCalledWith(conta.id)
+    expect((await pool.query('SELECT 1 FROM contas WHERE id = $1', [conta.id])).rowCount).toBe(0)
+  })
+
+  // Review Focus do plano: id forjado/inexistente não pode quebrar nem apagar nada.
+  it('excluir com id inexistente não quebra e não apaga nada', async () => {
+    const r = await post('/admin/contas/excluir', { id: 'nunca-existiu', confirmarEmail: 'qualquer@x.com' }, { cookie: cookieDev })
+    expect(r.status).toBe(303)
+    expect(r.headers.get('location')).toBe('/admin')
+  })
+
+  // Correção da revisão final: as duas ações redirecionavam pra /admin sem feedback nenhum.
+  it('confirmação de e-mail errada ao excluir mostra aviso em /admin', async () => {
+    const { conta } = await entrar('feedback-excluir@x.com')
+    const r = await post('/admin/contas/excluir', { id: conta.id, confirmarEmail: 'errado@x.com' }, { cookie: cookieDev })
+    expect(r.headers.get('location')).toBe('/admin?erro=confirmacao')
+    const html = await (await get('/admin?erro=confirmacao', cookieDev)).text()
+    expect(html).toContain('E-mail de confirmação não confere.')
+  })
+
+  it('redefinir com sucesso mostra aviso em /admin', async () => {
+    const { conta } = await entrar('feedback-redefinir@x.com')
+    const r = await post('/admin/contas/redefinir', { id: conta.id }, { cookie: cookieAdmin })
+    expect(r.headers.get('location')).toBe('/admin?ok=redefinicao')
+    const html = await (await get('/admin?ok=redefinicao', cookieAdmin)).text()
+    expect(html).toContain('Link de redefinição enviado.')
   })
 })

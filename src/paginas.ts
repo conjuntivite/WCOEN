@@ -1,4 +1,4 @@
-import type { Conta } from './contas'
+import type { Conta, ContaResumo } from './contas'
 import type { Convite } from './convites'
 import type { Aviso, Visao } from './sessoes'
 
@@ -130,7 +130,21 @@ const aviso = (texto?: string, classe = '') => (texto ? `<div class="aviso ${cla
 export const paginaEntrar = (erro?: string, email = '') =>
   telaAuth(
     'Entrar',
-    `<section class="cartao"><h2>Entrar</h2><p class="sub">Acesse seu painel.</p>${aviso(erro)}<form method="post" action="/entrar">${campo({ nome: 'email', rotulo: 'E-mail', tipo: 'email', valor: email, extra: 'autocomplete="username"' })}${campo({ nome: 'senha', rotulo: 'Senha', tipo: 'password', extra: 'autocomplete="current-password"' })}<button class="btn">Entrar</button></form></section><p class="rodape-form">Ainda não tem conta? <a href="/cadastro">Cadastre-se</a></p>`,
+    `<section class="cartao"><h2>Entrar</h2><p class="sub">Acesse seu painel.</p>${aviso(erro)}<form method="post" action="/entrar">${campo({ nome: 'email', rotulo: 'E-mail', tipo: 'email', valor: email, extra: 'autocomplete="username"' })}${campo({ nome: 'senha', rotulo: 'Senha', tipo: 'password', extra: 'autocomplete="current-password"' })}<button class="btn">Entrar</button></form><p class="rodape-form"><a href="/esqueci-senha">Esqueci minha senha</a></p></section><p class="rodape-form">Ainda não tem conta? <a href="/cadastro">Cadastre-se</a></p>`,
+  )
+
+export const paginaEsqueciSenha = (enviado = false, email = '') =>
+  telaAuth(
+    'Esqueci minha senha',
+    enviado
+      ? `<section class="cartao"><h2>Verifique seu e-mail</h2><p class="sub">Se esse e-mail existir na nossa base, enviamos um link para redefinir a senha. O link vale por 1 hora.</p></section><p class="rodape-form"><a href="/entrar">Voltar para Entrar</a></p>`
+      : `<section class="cartao"><h2>Esqueci minha senha</h2><p class="sub">Informe seu e-mail para receber um link de redefinição.</p><form method="post" action="/esqueci-senha">${campo({ nome: 'email', rotulo: 'E-mail', tipo: 'email', valor: email, extra: 'autocomplete="username"' })}<button class="btn">Enviar link</button></form></section><p class="rodape-form"><a href="/entrar">Voltar para Entrar</a></p>`,
+  )
+
+export const paginaRedefinirSenha = (token: string, erro?: string) =>
+  telaAuth(
+    'Redefinir senha',
+    `<section class="cartao"><h2>Redefinir senha</h2><p class="sub">Escolha uma nova senha para sua conta.</p>${aviso(erro)}<form method="post" action="/redefinir-senha"><input type="hidden" name="token" value="${esc(token)}">${campo({ nome: 'senha', rotulo: 'Nova senha (mínimo 8 caracteres)', tipo: 'password', extra: 'minlength="8" autocomplete="new-password"' })}<button class="btn">Redefinir senha</button></form></section>`,
   )
 
 export type CampoCadastro = 'email' | 'senha' | 'convite'
@@ -146,6 +160,13 @@ export const paginaCadastro = (erro?: string, comErro?: CampoCadastro, email = '
 export const ERROS_PAINEL: Record<string, string> = {
   telefone: 'Número inválido. Use DDI e DDD, por exemplo 5511999999999.',
   grupo: 'Grupo inválido. Escolha um da lista.',
+}
+
+export const ERROS_ADMIN: Record<string, string> = {
+  confirmacao: 'E-mail de confirmação não confere.',
+}
+export const AVISOS_ADMIN: Record<string, string> = {
+  redefinicao: 'Link de redefinição enviado.',
 }
 
 export const SCRIPT_PAINEL = `const alvo = document.getElementById('estado')
@@ -177,10 +198,25 @@ const itemConvite = (c: Convite) => {
   return `<li class="convite"><div><code>${esc(c.codigo)}</code>${c.nota ? ` <span class="sub">· ${esc(c.nota)}</span>` : ''}<div class="sub">${dataHora(c.criadoEm)}</div></div><span class="chip ${aberto ? 'chip-ok' : ''}">${aberto ? 'Aberto' : 'Usado'}</span>${revogar}</li>`
 }
 
-export const paginaAdmin = (email: string, convites: Convite[]) =>
+const dataHoraCurta = (d: Date) => new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeZone: 'America/Sao_Paulo' }).format(d)
+
+const itemConta = (c: ContaResumo, souDev: boolean) => {
+  const status = c.ativa ? '<span class="chip chip-ok">Ativa</span>' : '<span class="chip">Desativada</span>'
+  const conexao = c.conectada ? `<span class="sub">· conectada${c.grupoNome ? ` (${esc(c.grupoNome)})` : ''}</span>` : ''
+  const alternar = `<form method="post" action="/admin/contas/${c.ativa ? 'desativar' : 'reativar'}"><input type="hidden" name="id" value="${esc(c.id)}"><button class="btn sec pequeno">${c.ativa ? 'Desativar' : 'Reativar'}</button></form>`
+  const redefinir = c.ativa
+    ? `<form method="post" action="/admin/contas/redefinir"><input type="hidden" name="id" value="${esc(c.id)}"><button class="btn sec pequeno">Enviar link de redefinição</button></form>`
+    : ''
+  const excluir = souDev
+    ? `<details><summary>Excluir definitivamente</summary><form method="post" action="/admin/contas/excluir"><input type="hidden" name="id" value="${esc(c.id)}"><div class="campo"><label for="confirmar-${esc(c.id)}">Digite ${esc(c.email)} para confirmar</label><input id="confirmar-${esc(c.id)}" name="confirmarEmail" type="text" required autocomplete="off"></div><button class="btn sec pequeno">Excluir definitivamente</button></form></details>`
+    : ''
+  return `<li class="convite"><div><code>${esc(c.email)}</code> <span class="sub">· ${dataHoraCurta(c.criadaEm)}</span>${conexao}</div>${status}${alternar}${redefinir}${excluir}</li>`
+}
+
+export const paginaAdmin = (email: string, convites: Convite[], contasAdmin: ContaResumo[] = [], souDev = false, mensagem?: string) =>
   layout(
     'Administração',
-    `<div class="pagina"><header class="topo">${marca('/painel')}<div class="usuario"><span class="email" title="${esc(email)}">${esc(email)}</span><form method="post" action="/sair"><button class="btn sec pequeno">${ic('sair')}Sair</button></form></div></header><main id="conteudo"><div class="cartao"><h2>Novo convite</h2><p class="sub">Gera um código de uso único para um cadastro.</p><form method="post" action="/admin/convites"><div class="campo"><label for="nota">Nota (opcional)</label><input id="nota" name="nota" type="text" maxlength="80" placeholder="Ex.: para o João"></div><button class="btn">Gerar convite</button></form></div><div class="cartao"><h2>Convites</h2>${convites.length ? `<ul class="convites">${convites.map(itemConvite).join('')}</ul>` : '<p class="sub">Nenhum convite ainda.</p>'}</div></main></div>`,
+    `<div class="pagina"><header class="topo">${marca('/painel')}<div class="usuario"><span class="email" title="${esc(email)}">${esc(email)}</span><form method="post" action="/sair"><button class="btn sec pequeno">${ic('sair')}Sair</button></form></div></header><main id="conteudo">${aviso(mensagem)}<div class="cartao"><h2>Novo convite</h2><p class="sub">Gera um código de uso único para um cadastro.</p><form method="post" action="/admin/convites"><div class="campo"><label for="nota">Nota (opcional)</label><input id="nota" name="nota" type="text" maxlength="80" placeholder="Ex.: para o João"></div><button class="btn">Gerar convite</button></form></div><div class="cartao"><h2>Convites</h2>${convites.length ? `<ul class="convites">${convites.map(itemConvite).join('')}</ul>` : '<p class="sub">Nenhum convite ainda.</p>'}</div><div class="cartao"><h2>Contas</h2>${contasAdmin.length ? `<ul class="convites">${contasAdmin.map((c) => itemConta(c, souDev)).join('')}</ul>` : '<p class="sub">Nenhuma conta cadastrada ainda.</p>'}</div></main></div>`,
   )
 
 const AVISOS: Record<Aviso, string> = {

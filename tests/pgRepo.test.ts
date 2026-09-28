@@ -15,22 +15,22 @@ afterAll(async () => {
 async function abrir() {
   await limpador.query('DROP TABLE IF EXISTS lancamentos')
   const pool = new Pool({ connectionString: URL })
-  const { repoDe } = await criarRepo(pool)
+  const repo = await criarRepo(pool)
   fechar.push(() => pool.end())
-  return repoDe
+  return repo
 }
 
 repoContract(
   'PgRepo',
-  async () => (await abrir())('conta-teste'),
+  async () => (await abrir()).repoDe('conta-teste'),
   async () => {
-    const repoDe = await abrir()
+    const { repoDe } = await abrir()
     return [repoDe('a'), repoDe('b')]
   },
 )
 
 it('add rejeita msgId repetido na mesma conta com "duplicado", sem estourar erro', async () => {
-  const repoDe = await abrir()
+  const { repoDe } = await abrir()
   const repo = repoDe('c')
   const l = { tipo: 'despesa' as const, conta: 'x', valor: 100, remetente: 'u', msgId: 'm1', data: new Date(), enviadoEm: new Date() }
   expect(await repo.add(l)).toBe('ok')
@@ -38,7 +38,7 @@ it('add rejeita msgId repetido na mesma conta com "duplicado", sem estourar erro
 })
 
 it('desfazerUltimo em concorrência: exatamente um sucede, outro retorna null', async () => {
-  const repoDe = await abrir()
+  const { repoDe } = await abrir()
   const repo = repoDe('d')
   const l = { tipo: 'despesa' as const, conta: 'x', valor: 100, remetente: 'u', msgId: 'm2', data: new Date(), enviadoEm: new Date() }
   expect(await repo.add(l)).toBe('ok')
@@ -48,4 +48,14 @@ it('desfazerUltimo em concorrência: exatamente um sucede, outro retorna null', 
   const resultados = [r1, r2]
   expect(resultados.filter((x) => x !== null)).toHaveLength(1)
   expect(resultados.filter((x) => x === null)).toHaveLength(1)
+})
+
+it('apagarConta remove só os lançamentos daquela conta', async () => {
+  const { repoDe, apagarConta } = await abrir()
+  const l = (msgId: string) => ({ tipo: 'despesa' as const, conta: 'x', valor: 100, remetente: 'u', msgId, data: new Date(), enviadoEm: new Date() })
+  await repoDe('a').add(l('m1'))
+  await repoDe('b').add(l('m1'))
+  await apagarConta('a')
+  expect((await repoDe('a').balancete(null)).despesas).toEqual([])
+  expect((await repoDe('b').balancete(null)).despesas).toEqual([{ conta: 'x', total: 100 }])
 })

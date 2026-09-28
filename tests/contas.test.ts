@@ -9,6 +9,7 @@ const pool = new Pool({ connectionString: URL })
 let contas: Contas
 
 beforeEach(async () => {
+  await pool.query('DROP TABLE IF EXISTS redefinicoes_senha')
   await pool.query('DROP TABLE IF EXISTS logins')
   await pool.query('DROP TABLE IF EXISTS contas')
   contas = await criarContas(pool, { convite: 'segredo' })
@@ -112,5 +113,112 @@ describe('grupo e conexão', () => {
     expect(await contas.conectadas()).toEqual([conta.id])
     await contas.marcarConectada(conta.id, false)
     expect(await contas.conectadas()).toEqual([])
+  })
+
+  // Correção da revisão final: defesa em profundidade — mesmo sem passar pela rota HTTP (que já desconecta
+  // antes de desativar), conectadas() sozinha não pode listar uma conta inativa.
+  it('conectadas() não lista uma conta marcada como conectada mas desativada diretamente', async () => {
+    const { conta } = (await cadastrar()) as { ok: true; conta: { id: string } }
+    await contas.marcarConectada(conta.id, true)
+    await contas.definirAtiva(conta.id, false)
+    expect(await contas.conectadas()).toEqual([])
+  })
+})
+
+describe('admin: contas', () => {
+  it('listarContas lista todas (inclusive inativas), da mais nova pra mais velha', async () => {
+    const a = ((await cadastrar('a@x.com')) as { ok: true; conta: { id: string } }).conta
+    const b = ((await cadastrar('b@x.com')) as { ok: true; conta: { id: string } }).conta
+    await contas.definirAtiva(a.id, false)
+    const lista = await contas.listarContas()
+    expect(lista.map((c) => c.email)).toEqual(['b@x.com', 'a@x.com'])
+    expect(lista.find((c) => c.id === a.id)?.ativa).toBe(false)
+    expect(lista.find((c) => c.id === b.id)?.ativa).toBe(true)
+  })
+
+  // Review Focus do plano: porId é o único ponto de checagem de sessão — precisa barrar conta inativa sozinho.
+  it('definirAtiva(false) derruba os logins ativos e bloqueia porId/verificar; reativar libera de novo', async () => {
+    const { conta } = (await cadastrar('c@x.com')) as { ok: true; conta: { id: string } }
+    const token = await contas.criarLogin(conta.id)
+    await contas.definirAtiva(conta.id, false)
+    expect(await contas.contaDoLogin(token)).toBeNull()
+    expect(await contas.porId(conta.id)).toBeNull()
+    expect(await contas.verificar('c@x.com', 'senha-boa-123')).toBeNull()
+    await contas.definirAtiva(conta.id, true)
+    expect(await contas.porId(conta.id)).not.toBeNull()
+    expect(await contas.verificar('c@x.com', 'senha-boa-123')).not.toBeNull()
+  })
+})
+
+describe('redefinição de senha por e-mail', () => {
+  it('token válido: consumirRedefinicao devolve o contaId; token some depois (uso único)', async () => {
+    const { conta } = (await cadastrar('r1@x.com')) as { ok: true; conta: { id: string } }
+    const token = await contas.criarRedefinicao(conta.id)
+    expect(await contas.consumirRedefinicao(token)).toBe(conta.id)
+    expect(await contas.consumirRedefinicao(token)).toBeNull()
+  })
+
+  it('token expirado é recusado', async () => {
+    const { conta } = (await cadastrar('r2@x.com')) as { ok: true; conta: { id: string } }
+    const token = await contas.criarRedefinicao(conta.id)
+    await pool.query("UPDATE redefinicoes_senha SET expira_em = now() - interval '1 second' WHERE conta_id = $1", [conta.id])
+    expect(await contas.consumirRedefinicao(token)).toBeNull()
+  })
+
+  it('pedido novo invalida o token anterior da mesma conta', async () => {
+    const { conta } = (await cadastrar('r3@x.com')) as { ok: true; conta: { id: string } }
+    const antigo = await contas.criarRedefinicao(conta.id)
+    await contas.criarRedefinicao(conta.id)
+    expect(await contas.consumirRedefinicao(antigo)).toBeNull()
+  })
+
+  it('token desconhecido dá null', async () => {
+    expect(await contas.consumirRedefinicao('token-que-nunca-existiu')).toBeNull()
+  })
+
+  it('consumirRedefinicao em concorrência: exatamente um sucede', async () => {
+    const { conta } = (await cadastrar('corrida-token@x.com')) as { ok: true; conta: { id: string } }
+    const token = await contas.criarRedefinicao(conta.id)
+    const [r1, r2] = await Promise.all([contas.consumirRedefinicao(token), contas.consumirRedefinicao(token)])
+    expect([r1, r2].filter((r) => r !== null)).toEqual([conta.id])
+  })
+
+  it('porEmail acha a conta ativa; e-mail desconhecido ou conta inativa dá null', async () => {
+    const { conta } = (await cadastrar('r4@x.com')) as { ok: true; conta: { id: string } }
+    expect((await contas.porEmail('R4@X.com'))?.id).toBe(conta.id)
+    expect(await contas.porEmail('ninguem@x.com')).toBeNull()
+    await contas.definirAtiva(conta.id, false)
+    expect(await contas.porEmail('r4@x.com')).toBeNull()
+  })
+})
+
+describe('conta DEV e exclusão definitiva', () => {
+  it('semearDev cria a conta na primeira vez e atualiza a senha nas próximas chamadas', async () => {
+    await contas.semearDev('Dev@X.com', 'senha-dev-1')
+    expect(await contas.verificar('dev@x.com', 'senha-dev-1')).not.toBeNull()
+    await contas.semearDev('dev@x.com', 'senha-dev-2')
+    expect(await contas.verificar('dev@x.com', 'senha-dev-1')).toBeNull()
+    expect(await contas.verificar('dev@x.com', 'senha-dev-2')).not.toBeNull()
+  })
+
+  // Correção da revisão final: a conta DEV é o último recurso de recuperação — reiniciar tem que trazê-la de volta.
+  it('semearDev reativa a conta DEV se ela estiver desativada', async () => {
+    await contas.semearDev('dev2@x.com', 'senha-dev-1')
+    const viva = await contas.verificar('dev2@x.com', 'senha-dev-1')
+    await contas.definirAtiva(viva!.id, false)
+    expect(await contas.verificar('dev2@x.com', 'senha-dev-1')).toBeNull()
+
+    await contas.semearDev('dev2@x.com', 'senha-dev-1')
+    expect(await contas.verificar('dev2@x.com', 'senha-dev-1')).not.toBeNull()
+  })
+
+  it('excluirConta apaga logins, redefinições pendentes e a conta', async () => {
+    const { conta } = (await cadastrar('excluir@x.com')) as { ok: true; conta: { id: string } }
+    const token = await contas.criarLogin(conta.id)
+    await contas.criarRedefinicao(conta.id)
+    await contas.excluirConta(conta.id)
+    expect(await contas.contaDoLogin(token)).toBeNull()
+    expect((await pool.query('SELECT 1 FROM redefinicoes_senha WHERE conta_id = $1', [conta.id])).rowCount).toBe(0)
+    expect((await pool.query('SELECT 1 FROM contas WHERE id = $1', [conta.id])).rowCount).toBe(0)
   })
 })

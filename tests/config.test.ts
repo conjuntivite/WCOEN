@@ -64,4 +64,29 @@ describe('loadConfig', () => {
   it('exige o modelo quando há chave', () => {
     expect(() => loadConfig({ ...base, OPENROUTER_API_KEY: 'k' })).toThrow('OPENROUTER_MODEL não definido')
   })
+
+  it('SMTP é opcional: sem SMTP_HOST fica desligado', () => {
+    expect(loadConfig(base).smtp).toBeUndefined()
+  })
+
+  it('lê SMTP com defaults de porta e remetente (SMTP_FROM cai pro SMTP_USER)', () => {
+    const c = loadConfig({ ...base, SMTP_HOST: 'smtp.exemplo.com', SMTP_USER: 'bot@exemplo.com', SMTP_PASS: 'segredo' })
+    expect(c.smtp).toEqual({ host: 'smtp.exemplo.com', port: 587, user: 'bot@exemplo.com', pass: 'segredo', from: 'bot@exemplo.com' })
+  })
+
+  it('SMTP_PORT e SMTP_FROM sobrescrevem os defaults', () => {
+    const c = loadConfig({ ...base, SMTP_HOST: 'smtp.exemplo.com', SMTP_PORT: '465', SMTP_USER: 'bot@exemplo.com', SMTP_PASS: 'segredo', SMTP_FROM: 'no-reply@exemplo.com' })
+    expect(c.smtp).toMatchObject({ port: 465, from: 'no-reply@exemplo.com' })
+  })
+
+  it('DEV é opcional: sem DEV_EMAIL/DEV_PASSWORD fica desligado', () => {
+    expect(loadConfig(base).dev).toBeUndefined()
+  })
+
+  it('lê e normaliza DEV_EMAIL; exige os dois definidos juntos', () => {
+    const c = loadConfig({ ...base, DEV_EMAIL: ' Dev@X.com ', DEV_PASSWORD: 'senha-dev-123' })
+    expect(c.dev).toEqual({ email: 'dev@x.com', senha: 'senha-dev-123' })
+    expect(() => loadConfig({ ...base, DEV_EMAIL: 'dev@x.com' })).toThrow('DEV_EMAIL e DEV_PASSWORD')
+    expect(() => loadConfig({ ...base, DEV_PASSWORD: 'senha-dev-123' })).toThrow('DEV_EMAIL e DEV_PASSWORD')
+  })
 })
