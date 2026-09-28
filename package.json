@@ -15,11 +15,13 @@
   "dependencies": {
     "@whiskeysockets/baileys": "^7.0.0-rc14",
     "mongodb": "^7.6.0",
+    "pg": "^8.23.0",
     "pino": "^10.3.1",
     "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "@types/node": "^26.6.3",
+    "@types/pg": "^8.23.1",
     "@types/qrcode": "^1.5.6",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
