@@ -72,6 +72,10 @@ const post = (caminho: string, dados: Record<string, string> = {}, cabecalhos: R
     body: form(dados),
   })
 const get = (caminho: string, cookie?: string) => fetch(base + caminho, { redirect: 'manual', headers: cookie ? { cookie } : {} })
+// /esqueci-senha responde antes de terminar o trabalho (fire-and-forget, contra timing oracle) — espera a condição bater
+async function esperarAte(condicao: () => boolean, tentativas = 100, intervaloMs = 5) {
+  for (let i = 0; i < tentativas && !condicao(); i++) await new Promise((r) => setTimeout(r, intervaloMs))
+}
 
 let seq = 0
 async function entrar(email = `u${++seq}@x.com`) {
@@ -348,6 +352,7 @@ describe('esqueci a senha', () => {
     expect(r1.status).toBe(200)
     const texto1 = await r1.text()
     expect(texto1).toContain('Se esse e-mail existir na nossa base')
+    await esperarAte(() => mailer.enviarRedefinicaoSenha.mock.calls.length >= 1)
     expect(mailer.enviarRedefinicaoSenha).toHaveBeenCalledTimes(1)
     const [destino, link] = mailer.enviarRedefinicaoSenha.mock.calls[0]
     expect(destino).toBe('esqueci1@x.com')
@@ -361,6 +366,7 @@ describe('esqueci a senha', () => {
   it('link do e-mail redefine a senha e já loga a pessoa', async () => {
     await entrar('esqueci2@x.com')
     await post('/esqueci-senha', { email: 'esqueci2@x.com' })
+    await esperarAte(() => mailer.enviarRedefinicaoSenha.mock.calls.length >= 1)
     const [, link] = mailer.enviarRedefinicaoSenha.mock.calls.at(-1)!
     const token = new URL(link).searchParams.get('token')!
     const r = await post('/redefinir-senha', { token, senha: 'senha-nova-123' })
@@ -383,6 +389,7 @@ describe('esqueci a senha', () => {
   it('token de redefinição é uso único', async () => {
     await entrar('esqueci3@x.com')
     await post('/esqueci-senha', { email: 'esqueci3@x.com' })
+    await esperarAte(() => mailer.enviarRedefinicaoSenha.mock.calls.length >= 1)
     const [, link] = mailer.enviarRedefinicaoSenha.mock.calls.at(-1)!
     const token = new URL(link).searchParams.get('token')!
     await post('/redefinir-senha', { token, senha: 'senha-nova-123' })
@@ -394,6 +401,7 @@ describe('esqueci a senha', () => {
   it('token válido mas conta foi desativada nesse meio-tempo: mostra link inválido, sem quebrar', async () => {
     const { conta } = await entrar('desativada-no-meio@x.com')
     await post('/esqueci-senha', { email: 'desativada-no-meio@x.com' })
+    await esperarAte(() => mailer.enviarRedefinicaoSenha.mock.calls.length >= 1)
     const [, link] = mailer.enviarRedefinicaoSenha.mock.calls.at(-1)!
     const token = new URL(link).searchParams.get('token')!
     await contas.definirAtiva(conta.id, false)
@@ -407,6 +415,7 @@ describe('esqueci a senha', () => {
     const mesmoIp = { 'X-Forwarded-For': '203.0.113.50' }
     await entrar('limite@x.com')
     for (let i = 0; i < 5; i++) await post('/esqueci-senha', { email: 'limite@x.com' }, mesmoIp)
+    await esperarAte(() => mailer.enviarRedefinicaoSenha.mock.calls.length >= 5)
     expect(mailer.enviarRedefinicaoSenha).toHaveBeenCalledTimes(5)
     const r = await post('/esqueci-senha', { email: 'limite@x.com' }, mesmoIp)
     expect(r.status).toBe(200)
@@ -425,10 +434,42 @@ describe('esqueci a senha', () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {})
     const r = await postSemMailer('/esqueci-senha', { email: 'semmailer@x.com' })
     expect(r.status).toBe(200)
+    await esperarAte(() => log.mock.calls.length >= 1)
     expect(log.mock.calls.flat().join(' ')).toContain('/redefinir-senha?token=')
     log.mockRestore()
 
     semMailer.closeAllConnections()
     await new Promise((r) => semMailer.close(r))
+  })
+
+  // Review Focus: o link não pode confiar no Host da requisição (forjável fora de browser) — só no `dominio` configurado.
+  it('com `dominio` configurado, o link usa esse domínio, não o Host da requisição', async () => {
+    const mailerDominio = mailerFalso()
+    const comDominio = criarWeb({
+      contas,
+      sessoes: sessoes as unknown as Sessoes,
+      convites,
+      mailer: mailerDominio,
+      adminEmails: [EMAIL_ADMIN],
+      limitador: criarLimitador(5, 60_000),
+      cookieSeguro: true,
+      confiarProxy: true,
+      dominio: 'app.exemplo.com',
+    })
+    await new Promise<void>((r) => comDominio.listen(0, '127.0.0.1', r))
+    const baseComDominio = `http://127.0.0.1:${(comDominio.address() as AddressInfo).port}`
+    const postComDominio = (caminho: string, dados: Record<string, string>) =>
+      fetch(baseComDominio + caminho, { method: 'POST', redirect: 'manual', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Origin: baseComDominio }, body: form(dados) })
+    await postComDominio('/cadastro', { email: 'comdominio@x.com', senha: 'senha-boa-123', convite: 'segredo' })
+
+    const r = await postComDominio('/esqueci-senha', { email: 'comdominio@x.com' })
+    expect(r.status).toBe(200)
+    await esperarAte(() => mailerDominio.enviarRedefinicaoSenha.mock.calls.length >= 1)
+    const [, link] = mailerDominio.enviarRedefinicaoSenha.mock.calls[0]
+    // a requisição chegou em 127.0.0.1:<porta-efêmera> (Host real), mas o link tem que usar o domínio configurado
+    expect(link).toMatch(/^https:\/\/app\.exemplo\.com\/redefinir-senha\?token=/)
+
+    comDominio.closeAllConnections()
+    await new Promise((r) => comDominio.close(r))
   })
 })

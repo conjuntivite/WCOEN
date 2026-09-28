@@ -15,6 +15,7 @@ export type OpcoesWeb = {
   limitador?: ReturnType<typeof criarLimitador>
   cookieSeguro?: boolean // com HTTPS (DOMINIO definido)
   confiarProxy?: boolean // lê o IP de X-Forwarded-For (atrás do Caddy ou do proxy do Render)
+  dominio?: string // usado para montar o link de redefinição de senha; sem isso, cairia no Host da requisição, que o cliente pode forjar
 }
 
 const CABECALHOS = {
@@ -75,7 +76,8 @@ export function criarWeb(op: OpcoesWeb): Server {
   }
   const cookieSessao = (token: string, maxAge: number) => `sid=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${op.cookieSeguro ? '; Secure' : ''}`
   const tokenDe = (req: IncomingMessage) => /(?:^|;\s*)sid=([\w-]+)/.exec(req.headers.cookie ?? '')?.[1]
-  const baseUrl = (req: IncomingMessage) => `${op.cookieSeguro ? 'https' : 'http'}://${req.headers.host}`
+  // com `dominio` configurado, ignora o Host da requisição (que o cliente pode forjar) e usa sempre o domínio real do site
+  const baseUrl = (req: IncomingMessage) => (op.dominio ? `https://${op.dominio}` : `${op.cookieSeguro ? 'https' : 'http'}://${req.headers.host}`)
   const contaDe = async (req: IncomingMessage): Promise<Conta | null> => {
     const t = tokenDe(req)
     return t ? contas.contaDoLogin(t) : null
@@ -186,13 +188,17 @@ export function criarWeb(op: OpcoesWeb): Server {
       const chaves = [`f:${email}`, `i:${ipDe(req)}`]
       if (!chaves.some((k) => limitador.bloqueado(k))) {
         chaves.forEach((k) => limitador.falhou(k))
-        const c = await contas.porEmail(email)
-        if (c) {
+        // fire-and-forget: se isso fosse `await`ado, o tempo de resposta variaria entre "conta existe" (DELETE+INSERT
+        // no Postgres) e "não existe" (nada) — um timing oracle que revelaria se o e-mail está cadastrado, mesmo com
+        // a resposta idêntica nos dois casos. Devolve a resposta genérica na hora e termina o trabalho depois.
+        void (async () => {
+          const c = await contas.porEmail(email)
+          if (!c) return
           const token = await contas.criarRedefinicao(c.id)
           const link = `${baseUrl(req)}/redefinir-senha?token=${token}`
-          if (op.mailer) op.mailer.enviarRedefinicaoSenha(c.email, link).catch((err) => console.error('mailer:', err instanceof Error ? err.message : err))
+          if (op.mailer) await op.mailer.enviarRedefinicaoSenha(c.email, link)
           else console.log(`[mailer] SMTP não configurado. Link de redefinição para ${c.email}: ${link}`)
-        }
+        })().catch((err) => console.error('esqueci-senha:', err instanceof Error ? err.message : err))
       }
       return html(res, 200, paginaEsqueciSenha(true))
     }
