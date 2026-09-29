@@ -53,7 +53,6 @@ type Sessao = {
   fila: Promise<void> // uma mensagem por vez, na ordem em que chegam
   enviados: Set<string> // anti-loop: IDs das mensagens que o próprio bot mandou
   cacheGrupos?: { em: number; lista: Grupo[] }
-  t0?: number // DEBUG-tempo: início do iniciar()
   timerQr?: ReturnType<typeof setTimeout>
   timerReconexao?: ReturnType<typeof setTimeout>
   timerResumo?: ReturnType<typeof setTimeout>
@@ -61,7 +60,6 @@ type Sessao = {
 }
 
 const CACHE_GRUPOS_MS = 60_000
-const tempo = (s: { contaId: string }, o: string, t0: number) => console.log(`[DEBUG-tempo] conta ${s.contaId} ${o}: ${Date.now() - t0} ms`) // temporário: diagnóstico de lentidão
 
 export function criarSessoes(deps: DepsSessoes) {
   const max = deps.maxSessoes ?? 20
@@ -122,13 +120,9 @@ export function criarSessoes(deps: DepsSessoes) {
   async function abrir(s: Sessao, g = s.geracao) {
     const obsoleta = () => s.encerrada || s.geracao !== g // desconectar()/iniciar() aconteceu enquanto esperávamos
     try {
-      const ta = Date.now()
       const auth = await deps.criarAuth(s.contaId)
-      tempo(s, 'criarAuth', ta)
       if (obsoleta()) return
-      const ts = Date.now()
       const sock = await deps.criarSocket(auth)
-      tempo(s, 'criarSocket', ts)
       if (obsoleta()) {
         try {
           sock.end(undefined)
@@ -153,12 +147,10 @@ export function criarSessoes(deps: DepsSessoes) {
   function aoAtualizar(s: Sessao, sock: SocketMin, u: { connection?: string; lastDisconnect?: { error?: unknown }; qr?: string }) {
     if (s.sock !== sock) return // evento de um socket que já não é o atual
     if (u.qr) {
-      if (!s.timerQr && s.t0) tempo(s, 'iniciar→primeiro QR', s.t0)
       s.timerQr ??= setTimeout(() => expirarQr(s), qrMaxMs)
       mudar(s, { estado: 'aguardando_qr', qr: u.qr })
     }
     if (u.connection === 'open') {
-      if (s.t0) tempo(s, 'iniciar→conectado', s.t0)
       clearTimeout(s.timerQr)
       s.timerQr = undefined
       s.tentativa = 0
@@ -258,9 +250,7 @@ export function criarSessoes(deps: DepsSessoes) {
   async function listarGrupos(s: Sessao): Promise<Grupo[]> {
     if (s.estado !== 'conectado' || !s.sock) return []
     if (s.cacheGrupos && agora() - s.cacheGrupos.em < CACHE_GRUPOS_MS) return s.cacheGrupos.lista
-    const tg = Date.now()
     const todos = await s.sock.groupFetchAllParticipating()
-    tempo(s, `groupFetchAllParticipating (${Object.keys(todos).length} grupos)`, tg)
     const lista = Object.values(todos)
       .map((g) => ({ id: g.id, nome: g.subject }))
       .sort((a, b) => a.nome.localeCompare(b.nome))
@@ -279,7 +269,6 @@ export function criarSessoes(deps: DepsSessoes) {
       }
       s.encerrada = false
       s.tentativa = 0
-      s.t0 = Date.now()
       const g = ++s.geracao
       mudar(s, { estado: 'conectando', qr: undefined, codigo: undefined, aviso: undefined }) // síncrono: fecha a porta para o clique duplo
       await s.saida // um desconectar() anterior ainda apagando credenciais não pode apagar as da sessão nova
