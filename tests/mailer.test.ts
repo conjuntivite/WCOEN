@@ -7,7 +7,7 @@ describe('criarMailer', () => {
   it('monta o transporte com host/porta/credenciais; porta 465 liga secure', () => {
     const criarTransporte = vi.fn(() => ({ sendMail: vi.fn() }))
     criarMailer(op, criarTransporte)
-    expect(criarTransporte).toHaveBeenCalledWith({ host: 'smtp.exemplo.com', port: 587, secure: false, auth: { user: 'bot@exemplo.com', pass: 'segredo' } })
+    expect(criarTransporte).toHaveBeenCalledWith({ host: 'smtp.exemplo.com', port: 587, secure: false, family: 4, auth: { user: 'bot@exemplo.com', pass: 'segredo' } })
 
     criarMailer({ ...op, port: 465 }, criarTransporte)
     expect(criarTransporte).toHaveBeenLastCalledWith(expect.objectContaining({ secure: true }))

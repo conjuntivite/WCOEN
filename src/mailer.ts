@@ -2,13 +2,13 @@ import nodemailer from 'nodemailer'
 
 export type OpcoesSmtp = { host: string; port: number; user: string; pass: string; from: string }
 export type Transporte = { sendMail(msg: { from: string; to: string; subject: string; text: string; html: string }): Promise<unknown> }
-type CriarTransporte = (opcoes: { host: string; port: number; secure: boolean; auth: { user: string; pass: string } }) => Transporte
+type CriarTransporte = (opcoes: { host: string; port: number; secure: boolean; family: 4; auth: { user: string; pass: string } }) => Transporte
 export type Mailer = { enviarRedefinicaoSenha(destino: string, link: string): Promise<void> }
 
 const criarTransportePadrao: CriarTransporte = (opcoes) => nodemailer.createTransport(opcoes) as unknown as Transporte
 
 export function criarMailer(op: OpcoesSmtp, criarTransporte: CriarTransporte = criarTransportePadrao): Mailer {
-  const transporte = criarTransporte({ host: op.host, port: op.port, secure: op.port === 465, auth: { user: op.user, pass: op.pass } })
+  const transporte = criarTransporte({ host: op.host, port: op.port, secure: op.port === 465, family: 4 /* Render não sai por IPv6 (ENETUNREACH) */, auth: { user: op.user, pass: op.pass } })
   return {
     async enviarRedefinicaoSenha(destino, link) {
       await transporte.sendMail({
