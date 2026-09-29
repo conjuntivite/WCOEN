@@ -10,6 +10,7 @@ export type Config = {
   adminEmails: string[] // veem /admin e podem criar/revogar convites; normalizados (minúsculo, sem espaços)
   openrouter?: { apiKey: string; models: string[] } // opcional: sem chave, a auditoria fica desligada; models (só pagos) em ordem de tentativa
   smtp?: { host: string; port: number; user: string; pass: string; from: string } // opcional: sem SMTP_HOST, o link de redefinição só é logado no console
+  resend?: { apiKey: string; from: string } // opcional: e-mail por API HTTPS (vale no Render gratuito, que bloqueia SMTP); tem prioridade sobre o SMTP
   dev?: { email: string; senha: string } // opcional: conta de recuperação/suporte, oculta da lista de contas do admin
 }
 
@@ -37,6 +38,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     smtp = { host: env.SMTP_HOST, port: Number(env.SMTP_PORT) || 587, user, pass, from: env.SMTP_FROM || user }
   }
 
+  const resend = env.RESEND_API_KEY ? { apiKey: env.RESEND_API_KEY, from: env.RESEND_FROM || 'WCOEN <onboarding@resend.dev>' } : undefined
+
   let dev: Config['dev']
   if (env.DEV_EMAIL || env.DEV_PASSWORD) {
     if (!env.DEV_EMAIL || !env.DEV_PASSWORD) throw new Error('DEV_EMAIL e DEV_PASSWORD precisam ser definidos juntos')
@@ -53,6 +56,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     adminEmails: lista(env.ADMIN_EMAILS).map((e) => e.toLowerCase()),
     openrouter,
     smtp,
+    resend,
     dev,
   }
 }
