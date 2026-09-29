@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="src/assets/logo.svg" alt="WCOEN" width="420">
+</p>
+
 # WCOEN
 
 Bot de WhatsApp (Baileys) que registra despesas e receitas num grupo seu e monta o balancete. Dados no seu Postgres (Docker ou Supabase).
