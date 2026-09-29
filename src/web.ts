@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import QRCode from 'qrcode'
 import { criarLimitador, type Conta, type Contas, type ErroCadastro } from './contas'
@@ -21,8 +22,13 @@ export type OpcoesWeb = {
   dominio?: string // usado para montar o link de redefinição de senha; sem isso, cairia no Host da requisição, que o cliente pode forjar
 }
 
+// logo leve (src/assets), lida uma vez; o arquivo original de design tinha 2 MB
+const IMAGENS = new Map(
+  ['logo', 'mascote'].map((n) => [`/${n}.svg`, readFileSync(new URL(`./assets/${n}.svg`, import.meta.url))]),
+)
+
 const CABECALHOS = {
-  'Content-Security-Policy': "default-src 'self'; img-src data:; style-src 'unsafe-inline'; frame-ancestors 'none'",
+  'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; style-src 'unsafe-inline'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'same-origin',
   'Cache-Control': 'no-store',
@@ -104,6 +110,11 @@ export function criarWeb(op: OpcoesWeb): Server {
     const metodo = req.method ?? 'GET'
     // sem login/banco: usado pelo health check do host e pelo auto-ping que mantém o app acordado
     if (metodo === 'GET' && caminho === '/saude') return void res.writeHead(200).end('ok')
+    const imagem = metodo === 'GET' ? IMAGENS.get(caminho) : undefined
+    if (imagem) {
+      res.writeHead(200, { ...CABECALHOS, 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=86400' })
+      return void res.end(imagem)
+    }
     if (metodo === 'POST' && !origemOk(req)) throw new HttpErro(403)
     const conta = await contaDe(req)
 
