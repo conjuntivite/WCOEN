@@ -9,8 +9,8 @@ export const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ENTIDADES[c])
 // Sem fontes nem imagens externas (a CSP só permite o próprio site): pilha do sistema e SVG inline.
 
 const ESTILO = `
-:root{color-scheme:light dark;--fundo:#f3f7f5;--cartao:#fff;--texto:#14201c;--suave:#4b5b55;--borda:#d8e2dd;--marca:#0b7a5a;--marca-forte:#095f46;--sobre-marca:#fff;--marca-suave:#e2f3ec;--erro:#b42318;--erro-suave:#fdeceb;--alerta:#9a5b00;--alerta-suave:#fdf3dc;--foco:#0b7a5a;--sombra:0 1px 2px rgba(16,40,32,.06),0 8px 24px rgba(16,40,32,.07)}
-@media (prefers-color-scheme:dark){:root{--fundo:#0c1310;--cartao:#141e1a;--texto:#e8f1ed;--suave:#9db1a8;--borda:#25342e;--marca:#2fbf83;--marca-forte:#5fd7a3;--sobre-marca:#04231a;--marca-suave:#12332a;--erro:#f97066;--erro-suave:#33191a;--alerta:#f5b544;--alerta-suave:#33280f;--foco:#5fd7a3;--sombra:none}}
+:root{color-scheme:light dark;--fundo:#f8f5f4;--cartao:#fff;--texto:#1a1213;--suave:#5e5052;--borda:#e6dcdb;--marca:#d10f0f;--marca-forte:#a80b0b;--sobre-marca:#fff;--marca-suave:#fbe9e8;--erro:#b42318;--erro-suave:#fdeceb;--alerta:#9a5b00;--alerta-suave:#fdf3dc;--foco:#d10f0f;--sombra:0 1px 2px rgba(40,10,10,.06),0 8px 24px rgba(40,10,10,.07)}
+@media (prefers-color-scheme:dark){:root{--fundo:#0d0a0a;--cartao:#171213;--texto:#f3eaea;--suave:#b5a2a4;--borda:#322627;--marca:#ff4444;--marca-forte:#ff7a7a;--sobre-marca:#1a0505;--marca-suave:#33191a;--erro:#f97066;--erro-suave:#33191a;--alerta:#f5b544;--alerta-suave:#33280f;--foco:#ff7a7a;--sombra:none}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--fundo);color:var(--texto);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
 h1{font-size:1.75rem;line-height:1.2;margin:0 0 8px;font-weight:700;letter-spacing:-.01em}
@@ -21,11 +21,12 @@ p{margin:0 0 12px}a{color:var(--marca);font-weight:600}a:hover{color:var(--marca
 .sub{color:var(--suave);font-size:.94rem}
 .ic{width:1.15em;height:1.15em;flex:none;vertical-align:-.2em}
 .marca{display:inline-flex;align-items:center;gap:10px;font-weight:800;font-size:1.25rem;letter-spacing:.02em;color:inherit;text-decoration:none}
-.logo{width:36px;height:36px;flex:none}
+.logo{width:36px;height:auto;flex:none}
+.logo-cheia{display:block;width:min(280px,80%);height:auto}
 /* entrar / cadastro */
 .auth{min-height:100vh}
-.vitrine{background:linear-gradient(160deg,#0b7a5a 0%,#064434 100%);color:#fff;padding:24px 20px 28px}
-.vitrine .tagline{margin:10px 0 0;color:#d6f0e5;font-size:.98rem}
+.vitrine{background:linear-gradient(160deg,#2a0808 0%,#0a0505 100%);color:#fff;padding:24px 20px 28px}
+.vitrine .tagline{margin:10px 0 0;color:#f0d4d4;font-size:.98rem}
 .vitrine .extra{display:none}
 .lado-form{padding:20px 16px 40px;display:flex;justify-content:center;align-items:flex-start}
 .lado-form>div{width:100%;max-width:420px}
@@ -49,7 +50,7 @@ input[aria-invalid=true]{border-color:var(--erro)}
 /* prévia do bot */
 .balao{background:#fff;color:#14201c;border-radius:4px 16px 16px 16px;padding:14px 16px;font-size:.92rem;line-height:1.5;box-shadow:0 8px 24px rgba(0,0,0,.18);max-width:320px}
 .balao p{margin:0 0 8px}.balao hr{border:0;border-top:1px solid #d8e2dd;margin:8px 0}
-.legenda{color:#d6f0e5;font-size:.88rem;margin-top:10px}
+.legenda{color:#f0d4d4;font-size:.88rem;margin-top:10px}
 /* painel */
 .pagina{max-width:560px;margin:0 auto;padding:16px}
 .topo{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0 16px}
@@ -105,12 +106,12 @@ const ICONES = {
 const ic = (nome: keyof typeof ICONES) =>
   `<svg class="ic" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONES[nome]}</svg>`
 
-// balão de conversa com uma moeda dentro
-const LOGO = `<svg class="logo" aria-hidden="true" viewBox="0 0 40 40"><rect width="40" height="40" rx="11" fill="var(--marca)"/><path d="M11 12.5A3.5 3.5 0 0 1 14.5 9h11a3.5 3.5 0 0 1 3.5 3.5v8a3.5 3.5 0 0 1-3.5 3.5H21l-5 4.5V24h-1.5A3.5 3.5 0 0 1 11 20.5z" fill="var(--sobre-marca)"/><circle cx="20" cy="16.5" r="4.2" fill="none" stroke="var(--marca)" stroke-width="2"/><path d="M20 14.6v3.8" stroke="var(--marca)" stroke-width="2" stroke-linecap="round"/></svg>`
-const marca = (href = '/') => `<a class="marca" href="${href}" aria-label="WCOEN, início">${LOGO}<span>WCOEN</span></a>`
+// arquivos servidos por /mascote.svg e /logo.svg (src/assets)
+const marca = (href = '/', cheia = false) =>
+  `<a class="marca" href="${href}" aria-label="WCOEN, início">${cheia ? '<img class="logo-cheia" src="/logo.svg" alt="WCOEN">' : '<img class="logo" src="/mascote.svg" alt=""><span>WCOEN</span>'}</a>`
 
 const layout = (titulo: string, corpo: string, script = '') =>
-  `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>${esc(titulo)} · WCOEN</title><style>${ESTILO}</style></head><body><a class="pular" href="#conteudo">Pular para o conteúdo</a>${corpo}${script}</body></html>`
+  `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><link rel="icon" type="image/svg+xml" href="/mascote.svg"><title>${esc(titulo)} · WCOEN</title><style>${ESTILO}</style></head><body><a class="pular" href="#conteudo">Pular para o conteúdo</a>${corpo}${script}</body></html>`
 
 // exemplo real do que o bot responde no grupo (conteúdo do WhatsApp, por isso mantém os emojis)
 const BALAO = `<div class="balao" role="img" aria-label="Exemplo de mensagem do bot: balancete do dia com saldo de R$ 404,10"><div aria-hidden="true"><p><b>📊 BALANCETE DO DIA</b><br><i>15/09/2026</i></p><hr><p>🟢 Receitas<br><b>R$ 450,00</b></p><p>🔴 Despesas<br><b>R$ 45,90</b></p><p style="margin:0">💚 <b>SALDO</b><br><b>R$ 404,10</b></p></div></div><p class="legenda">Assim o bot responde no seu grupo.</p>`
@@ -118,7 +119,7 @@ const BALAO = `<div class="balao" role="img" aria-label="Exemplo de mensagem do 
 const telaAuth = (titulo: string, conteudo: string) =>
   layout(
     titulo,
-    `<div class="auth"><aside class="vitrine">${marca()}<p class="tagline">Seu controle financeiro pelo WhatsApp</p><div class="extra"><h1>Lance no grupo. Acompanhe no automático.</h1><p class="tagline">Despesas e receitas numa mensagem, com balancete, extrato e auditoria na mesma conversa.</p><div style="margin-top:28px">${BALAO}</div></div></aside><main class="lado-form" id="conteudo"><div>${conteudo}</div></main></div>`,
+    `<div class="auth"><aside class="vitrine">${marca('/', true)}<p class="tagline">Seu controle financeiro pelo WhatsApp</p><div class="extra"><h1>Lance no grupo. Acompanhe no automático.</h1><p class="tagline">Despesas e receitas numa mensagem, com balancete, extrato e auditoria na mesma conversa.</p><div style="margin-top:28px">${BALAO}</div></div></aside><main class="lado-form" id="conteudo"><div>${conteudo}</div></main></div>`,
   )
 
 type CampoDef = { nome: string; rotulo: string; tipo?: string; valor?: string; extra?: string; erro?: string }
