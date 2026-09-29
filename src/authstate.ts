@@ -56,6 +56,7 @@ export async function criarAuthState(pool: Pool, contaId: string, chave: Buffer)
     creds,
     keys: {
       get: async (type, ids) => {
+        const t0 = Date.now()
         const data: { [id: string]: any } = {}
         await Promise.all(
           ids.map(async (id) => {
@@ -64,14 +65,17 @@ export async function criarAuthState(pool: Pool, contaId: string, chave: Buffer)
             data[id] = v
           }),
         )
+        console.log(`[DEBUG-tempo] conta ${contaId} auth.get ${type} x${ids.length}: ${Date.now() - t0} ms`)
         return data
       },
       set: async (data) => {
+        const t0 = Date.now()
         const tarefas: Promise<unknown>[] = []
         for (const [categoria, itens] of Object.entries(data as Record<string, Record<string, unknown>>)) {
           for (const [id, v] of Object.entries(itens)) tarefas.push(v ? gravar(`${categoria}-${id}`, v) : remover(`${categoria}-${id}`))
         }
         await Promise.all(tarefas)
+        console.log(`[DEBUG-tempo] conta ${contaId} auth.set x${tarefas.length}: ${Date.now() - t0} ms`)
       },
     },
   }
