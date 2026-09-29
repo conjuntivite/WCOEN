@@ -5,7 +5,7 @@ import { loadConfig } from './config'
 import { criarContas, criarLimitador } from './contas'
 import { criarConvites } from './convites'
 import { conectarPostgres } from './db'
-import { criarMailer } from './mailer'
+import { criarMailer, criarMailerResend } from './mailer'
 import { criarRepo } from './repo'
 import { Service } from './service'
 import { criarSessoes } from './sessoes'
@@ -26,7 +26,7 @@ const contas = await criarContas(banco.pool, { convite: config.convite, convites
 const repo = await criarRepo(banco.pool)
 await garantirTabelaAuth(banco.pool)
 
-const mailer = config.smtp ? criarMailer(config.smtp) : undefined
+const mailer = config.resend ? criarMailerResend(config.resend) : config.smtp ? criarMailer(config.smtp) : undefined
 if (config.dev) await contas.semearDev(config.dev.email, config.dev.senha)
 
 // auditor só existe com OPENROUTER_API_KEY + OPENROUTER_MODEL; sem ele, o comando auditoria avisa que a IA está desligada
