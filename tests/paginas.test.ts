@@ -132,6 +132,54 @@ describe('link de administração no painel', () => {
   })
 })
 
+describe('menu lateral das telas logadas', () => {
+  const ind = { vazio: true, mes: { ano: 2026, mes: 9, receitas: 0, despesas: 0 }, serie: [], categorias: [], saldo: 0, variacao: { saldo: null, receitas: null, despesas: null } } as unknown as Parameters<typeof paginaDashboard>[1]
+  const telas = {
+    painel: paginaPainel('a@x.com', 'x', 'desconectado'),
+    dashboard: paginaDashboard('a@x.com', ind, false),
+    admin: paginaAdmin('a@x.com', []),
+  }
+
+  it('toda tela tem navegação, botão de recolher, de tema, perfil e Sair', () => {
+    for (const html of Object.values(telas)) {
+      expect(html).toMatch(/<nav[^>]*aria-label="Menu principal"/)
+      expect(html).toContain('id="menu-alternar"')
+      expect(html).toContain('id="tema-alternar"')
+      expect(html).toMatch(/<details class="perfil"/)
+      expect(html).toMatch(/<form method="post" action="\/sair">/)
+      expect(html).toContain('<script src="/app.js"></script>')
+    }
+  })
+
+  it('marca a página atual com aria-current', () => {
+    for (const [nome, html] of Object.entries(telas)) {
+      expect(html).toMatch(new RegExp(`href="/${nome}"[^>]*aria-current="page"`))
+      expect(html.match(/aria-current="page"/g)).toHaveLength(1)
+    }
+  })
+
+  it('perfil mostra e-mail escapado e o papel', () => {
+    const html = paginaPainel('<b>@x.com', 'x', 'desconectado', undefined, true)
+    expect(html).toContain('&lt;b&gt;@x.com')
+    expect(html).toContain('Administrador')
+    expect(paginaPainel('a@x.com', 'x', 'desconectado')).toContain('Usuário')
+  })
+
+  it('dev: sem item Painel, logo aponta ao dashboard e papel próprio', () => {
+    const html = paginaDashboard('dev@x.com', ind, true, { contas: [], selecionada: null })
+    expect(html).not.toContain('href="/painel"')
+    expect(html).toContain('Dev (acesso master)')
+    expect(paginaAdmin('dev@x.com', [], [], true)).toContain('Dev (acesso master)')
+    expect(paginaAdmin('ana@x.com', [], [], false)).toContain('Administrador')
+  })
+
+  it('Administração só no menu de admin', () => {
+    expect(telas.painel).not.toContain('href="/admin"')
+    expect(telas.dashboard).not.toContain('href="/admin"')
+    expect(paginaDashboard('a@x.com', ind, true)).toContain('href="/admin"')
+  })
+})
+
 describe('página de administração (convites)', () => {
   const aberto: Convite = { id: 'i1', codigo: 'aaaa11111', nota: 'para o <b>João</b>', criadoEm: new Date('2026-09-27T12:00:00Z') }
   const usado: Convite = { id: 'i2', codigo: 'bbbb22222', criadoEm: new Date('2026-09-20T12:00:00Z'), usadoEm: new Date('2026-09-21T12:00:00Z') }

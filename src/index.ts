@@ -22,12 +22,11 @@ try {
 }
 
 const convites = await criarConvites(banco.pool)
-const contas = await criarContas(banco.pool, { convite: config.convite, convites })
+const contas = await criarContas(banco.pool, { convite: config.convite, convites, dev: config.dev })
 const repo = await criarRepo(banco.pool)
 await garantirTabelaAuth(banco.pool)
 
 const mailer = config.resend ? criarMailerResend(config.resend) : config.smtp ? criarMailer(config.smtp) : undefined
-if (config.dev) await contas.semearDev(config.dev.email, config.dev.senha)
 
 // auditor só existe com OPENROUTER_API_KEY + OPENROUTER_MODEL; sem ele, o comando auditoria avisa que a IA está desligada
 const auditor = config.openrouter ? criarAuditorOpenRouter(config.openrouter) : undefined

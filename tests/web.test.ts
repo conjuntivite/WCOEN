@@ -52,8 +52,7 @@ beforeAll(async () => {
   await pool.query('DROP TABLE IF EXISTS contas')
   await pool.query('DROP TABLE IF EXISTS convites')
   convites = await criarConvites(pool)
-  contas = await criarContas(pool, { convite: 'segredo', convites })
-  await contas.semearDev(EMAIL_DEV, 'senha-dev-123')
+  contas = await criarContas(pool, { convite: 'segredo', convites, dev: { email: EMAIL_DEV, senha: 'senha-dev-123' } })
   repoFalso = {
     repoDe: vi.fn(),
     apagarConta: vi.fn(async (_id: string) => {}),
@@ -289,6 +288,12 @@ describe('estáticos', () => {
     expect(js.headers.get('content-type')).toContain('javascript')
     expect(await js.text()).toContain('EventSource')
     expect((await get('/nao-existe')).status).toBe(404)
+  })
+
+  it('/app.js (menu e tema) é servido como JavaScript', async () => {
+    const js = await get('/app.js')
+    expect(js.headers.get('content-type')).toContain('javascript')
+    expect(await js.text()).toContain('localStorage')
   })
 })
 
@@ -526,6 +531,51 @@ describe('esqueci a senha', () => {
 
     comDominio.closeAllConnections()
     await new Promise((r) => comDominio.close(r))
+  })
+})
+
+describe('dev: acesso master sem cadastro', () => {
+  it('entra pelo /entrar, vai ao dashboard e não existe na tabela contas', async () => {
+    const r = await post('/entrar', { email: EMAIL_DEV, senha: 'senha-dev-123' })
+    expect(r.status).toBe(303)
+    expect(r.headers.get('location')).toBe('/dashboard')
+    expect((await pool.query('SELECT 1 FROM contas WHERE email = $1', [EMAIL_DEV])).rowCount).toBe(0)
+    const cookie = r.headers.getSetCookie()[0].split(';')[0]
+    expect((await get('/entrar', cookie)).headers.get('location')).toBe('/dashboard')
+    expect((await get('/', cookie)).headers.get('location')).toBe('/dashboard')
+  })
+
+  it('senha errada não entra e esqueci-senha não gera link para o dev', async () => {
+    expect((await post('/entrar', { email: EMAIL_DEV, senha: 'errada-1234' })).status).toBe(401)
+    await post('/esqueci-senha', { email: EMAIL_DEV })
+    await new Promise((r) => setTimeout(r, 100))
+    expect(mailer.enviarRedefinicaoSenha).not.toHaveBeenCalled()
+  })
+
+  it('sem painel de WhatsApp: GET /painel e POSTs /painel/* dão 403', async () => {
+    const cookie = await entrarComo(EMAIL_DEV, 'senha-dev-123')
+    expect((await get('/painel', cookie)).status).toBe(403)
+    expect((await get('/painel/eventos', cookie)).status).toBe(403)
+    for (const c of ['conectar', 'parear', 'grupo', 'desconectar']) expect((await post('/painel/' + c, {}, { cookie })).status).toBe(403)
+    expect(sessoes.iniciar).not.toHaveBeenCalled()
+  })
+
+  it('menu do dev: sem Painel, com Dashboard e Administração, e papel "Dev (acesso master)"', async () => {
+    const cookie = await entrarComo(EMAIL_DEV, 'senha-dev-123')
+    for (const caminho of ['/dashboard', '/admin']) {
+      const html = await (await get(caminho, cookie)).text()
+      expect(html).not.toContain('href="/painel"')
+      expect(html).toContain('href="/dashboard"')
+      expect(html).toContain('href="/admin"')
+      expect(html).toContain('Dev (acesso master)')
+    }
+  })
+
+  it('linha antiga do dev no banco não aparece na lista do seletor do dashboard', async () => {
+    await pool.query("INSERT INTO contas (id, email, senha_hash, criada_em) VALUES ('antigo-dev', $1, 'scrypt$aa$bb', now()) ON CONFLICT DO NOTHING", [EMAIL_DEV])
+    const cookie = await entrarComo(EMAIL_DEV, 'senha-dev-123')
+    expect(await (await get('/dashboard', cookie)).text()).not.toContain('value="antigo-dev"')
+    await pool.query("DELETE FROM contas WHERE id = 'antigo-dev'")
   })
 })
 

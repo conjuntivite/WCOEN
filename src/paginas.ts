@@ -10,9 +10,12 @@ export const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ENTIDADES[c])
 // --- identidade visual ---------------------------------------------------
 // Sem fontes nem imagens externas (a CSP só permite o próprio site): pilha do sistema e SVG inline.
 
+const ESCURO = '--fundo:#0d0a0a;--cartao:#171213;--texto:#f3eaea;--suave:#b5a2a4;--borda:#322627;--marca:#ff4444;--marca-forte:#ff7a7a;--sobre-marca:#1a0505;--marca-suave:#33191a;--erro:#f97066;--erro-suave:#33191a;--alerta:#f5b544;--alerta-suave:#33280f;--foco:#ff7a7a;--receita:#4ade80;--despesa:#fbbf24;--sombra:none'
+
 const ESTILO = `
 :root{color-scheme:light dark;--fundo:#f8f5f4;--cartao:#fff;--texto:#1a1213;--suave:#5e5052;--borda:#e6dcdb;--marca:#d10f0f;--marca-forte:#a80b0b;--sobre-marca:#fff;--marca-suave:#fbe9e8;--erro:#b42318;--erro-suave:#fdeceb;--alerta:#9a5b00;--alerta-suave:#fdf3dc;--foco:#d10f0f;--receita:#0f7a43;--despesa:#b45309;--sombra:0 1px 2px rgba(40,10,10,.06),0 8px 24px rgba(40,10,10,.07)}
-@media (prefers-color-scheme:dark){:root{--fundo:#0d0a0a;--cartao:#171213;--texto:#f3eaea;--suave:#b5a2a4;--borda:#322627;--marca:#ff4444;--marca-forte:#ff7a7a;--sobre-marca:#1a0505;--marca-suave:#33191a;--erro:#f97066;--erro-suave:#33191a;--alerta:#f5b544;--alerta-suave:#33280f;--foco:#ff7a7a;--receita:#4ade80;--despesa:#fbbf24;--sombra:none}}
+@media (prefers-color-scheme:dark){:root:not([data-tema=light]){${ESCURO}}}
+:root[data-tema=dark]{color-scheme:dark;${ESCURO}}:root[data-tema=light]{color-scheme:light}
 *{box-sizing:border-box}
 body{margin:0;background:var(--fundo);color:var(--texto);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
 h1{font-size:1.75rem;line-height:1.2;margin:0 0 8px;font-weight:700;letter-spacing:-.01em}
@@ -48,7 +51,6 @@ input[aria-invalid=true]{border-color:var(--erro)}
 .btn.sec:hover{background:var(--marca-suave);color:var(--texto)}
 .btn.pequeno{width:auto;margin:0;min-height:44px;padding:8px 14px}
 .rodape-form{margin:16px 0 0;text-align:center;color:var(--suave);font-size:.94rem}
-.link-admin{font-size:.88rem;font-weight:600;white-space:nowrap}
 /* prévia do bot */
 .balao{background:#fff;color:#14201c;border-radius:4px 16px 16px 16px;padding:14px 16px;font-size:.92rem;line-height:1.5;box-shadow:0 8px 24px rgba(0,0,0,.18);max-width:320px}
 .balao p{margin:0 0 8px}.balao hr{border:0;border-top:1px solid #d8e2dd;margin:8px 0}
@@ -56,10 +58,6 @@ input[aria-invalid=true]{border-color:var(--erro)}
 /* painel */
 .pagina{max-width:560px;margin:0 auto;padding:16px}
 .pagina.larga{max-width:880px}
-.topo{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0 16px}
-.topo .marca{color:var(--texto)}
-.usuario{display:flex;align-items:center;gap:10px;min-width:0}.usuario form{margin:0}
-.email{color:var(--suave);font-size:.88rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:190px}
 .passos{display:flex;gap:6px;list-style:none;margin:0 0 20px;padding:0}
 .passos li{flex:1;display:flex;align-items:center;gap:8px;font-size:.88rem;color:var(--suave);font-weight:600;padding:8px 10px;border-radius:12px;background:var(--fundo)}
 .passos .num{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;border:1.5px solid var(--borda);font-size:.8rem;flex:none}
@@ -83,6 +81,40 @@ input[aria-invalid=true]{border-color:var(--erro)}
 .comandos .rot{display:block;color:var(--suave);font-size:.8rem;margin-bottom:2px}
 code{font:600 .92rem ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}
 details{margin-top:14px}summary{cursor:pointer;color:var(--suave);font-weight:600;min-height:44px;display:flex;align-items:center}
+/* menu lateral */
+.app{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100vh;transition:grid-template-columns .2s}
+.menu{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:10px;padding:14px 12px;background:var(--cartao);border-right:1px solid var(--borda)}
+.menu-topo{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px}
+.menu nav{display:flex;flex-direction:column;gap:4px;flex:1}
+.menu-base{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--borda);padding-top:10px}
+.item,.icone{display:flex;align-items:center;gap:12px;width:100%;min-height:44px;padding:8px 12px;border:0;border-radius:12px;background:transparent;color:var(--suave);font:inherit;font-weight:600;text-align:left;text-decoration:none;cursor:pointer;transition:background-color .15s,color .15s}
+.icone{width:44px;padding:0;justify-content:center;flex:none}
+.item:hover,.icone:hover{background:var(--marca-suave);color:var(--texto)}
+.item[aria-current=page]{background:var(--marca-suave);color:var(--marca)}
+.item .ic,.icone .ic{width:1.3em;height:1.3em}
+.ic-sol{display:none}:root[data-tema=dark] .ic-sol{display:inline}:root[data-tema=dark] .ic-lua{display:none}
+.menu .marca{font-size:1.1rem;color:var(--texto);min-width:0}
+.perfil{position:relative;margin:0}.perfil summary{list-style:none;padding:8px 12px}.perfil summary::-webkit-details-marker{display:none}
+.avatar{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--marca);color:var(--sobre-marca);font-size:.85rem;font-weight:700;flex:none}
+.perfil-menu{position:absolute;bottom:calc(100% + 6px);left:0;min-width:240px;max-width:300px;padding:14px;background:var(--cartao);border:1px solid var(--borda);border-radius:14px;box-shadow:0 8px 28px rgba(0,0,0,.18);z-index:20}
+.perfil-menu p{margin:0}.perfil-email{font-weight:600;overflow-wrap:anywhere}.perfil-menu form{margin-top:10px}
+.barra-mobile,.veu{display:none}
+.conteudo{min-width:0}
+@media (min-width:860px){
+html[data-menu=estreito] .app{grid-template-columns:72px minmax(0,1fr)}
+html[data-menu=estreito] .rotulo,html[data-menu=estreito] .menu .marca span{display:none}
+html[data-menu=estreito] .menu-topo{flex-direction:column;justify-content:center}
+html[data-menu=estreito] .item{justify-content:center;padding:8px}
+}
+@media (max-width:859px){
+.app{display:block}
+.barra-mobile{display:flex;align-items:center;gap:8px;position:sticky;top:0;z-index:10;padding:6px 10px;background:var(--cartao);border-bottom:1px solid var(--borda)}
+.barra-mobile .item{width:44px;padding:0;justify-content:center}
+.menu{position:fixed;left:0;top:0;bottom:0;width:264px;z-index:30;transform:translateX(-100%);visibility:hidden;transition:transform .2s,visibility .2s}
+#menu-alternar{display:none}
+html[data-gaveta=aberta] .menu{transform:none;visibility:visible}
+html[data-gaveta=aberta] .veu{display:block;position:fixed;inset:0;z-index:25;background:rgba(0,0,0,.45)}
+}
 /* admin */
 .convites{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
 .convite{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border:1px solid var(--borda);border-radius:12px}
@@ -112,7 +144,7 @@ details{margin-top:14px}summary{cursor:pointer;color:var(--suave);font-weight:60
 .dash details{margin-top:12px;font-size:.9rem}.dash summary{cursor:pointer;color:var(--suave)}.dash table{width:100%;border-collapse:collapse;margin-top:8px}.dash th,.dash td{text-align:right;padding:6px 8px;border-bottom:1px solid var(--borda)}.dash th:first-child,.dash td:first-child{text-align:left}
 .filtro{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 @media (min-width:640px){.kpis{grid-template-columns:repeat(3,1fr)}}
-@media (max-width:420px){.comandos{grid-template-columns:1fr}.email{display:none}}
+@media (max-width:420px){.comandos{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}.giro{border-top-color:var(--borda)}}
 `
 
@@ -123,17 +155,80 @@ const ICONES = {
   alerta: '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
   cima: '<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>',
   baixo: '<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>',
+  casa: '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  grafico: '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
+  escudo: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
+  menu: '<path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/>',
+  recolher: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>',
+  lua: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+  sol: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
   troca: '<path d="M17 3l4 4-4 4"/><path d="M3 7h18"/><path d="M7 21l-4-4 4-4"/><path d="M21 17H3"/>',
 }
-const ic = (nome: keyof typeof ICONES) =>
-  `<svg class="ic" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONES[nome]}</svg>`
+const ic = (nome: keyof typeof ICONES, classe = '') =>
+  `<svg class="ic${classe ? ` ${classe}` : ''}" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONES[nome]}</svg>`
 
 // arquivos servidos por /mascote.svg e /logo.svg (src/assets)
 const marca = (href = '/', cheia = false) =>
   `<a class="marca" href="${href}" aria-label="WCOEN, início">${cheia ? '<img class="logo-cheia" src="/logo.svg" alt="WCOEN">' : '<img class="logo" src="/mascote.svg" alt=""><span>WCOEN</span>'}</a>`
 
 const layout = (titulo: string, corpo: string, script = '') =>
-  `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><link rel="icon" type="image/svg+xml" href="/mascote.svg"><title>${esc(titulo)} · WCOEN</title><style>${ESTILO}</style></head><body><a class="pular" href="#conteudo">Pular para o conteúdo</a>${corpo}${script}</body></html>`
+  `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><link rel="icon" type="image/svg+xml" href="/mascote.svg"><title>${esc(titulo)} · WCOEN</title><style>${ESTILO}</style><script src="/app.js"></script></head><body><a class="pular" href="#conteudo">Pular para o conteúdo</a>${corpo}${script}</body></html>`
+
+// menu lateral das telas logadas (painel, dashboard, admin)
+type Tela = 'painel' | 'dashboard' | 'admin'
+type Papel = 'usuario' | 'admin' | 'dev'
+const PAPEIS: Record<Papel, string> = { usuario: 'Usuário', admin: 'Administrador', dev: 'Dev (acesso master)' }
+const TELAS: Record<Tela, [string, keyof typeof ICONES]> = { painel: ['Painel', 'casa'], dashboard: ['Dashboard', 'grafico'], admin: ['Administração', 'escudo'] }
+
+const shell = (ativa: Tela, email: string, papel: Papel, principal: string, larga = false, script = '') => {
+  const itens = (Object.keys(TELAS) as Tela[])
+    .filter((t) => (t !== 'admin' || papel !== 'usuario') && (t !== 'painel' || papel !== 'dev')) // o dev não tem painel de WhatsApp
+    .map((t) => `<a class="item" href="/${t}"${t === ativa ? ' aria-current="page"' : ''}>${ic(TELAS[t][1])}<span class="rotulo">${TELAS[t][0]}</span></a>`)
+    .join('')
+  const inicio = papel === 'dev' ? '/dashboard' : '/painel'
+  const inicial = esc([...email][0]?.toUpperCase() ?? '?')
+  return layout(
+    TELAS[ativa][0],
+    `<div class="app"><div class="barra-mobile"><button class="item" type="button" id="gaveta-abrir" aria-label="Abrir menu" aria-controls="menu" aria-expanded="false">${ic('menu')}</button>${marca(inicio)}</div><div class="veu" id="veu"></div><aside class="menu" id="menu"><div class="menu-topo">${marca(inicio)}<button class="icone" type="button" id="menu-alternar" aria-label="Recolher menu" aria-controls="menu" aria-expanded="true" title="Recolher menu">${ic('recolher')}</button></div><nav aria-label="Menu principal">${itens}</nav><div class="menu-base"><button class="item" type="button" id="tema-alternar" title="Alternar tema claro/escuro">${ic('lua', 'ic-lua')}${ic('sol', 'ic-sol')}<span class="rotulo">Tema</span></button><details class="perfil"><summary class="item" title="Perfil"><span class="avatar" aria-hidden="true">${inicial}</span><span class="rotulo">Perfil</span></summary><div class="perfil-menu"><p class="perfil-email">${esc(email)}</p><p class="sub">${PAPEIS[papel]}</p></div></details><form method="post" action="/sair"><button class="item" title="Sair">${ic('sair')}<span class="rotulo">Sair</span></button></form></div></aside><div class="conteudo"><div class="pagina${larga ? ' larga' : ''}">${principal}</div></div></div>`,
+    script,
+  )
+}
+
+// /app.js: tema e menu lembrados no navegador (a CSP não permite script inline)
+export const SCRIPT_APP = `const r = document.documentElement
+const ler = (k) => { try { return localStorage.getItem(k) } catch { return null } }
+const gravar = (k, v) => { try { localStorage.setItem(k, v) } catch {} }
+r.dataset.tema = ler('tema') || (matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light')
+if (ler('menu') === 'estreito') r.dataset.menu = 'estreito'
+document.addEventListener('DOMContentLoaded', () => {
+  const $ = (id) => document.getElementById(id)
+  const sinc = () => {
+    $('menu-alternar')?.setAttribute('aria-expanded', String(r.dataset.menu !== 'estreito'))
+    $('gaveta-abrir')?.setAttribute('aria-expanded', String(r.dataset.gaveta === 'aberta'))
+  }
+  const perfil = document.querySelector('.perfil')
+  sinc()
+  $('tema-alternar')?.addEventListener('click', () => {
+    r.dataset.tema = r.dataset.tema === 'dark' ? 'light' : 'dark'
+    gravar('tema', r.dataset.tema)
+  })
+  $('menu-alternar')?.addEventListener('click', () => {
+    if (r.dataset.menu === 'estreito') delete r.dataset.menu
+    else r.dataset.menu = 'estreito'
+    gravar('menu', r.dataset.menu || 'largo')
+    sinc()
+  })
+  $('gaveta-abrir')?.addEventListener('click', () => { r.dataset.gaveta = 'aberta'; sinc() })
+  $('veu')?.addEventListener('click', () => { delete r.dataset.gaveta; sinc() })
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return
+    delete r.dataset.gaveta
+    perfil?.removeAttribute('open')
+    sinc()
+  })
+  document.addEventListener('click', (e) => { if (perfil && !perfil.contains(e.target)) perfil.removeAttribute('open') })
+})
+`
 
 // exemplo real do que o bot responde no grupo (conteúdo do WhatsApp, por isso mantém os emojis)
 const BALAO = `<div class="balao" role="img" aria-label="Exemplo de mensagem do bot: balancete do dia com saldo de R$ 404,10"><div aria-hidden="true"><p><b>📊 BALANCETE DO DIA</b><br><i>15/09/2026</i></p><hr><p>🟢 Receitas<br><b>R$ 450,00</b></p><p>🔴 Despesas<br><b>R$ 45,90</b></p><p style="margin:0">💚 <b>SALDO</b><br><b>R$ 404,10</b></p></div></div><p class="legenda">Assim o bot responde no seu grupo.</p>`
@@ -205,11 +300,7 @@ new EventSource('/painel/eventos').onmessage = (e) => {
 `
 
 export const paginaPainel = (email: string, fragmento: string, passo: string, erro?: string, admin = false) =>
-  layout(
-    'Painel',
-    `<div class="pagina"><header class="topo">${marca('/painel')}<div class="usuario"><a class="link-admin" href="/dashboard">Dashboard</a>${admin ? '<a class="link-admin" href="/admin">Administração</a>' : ''}<span class="email" title="${esc(email)}">${esc(email)}</span><form method="post" action="/sair"><button class="btn sec pequeno">${ic('sair')}Sair</button></form></div></header><main id="conteudo">${aviso(erro)}<div class="cartao" id="estado" data-passo="${esc(passo)}" aria-live="polite">${fragmento}</div></main></div>`,
-    '<script src="/painel.js"></script>',
-  )
+  shell('painel', email, admin ? 'admin' : 'usuario', `<main id="conteudo">${aviso(erro)}<div class="cartao" id="estado" data-passo="${esc(passo)}" aria-live="polite">${fragmento}</div></main>`, false, '<script src="/painel.js"></script>')
 
 // --- dashboard -----------------------------------------------------------
 
@@ -241,10 +332,7 @@ export const paginaDashboard = (
 <section class="cartao"><h2>Últimos ${ind.serie.length} meses</h2>${svgTendencia(ind.serie)}<ul class="legenda"><li><i class="l-rec"></i>Receitas</li><li><i class="l-desp"></i>Despesas</li></ul>
 <details><summary>Ver dados em tabela</summary><table><thead><tr><th>Mês</th><th>Receitas</th><th>Despesas</th></tr></thead><tbody>${ind.serie.map((s) => `<tr><td>${rotuloMesCurto(s)}/${s.ano}</td><td>${formatBRL(s.receitas)}</td><td>${formatBRL(s.despesas)}</td></tr>`).join('')}</tbody></table></details></section>
 <section class="cartao"><h2>Despesas por categoria</h2>${ind.categorias.length ? `<ul class="cats">${ind.categorias.map((c) => `<li><span class="nome">${esc(c.conta)}</span><span class="valor">${formatBRL(c.total)}</span><div class="trilho" aria-hidden="true"><div style="width:${c.largura}%"></div></div></li>`).join('')}</ul>` : '<p class="sub">Sem despesas neste mês.</p>'}</section>`
-  return layout(
-    'Dashboard',
-    `<div class="pagina larga"><header class="topo">${marca('/painel')}<div class="usuario"><a class="link-admin" href="/painel">Painel</a>${admin ? '<a class="link-admin" href="/admin">Administração</a>' : ''}<span class="email" title="${esc(email)}">${esc(email)}</span><form method="post" action="/sair"><button class="btn sec pequeno">${ic('sair')}Sair</button></form></div></header><main id="conteudo" class="dash"><div><h1>Dashboard</h1><p class="sub">${nomeMes(ind.mes.ano, ind.mes.mes)}</p></div>${seletor}${corpo}</main></div>`,
-  )
+  return shell('dashboard', email, dev ? 'dev' : admin ? 'admin' : 'usuario', `<main id="conteudo" class="dash"><div><h1>Dashboard</h1><p class="sub">${nomeMes(ind.mes.ano, ind.mes.mes)}</p></div>${seletor}${corpo}</main>`, true)
 }
 
 // --- administração (convites) --------------------------------------------
@@ -273,10 +361,7 @@ const itemConta = (c: ContaResumo, souDev: boolean) => {
 }
 
 export const paginaAdmin = (email: string, convites: Convite[], contasAdmin: ContaResumo[] = [], souDev = false, mensagem?: string) =>
-  layout(
-    'Administração',
-    `<div class="pagina"><header class="topo">${marca('/painel')}<div class="usuario"><span class="email" title="${esc(email)}">${esc(email)}</span><form method="post" action="/sair"><button class="btn sec pequeno">${ic('sair')}Sair</button></form></div></header><main id="conteudo">${aviso(mensagem)}<div class="cartao"><h2>Novo convite</h2><p class="sub">Gera um código de uso único para um cadastro.</p><form method="post" action="/admin/convites"><div class="campo"><label for="nota">Nota (opcional)</label><input id="nota" name="nota" type="text" maxlength="80" placeholder="Ex.: para o João"></div><button class="btn">Gerar convite</button></form></div><div class="cartao"><h2>Convites</h2>${convites.length ? `<ul class="convites">${convites.map(itemConvite).join('')}</ul>` : '<p class="sub">Nenhum convite ainda.</p>'}</div><div class="cartao"><h2>Contas</h2>${contasAdmin.length ? `<ul class="convites">${contasAdmin.map((c) => itemConta(c, souDev)).join('')}</ul>` : '<p class="sub">Nenhuma conta cadastrada ainda.</p>'}</div></main></div>`,
-  )
+  shell('admin', email, souDev ? 'dev' : 'admin', `<main id="conteudo">${aviso(mensagem)}<div class="cartao"><h2>Novo convite</h2><p class="sub">Gera um código de uso único para um cadastro.</p><form method="post" action="/admin/convites"><div class="campo"><label for="nota">Nota (opcional)</label><input id="nota" name="nota" type="text" maxlength="80" placeholder="Ex.: para o João"></div><button class="btn">Gerar convite</button></form></div><div class="cartao"><h2>Convites</h2>${convites.length ? `<ul class="convites">${convites.map(itemConvite).join('')}</ul>` : '<p class="sub">Nenhum convite ainda.</p>'}</div><div class="cartao"><h2>Contas</h2>${contasAdmin.length ? `<ul class="convites">${contasAdmin.map((c) => itemConta(c, souDev)).join('')}</ul>` : '<p class="sub">Nenhuma conta cadastrada ainda.</p>'}</div></main>`)
 
 const AVISOS: Record<Aviso, string> = {
   qr_expirado: 'O QR expirou. Clique em Conectar para gerar outro.',
