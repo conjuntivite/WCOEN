@@ -37,13 +37,13 @@ enxerga todas.
 - `Repo` ganha `serieMensal(ate: Date, meses: number): Promise<{ ano: number; mes: number; receitas: number; despesas: number }[]>`.
   Uma query com `GROUP BY` por mês local (-03:00) e `tipo`, preenchendo os meses vazios com 0 no código.
 - Categorias do mês e mês anterior usam o `balancete(intervalo)` existente.
-- `repoDe(contaId: string | null)`: `null` = todas as contas (`($1::text IS NULL OR conta_id = $1)`). Só
+- `repo.leitura(contaId: string | null)` (tipo `Leitura`, só leitura): `null` = todas as contas (`($1::text IS NULL OR conta_id = $1)`). Não é `repoDe(null)` para que `desfazerUltimo` nunca possa agir em todas as contas. Só
   `/dashboard` do dev passa `null`; o bot e os comandos continuam sempre com um `contaId`.
 - Valores em centavos (`BIGINT`), como hoje; formatação reaproveita `money.ts`.
 
 ## Código
 - `src/dashboard.ts` (novo): funções puras. `montarIndicadores(serie, balanceteMes)` devolve o modelo
-  (cartões, variações, categorias com "Outras") e `svgTendencia` / `svgCategorias` geram os SVGs.
+  (cartões, variações, categorias com "Outras") e `svgTendencia` gera o SVG da tendência; as categorias são barras em HTML (nomes longos quebram melhor e o texto fica acessível).
   Sem acesso a banco nem a `req`.
 - `src/paginas.ts`: `paginaDashboard(...)` só monta o HTML.
 - `src/web.ts`: rota, checagem de acesso e escolha do `contaId` (sessão ou `?conta=` se dev).
@@ -63,6 +63,6 @@ enxerga todas.
 - `dashboard.test.ts`: variação com mês anterior zerado, agrupamento em "Outras", SVG com dados vazios.
 - `repo.contract.ts`: `serieMensal` (meses vazios, ignora desfeitos, fronteira do mês em -03:00); roda em
   memória e Postgres.
-- `pgRepo.test.ts`: `repoDe(null)` soma contas diferentes.
+- `pgRepo.test.ts`: `leitura(null)` soma contas diferentes.
 - `web.test.ts`: sem login → login; usuário A não vê dados do B mesmo forjando `?conta=`; dev vê todas e
   escolhe uma; admin comum não ganha acesso a outras contas.
