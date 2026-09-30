@@ -11,7 +11,7 @@ export type Config = {
   openrouter?: { apiKey: string; models: string[] } // opcional: sem chave, a auditoria fica desligada; models (só pagos) em ordem de tentativa
   smtp?: { host: string; port: number; user: string; pass: string; from: string } // opcional: sem SMTP_HOST, o link de redefinição só é logado no console
   resend?: { apiKey: string; from: string } // opcional: e-mail por API HTTPS (vale no Render gratuito, que bloqueia SMTP); tem prioridade sobre o SMTP
-  dev?: { email: string; senha: string } // opcional: conta de recuperação/suporte, oculta da lista de contas do admin
+  dev?: { email: string; senha: string } // opcional: acesso master (dev) só por configuração, sem cadastro no banco
 }
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {

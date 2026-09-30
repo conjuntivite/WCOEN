@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createHash } from 'node:crypto'
 import { Pool } from 'pg'
 import { criarContas, type Contas } from '../src/contas'
@@ -193,23 +193,41 @@ describe('redefinição de senha por e-mail', () => {
 })
 
 describe('conta DEV e exclusão definitiva', () => {
-  it('semearDev cria a conta na primeira vez e atualiza a senha nas próximas chamadas', async () => {
-    await contas.semearDev('Dev@X.com', 'senha-dev-1')
-    expect(await contas.verificar('dev@x.com', 'senha-dev-1')).not.toBeNull()
-    await contas.semearDev('dev@x.com', 'senha-dev-2')
-    expect(await contas.verificar('dev@x.com', 'senha-dev-1')).toBeNull()
-    expect(await contas.verificar('dev@x.com', 'senha-dev-2')).not.toBeNull()
-  })
+  describe('dev = acesso master só por configuração (sem cadastro)', () => {
+    let comDev: Awaited<ReturnType<typeof criarContas>>
+    const linhas = async (email: string) => (await pool.query('SELECT 1 FROM contas WHERE email = $1', [email])).rowCount
+    beforeAll(async () => {
+      comDev = await criarContas(pool, { convite: 'segredo', dev: { email: 'Devvirtual@X.com', senha: 'senha-dev-1' } })
+    })
 
-  // Correção da revisão final: a conta DEV é o último recurso de recuperação — reiniciar tem que trazê-la de volta.
-  it('semearDev reativa a conta DEV se ela estiver desativada', async () => {
-    await contas.semearDev('dev2@x.com', 'senha-dev-1')
-    const viva = await contas.verificar('dev2@x.com', 'senha-dev-1')
-    await contas.definirAtiva(viva!.id, false)
-    expect(await contas.verificar('dev2@x.com', 'senha-dev-1')).toBeNull()
+    it('entra com e-mail e senha configurados, sem criar linha em contas', async () => {
+      const c = await comDev.verificar('devvirtual@x.com', 'senha-dev-1')
+      expect(c?.email).toBe('devvirtual@x.com')
+      expect(await comDev.verificar('devvirtual@x.com', 'errada-123')).toBeNull()
+      expect(await linhas('devvirtual@x.com')).toBe(0)
+    })
 
-    await contas.semearDev('dev2@x.com', 'senha-dev-1')
-    expect(await contas.verificar('dev2@x.com', 'senha-dev-1')).not.toBeNull()
+    it('o login do dev vale como sessão e a conta virtual não tem grupo', async () => {
+      const c = (await comDev.verificar('devvirtual@x.com', 'senha-dev-1'))!
+      const token = await comDev.criarLogin(c.id)
+      expect(await comDev.contaDoLogin(token)).toEqual(c)
+    })
+
+    it('ninguém se cadastra com o e-mail do dev, nem com convite válido', async () => {
+      const r = await comDev.cadastrar('DEVVIRTUAL@x.com', 'senha-boa-123', 'segredo')
+      expect(r).toEqual({ ok: false, erro: 'email_em_uso' })
+      expect(await linhas('devvirtual@x.com')).toBe(0)
+    })
+
+    it('linha antiga no banco com o e-mail do dev fica inerte: só a senha da configuração entra', async () => {
+      const antiga = (await contas.cadastrar('devantigo@x.com', 'senha-antiga-1', 'segredo')) as { ok: true; conta: { id: string } }
+      const tokenAntigo = await contas.criarLogin(antiga.conta.id)
+      const c2 = await criarContas(pool, { convite: '', dev: { email: 'devantigo@x.com', senha: 'senha-nova-123' } })
+      expect(await c2.verificar('devantigo@x.com', 'senha-antiga-1')).toBeNull()
+      expect(await c2.verificar('devantigo@x.com', 'senha-nova-123')).not.toBeNull()
+      expect(await c2.contaDoLogin(tokenAntigo)).toBeNull() // sessão antiga não vira acesso master
+      expect(await c2.porEmail('devantigo@x.com')).toBeNull() // esqueci-senha não age sobre ela
+    })
   })
 
   it('excluirConta apaga logins, redefinições pendentes e a conta', async () => {

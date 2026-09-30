@@ -71,7 +71,7 @@ O bot roda como serviço: cada cliente se cadastra no portal, conecta o próprio
 
 ### Dashboard
 
-`/dashboard` mostra saldo, receitas e despesas do mês (com variação sobre o mês anterior), a tendência dos últimos 6 meses e as despesas por categoria, só da própria conta. A conta DEV (`DEV_EMAIL`) vê todas as contas somadas ou escolhe uma.
+`/dashboard` mostra saldo, receitas e despesas do mês (com variação sobre o mês anterior), a tendência dos últimos 6 meses e as despesas por categoria, só da própria conta. O acesso DEV (`DEV_EMAIL`/`DEV_PASSWORD`) existe só na configuração, sem cadastro no banco: vê todas as contas somadas ou escolhe uma, e não usa o painel de WhatsApp.
 
 ### Administração
 

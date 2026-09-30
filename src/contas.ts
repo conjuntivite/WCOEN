@@ -40,7 +40,10 @@ async function senhaConfere(senha: string, hash: string): Promise<boolean> {
 }
 
 // `convite` é o código mestre do .env (plano B); `convites`, os criados por um admin no painel (uso único cada)
-export async function criarContas(pool: Pool, { convite, convites }: { convite: string; convites?: Convites }) {
+// `dev` é o acesso master: vem só da configuração, nunca é gravado em `contas` (a sessão dele fica em `logins` como as demais)
+export const ID_DEV = 'dev'
+
+export async function criarContas(pool: Pool, { convite, convites, dev }: { convite: string; convites?: Convites; dev?: { email: string; senha: string } }) {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS contas (
       id TEXT PRIMARY KEY,
@@ -68,10 +71,14 @@ export async function criarContas(pool: Pool, { convite, convites }: { convite: 
   `)
   const hashFalso = await hashSenha('senha-inexistente') // e-mail desconhecido gasta o mesmo tempo de um conhecido
 
+  const emailDev = dev ? normalizar(dev.email) : undefined
+  const contaDev: Conta | null = emailDev ? { id: ID_DEV, email: emailDev } : null
+
   const porId = async (id: string): Promise<Conta | null> => {
+    if (id === ID_DEV) return contaDev
     const r = await pool.query<RowConta>('SELECT * FROM contas WHERE id = $1', [id])
     const d = r.rows[0]
-    return d && d.ativa ? paraConta(d) : null
+    return d && d.ativa && d.email !== emailDev ? paraConta(d) : null
   }
 
   return {
@@ -79,6 +86,7 @@ export async function criarContas(pool: Pool, { convite, convites }: { convite: 
 
     async cadastrar(email: string, senha: string, conviteInformado: string): Promise<{ ok: true; conta: Conta } | { ok: false; erro: ErroCadastro }> {
       const e = normalizar(email)
+      if (e === emailDev) return { ok: false, erro: 'email_em_uso' } // o e-mail do dev é reservado
       const codigo = conviteInformado ?? ''
       const viaMestre = Boolean(convite) && igual(codigo, convite) // sem convite configurado no .env, o mestre nunca bate
       const viaConvites = !viaMestre && Boolean(convites) && (await convites!.existe(codigo)) // só espia; não consome antes de validar e-mail/senha
@@ -98,6 +106,7 @@ export async function criarContas(pool: Pool, { convite, convites }: { convite: 
     },
 
     async verificar(email: string, senha: string): Promise<Conta | null> {
+      if (dev && normalizar(email) === emailDev) return igual(senha, dev.senha) ? contaDev : null // ignora qualquer linha antiga no banco
       const r = await pool.query<RowConta>('SELECT * FROM contas WHERE email = $1', [normalizar(email)])
       const d = r.rows[0]
       const ok = await senhaConfere(senha, d?.senha_hash ?? hashFalso)
@@ -160,7 +169,7 @@ export async function criarContas(pool: Pool, { convite, convites }: { convite: 
     async porEmail(email: string): Promise<Conta | null> {
       const r = await pool.query<RowConta>('SELECT * FROM contas WHERE email = $1', [normalizar(email)])
       const d = r.rows[0]
-      return d && d.ativa ? paraConta(d) : null
+      return d && d.ativa && d.email !== emailDev ? paraConta(d) : null
     },
 
     async criarRedefinicao(contaId: string): Promise<string> {
@@ -180,14 +189,6 @@ export async function criarContas(pool: Pool, { convite, convites }: { convite: 
         [sha256(token).toString('hex')],
       )
       return r.rows[0]?.conta_id ?? null
-    },
-
-    async semearDev(email: string, senha: string): Promise<void> {
-      const e = normalizar(email)
-      await pool.query(
-        'INSERT INTO contas (id, email, senha_hash, criada_em) VALUES ($1,$2,$3,now()) ON CONFLICT (email) DO UPDATE SET senha_hash = $3, ativa = true',
-        [randomUUID(), e, await hashSenha(senha)],
-      )
     },
 
     async excluirConta(contaId: string): Promise<void> {
