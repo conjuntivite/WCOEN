@@ -266,3 +266,10 @@ describe('paginaDashboard', () => {
     expect(paginaPainel('ana@x.com', '', 'conectar')).toContain('href="/dashboard"')
   })
 })
+
+describe('CSS compartilhado', () => {
+  it('o estilo do dashboard não redefine .legenda da vitrine (regra solta só uma vez)', () => {
+    const soltas = paginaEntrar().match(/(^|\n)\.legenda\{/g) ?? []
+    expect(soltas).toHaveLength(1)
+  })
+})
