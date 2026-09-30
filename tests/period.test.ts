@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mesAtual, intervaloDoMes, intervaloDaSemanaDomingo, rotuloHora, intervaloDoAno, intervaloDoDia, rotuloDia, rotuloMes, resolverData } from '../src/period'
+import { mesAtual, intervaloDoMes, intervaloDaSemanaDomingo, rotuloHora, intervaloDoAno, intervaloDoDia, rotuloDia, rotuloMes, resolverData, mesesTerminandoEm } from '../src/period'
 
 describe('period (America/Sao_Paulo, -03:00)', () => {
   it('mesAtual usa o fuso local', () => {
@@ -111,5 +111,25 @@ describe('intervaloDoDia', () => {
   it('vira mês e ano', () => {
     expect(dia('2026-10-01T12:00:00Z')[1]).toBe('2026-10-02T03:00:00.000Z')
     expect(dia('2026-12-31T12:00:00Z')[1]).toBe('2027-01-01T03:00:00.000Z')
+  })
+})
+
+describe('mesesTerminandoEm', () => {
+  it('lista n meses terminando no mês local, do mais antigo ao mais novo', () => {
+    expect(mesesTerminandoEm(new Date('2026-09-30T12:00:00Z'), 3)).toEqual([
+      { ano: 2026, mes: 7 },
+      { ano: 2026, mes: 8 },
+      { ano: 2026, mes: 9 },
+    ])
+  })
+  it('atravessa a virada de ano', () => {
+    expect(mesesTerminandoEm(new Date('2026-02-10T12:00:00Z'), 3)).toEqual([
+      { ano: 2025, mes: 12 },
+      { ano: 2026, mes: 1 },
+      { ano: 2026, mes: 2 },
+    ])
+  })
+  it('usa o mês local: 02:00Z de 1/out ainda é setembro em -03:00', () => {
+    expect(mesesTerminandoEm(new Date('2026-10-01T02:00:00Z'), 1)).toEqual([{ ano: 2026, mes: 9 }])
   })
 })

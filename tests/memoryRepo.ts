@@ -1,4 +1,5 @@
-import type { Balancete, Intervalo, Lancamento, LinhaConta, NovoLancamento, Repo } from '../src/types'
+import { intervaloDoMes, mesesTerminandoEm } from '../src/period'
+import type { Balancete, Intervalo, Lancamento, LinhaConta, MesSerie, Natureza, NovoLancamento, Repo } from '../src/types'
 
 export class MemoryRepo implements Repo {
   private itens: Lancamento[] = []
@@ -28,6 +29,17 @@ export class MemoryRepo implements Repo {
       .filter((x) => !x.item.desfeitoEm && x.item.data.getTime() >= intervalo.de.getTime() && x.item.data.getTime() < intervalo.ate.getTime())
       .sort((a, b) => a.item.data.getTime() - b.item.data.getTime() || a.item.enviadoEm.getTime() - b.item.enviadoEm.getTime() || a.ordem - b.ordem)
       .map((x) => ({ ...x.item }))
+  }
+
+  async serieMensal(ate: Date, meses: number): Promise<MesSerie[]> {
+    return mesesTerminandoEm(ate, meses).map(({ ano, mes }) => {
+      const { de, ate: fim } = intervaloDoMes(ano, mes)
+      const soma = (t: Natureza) =>
+        this.itens
+          .filter((i) => !i.desfeitoEm && i.tipo === t && i.data.getTime() >= de.getTime() && i.data.getTime() < fim.getTime())
+          .reduce((s, i) => s + i.valor, 0)
+      return { ano, mes, receitas: soma('receita'), despesas: soma('despesa') }
+    })
   }
 
   async balancete(intervalo: Intervalo): Promise<Balancete> {

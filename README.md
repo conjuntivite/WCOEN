@@ -69,6 +69,10 @@ O bot roda como serviço: cada cliente se cadastra no portal, conecta o próprio
 2. `docker compose up -d`. O Caddy emite o HTTPS sozinho; o Postgres não é exposto fora da rede do compose.
 3. Acesse `https://SEU_DOMINIO`, cadastre-se com o convite e conecte o WhatsApp.
 
+### Dashboard
+
+`/dashboard` mostra saldo, receitas e despesas do mês (com variação sobre o mês anterior), a tendência dos últimos 6 meses e as despesas por categoria, só da própria conta. A conta DEV (`DEV_EMAIL`) vê todas as contas somadas ou escolhe uma.
+
 ### Administração
 
 Definir `ADMIN_EMAILS` (e-mails já cadastrados, separados por vírgula) libera `/admin` para essas contas — um link "Administração" aparece no painel delas. Lá dá para gerar convites de uso único (com uma nota opcional para lembrar quem é) e revogar os que ainda não foram usados. O `CONVITE` do `.env` continua funcionando como plano B, multiuso, para não depender só do banco de convites.

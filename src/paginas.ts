@@ -1,6 +1,8 @@
 import type { Conta, ContaResumo } from './contas'
 import type { Convite } from './convites'
 import type { Aviso, Visao } from './sessoes'
+import { rotuloMesCurto, svgTendencia, type Indicadores } from './dashboard'
+import { formatBRL } from './money'
 
 const ENTIDADES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
 export const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ENTIDADES[c])
@@ -9,8 +11,8 @@ export const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ENTIDADES[c])
 // Sem fontes nem imagens externas (a CSP só permite o próprio site): pilha do sistema e SVG inline.
 
 const ESTILO = `
-:root{color-scheme:light dark;--fundo:#f8f5f4;--cartao:#fff;--texto:#1a1213;--suave:#5e5052;--borda:#e6dcdb;--marca:#d10f0f;--marca-forte:#a80b0b;--sobre-marca:#fff;--marca-suave:#fbe9e8;--erro:#b42318;--erro-suave:#fdeceb;--alerta:#9a5b00;--alerta-suave:#fdf3dc;--foco:#d10f0f;--sombra:0 1px 2px rgba(40,10,10,.06),0 8px 24px rgba(40,10,10,.07)}
-@media (prefers-color-scheme:dark){:root{--fundo:#0d0a0a;--cartao:#171213;--texto:#f3eaea;--suave:#b5a2a4;--borda:#322627;--marca:#ff4444;--marca-forte:#ff7a7a;--sobre-marca:#1a0505;--marca-suave:#33191a;--erro:#f97066;--erro-suave:#33191a;--alerta:#f5b544;--alerta-suave:#33280f;--foco:#ff7a7a;--sombra:none}}
+:root{color-scheme:light dark;--fundo:#f8f5f4;--cartao:#fff;--texto:#1a1213;--suave:#5e5052;--borda:#e6dcdb;--marca:#d10f0f;--marca-forte:#a80b0b;--sobre-marca:#fff;--marca-suave:#fbe9e8;--erro:#b42318;--erro-suave:#fdeceb;--alerta:#9a5b00;--alerta-suave:#fdf3dc;--foco:#d10f0f;--receita:#0f7a43;--despesa:#b45309;--sombra:0 1px 2px rgba(40,10,10,.06),0 8px 24px rgba(40,10,10,.07)}
+@media (prefers-color-scheme:dark){:root{--fundo:#0d0a0a;--cartao:#171213;--texto:#f3eaea;--suave:#b5a2a4;--borda:#322627;--marca:#ff4444;--marca-forte:#ff7a7a;--sobre-marca:#1a0505;--marca-suave:#33191a;--erro:#f97066;--erro-suave:#33191a;--alerta:#f5b544;--alerta-suave:#33280f;--foco:#ff7a7a;--receita:#4ade80;--despesa:#fbbf24;--sombra:none}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--fundo);color:var(--texto);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
 h1{font-size:1.75rem;line-height:1.2;margin:0 0 8px;font-weight:700;letter-spacing:-.01em}
@@ -53,6 +55,7 @@ input[aria-invalid=true]{border-color:var(--erro)}
 .legenda{color:#f0d4d4;font-size:.88rem;margin-top:10px}
 /* painel */
 .pagina{max-width:560px;margin:0 auto;padding:16px}
+.pagina.larga{max-width:880px}
 .topo{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0 16px}
 .topo .marca{color:var(--texto)}
 .usuario{display:flex;align-items:center;gap:10px;min-width:0}.usuario form{margin:0}
@@ -92,6 +95,23 @@ details{margin-top:14px}summary{cursor:pointer;color:var(--suave);font-weight:60
 .vitrine h1{font-size:2.2rem}
 .lado-form{align-items:center;padding:48px}
 }
+/* dashboard */
+.dash{display:grid;gap:16px}
+.kpis{display:grid;gap:12px;grid-template-columns:1fr}
+.kpi{background:var(--cartao);border:1px solid var(--borda);border-radius:14px;padding:16px;box-shadow:var(--sombra)}
+.kpi .rot{color:var(--suave);font-size:.9rem}.kpi .num{white-space:nowrap;font-size:1.6rem;font-weight:700;letter-spacing:-.01em}
+.var{display:inline-flex;align-items:center;gap:4px;font-size:.88rem;font-weight:600}.var.bom{color:var(--receita)}.var.ruim{color:var(--erro)}.var.neutro{color:var(--suave)}
+.grafico{display:block;width:100%;max-width:560px;height:auto;margin:0 auto}
+.grafico .b-rec{fill:var(--receita)}.grafico .b-desp{fill:url(#hachura);stroke:var(--despesa);stroke-width:1.5}
+.grafico .h-fundo{fill:var(--cartao)}.grafico .h-traco{stroke:var(--despesa);stroke-width:3}
+.grafico .val,.grafico .eixo{fill:var(--texto);font-size:10px}.grafico .eixo{fill:var(--suave);font-size:11px}.grafico .base{stroke:var(--borda)}
+.dash .legenda{display:flex;gap:16px;flex-wrap:wrap;margin:8px 0 0;padding:0;list-style:none;font-size:.88rem;color:var(--suave)}
+.dash .legenda i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}.dash .legenda .l-rec{background:var(--receita)}.dash .legenda .l-desp{border:1.5px solid var(--despesa);background:repeating-linear-gradient(45deg,var(--despesa) 0 2px,transparent 2px 5px)}
+.cats{list-style:none;margin:0;padding:0;display:grid;gap:12px}.cats li{display:grid;grid-template-columns:1fr auto;gap:2px 12px}.cats .nome{overflow-wrap:anywhere}.cats .valor{font-variant-numeric:tabular-nums;font-weight:600}
+.trilho{grid-column:1/-1;height:8px;background:var(--borda);border-radius:99px;overflow:hidden}.trilho div{height:100%;background:var(--despesa);border-radius:99px}
+.dash details{margin-top:12px;font-size:.9rem}.dash summary{cursor:pointer;color:var(--suave)}.dash table{width:100%;border-collapse:collapse;margin-top:8px}.dash th,.dash td{text-align:right;padding:6px 8px;border-bottom:1px solid var(--borda)}.dash th:first-child,.dash td:first-child{text-align:left}
+.filtro{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+@media (min-width:640px){.kpis{grid-template-columns:repeat(3,1fr)}}
 @media (max-width:420px){.comandos{grid-template-columns:1fr}.email{display:none}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}.giro{border-top-color:var(--borda)}}
 `
@@ -101,6 +121,8 @@ const ICONES = {
   check: '<path d="M20 6 9 17l-5-5"/>',
   sair: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
   alerta: '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
+  cima: '<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>',
+  baixo: '<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>',
   troca: '<path d="M17 3l4 4-4 4"/><path d="M3 7h18"/><path d="M7 21l-4-4 4-4"/><path d="M21 17H3"/>',
 }
 const ic = (nome: keyof typeof ICONES) =>
@@ -185,9 +207,45 @@ new EventSource('/painel/eventos').onmessage = (e) => {
 export const paginaPainel = (email: string, fragmento: string, passo: string, erro?: string, admin = false) =>
   layout(
     'Painel',
-    `<div class="pagina"><header class="topo">${marca('/painel')}<div class="usuario">${admin ? '<a class="link-admin" href="/admin">Administração</a>' : ''}<span class="email" title="${esc(email)}">${esc(email)}</span><form method="post" action="/sair"><button class="btn sec pequeno">${ic('sair')}Sair</button></form></div></header><main id="conteudo">${aviso(erro)}<div class="cartao" id="estado" data-passo="${esc(passo)}" aria-live="polite">${fragmento}</div></main></div>`,
+    `<div class="pagina"><header class="topo">${marca('/painel')}<div class="usuario"><a class="link-admin" href="/dashboard">Dashboard</a>${admin ? '<a class="link-admin" href="/admin">Administração</a>' : ''}<span class="email" title="${esc(email)}">${esc(email)}</span><form method="post" action="/sair"><button class="btn sec pequeno">${ic('sair')}Sair</button></form></div></header><main id="conteudo">${aviso(erro)}<div class="cartao" id="estado" data-passo="${esc(passo)}" aria-live="polite">${fragmento}</div></main></div>`,
     '<script src="/painel.js"></script>',
   )
+
+// --- dashboard -----------------------------------------------------------
+
+const nomeMes = (ano: number, mes: number) => new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(ano, mes - 1, 1)))
+
+// subir receita/saldo é bom; subir despesa não é
+const variacao = (v: number | null, altaEhBoa: boolean) => {
+  if (v === null) return '<span class="var neutro">— sem mês anterior para comparar</span>'
+  if (v === 0) return '<span class="var neutro">0% vs. mês anterior</span>'
+  const bom = v > 0 === altaEhBoa
+  return `<span class="var ${bom ? 'bom' : 'ruim'}">${ic(v > 0 ? 'cima' : 'baixo')}${v > 0 ? '+' : ''}${v}% vs. mês anterior</span>`
+}
+
+const kpi = (rotulo: string, valor: number, v: number | null, altaEhBoa: boolean) =>
+  `<div class="kpi"><div class="rot">${rotulo}</div><div class="num">${formatBRL(valor)}</div>${variacao(v, altaEhBoa)}</div>`
+
+export const paginaDashboard = (
+  email: string,
+  ind: Indicadores,
+  admin: boolean,
+  dev?: { contas: { id: string; email: string }[]; selecionada: string | null },
+) => {
+  const seletor = dev
+    ? `<form class="filtro" method="get" action="/dashboard"><label for="conta">Conta</label><select id="conta" name="conta"><option value="">Todas as contas</option>${dev.contas.map((c) => `<option value="${esc(c.id)}"${c.id === dev.selecionada ? ' selected' : ''}>${esc(c.email)}</option>`).join('')}</select><button class="btn sec pequeno">Ver</button></form>`
+    : ''
+  const corpo = ind.vazio
+    ? '<div class="cartao"><p>Nenhum lançamento nos últimos 6 meses. Registre uma despesa ou receita no grupo do WhatsApp e ela aparece aqui.</p></div>'
+    : `<div class="kpis">${kpi('Saldo do mês', ind.saldo, ind.variacao.saldo, true)}${kpi('Receitas', ind.mes.receitas, ind.variacao.receitas, true)}${kpi('Despesas', ind.mes.despesas, ind.variacao.despesas, false)}</div>
+<section class="cartao"><h2>Últimos ${ind.serie.length} meses</h2>${svgTendencia(ind.serie)}<ul class="legenda"><li><i class="l-rec"></i>Receitas</li><li><i class="l-desp"></i>Despesas</li></ul>
+<details><summary>Ver dados em tabela</summary><table><thead><tr><th>Mês</th><th>Receitas</th><th>Despesas</th></tr></thead><tbody>${ind.serie.map((s) => `<tr><td>${rotuloMesCurto(s)}/${s.ano}</td><td>${formatBRL(s.receitas)}</td><td>${formatBRL(s.despesas)}</td></tr>`).join('')}</tbody></table></details></section>
+<section class="cartao"><h2>Despesas por categoria</h2>${ind.categorias.length ? `<ul class="cats">${ind.categorias.map((c) => `<li><span class="nome">${esc(c.conta)}</span><span class="valor">${formatBRL(c.total)}</span><div class="trilho" aria-hidden="true"><div style="width:${c.largura}%"></div></div></li>`).join('')}</ul>` : '<p class="sub">Sem despesas neste mês.</p>'}</section>`
+  return layout(
+    'Dashboard',
+    `<div class="pagina larga"><header class="topo">${marca('/painel')}<div class="usuario"><a class="link-admin" href="/painel">Painel</a>${admin ? '<a class="link-admin" href="/admin">Administração</a>' : ''}<span class="email" title="${esc(email)}">${esc(email)}</span><form method="post" action="/sair"><button class="btn sec pequeno">${ic('sair')}Sair</button></form></div></header><main id="conteudo" class="dash"><div><h1>Dashboard</h1><p class="sub">${nomeMes(ind.mes.ano, ind.mes.mes)}</p></div>${seletor}${corpo}</main></div>`,
+  )
+}
 
 // --- administração (convites) --------------------------------------------
 

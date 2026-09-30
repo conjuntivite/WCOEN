@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { fragmentoPainel, paginaAdmin, paginaCadastro, paginaEsqueciSenha, paginaEntrar, paginaPainel, paginaRedefinirSenha, passoDe } from '../src/paginas'
+import { montarIndicadores } from '../src/dashboard'
+import type { MesSerie } from '../src/types'
+import { fragmentoPainel, paginaAdmin, paginaCadastro, paginaEsqueciSenha, paginaEntrar, paginaPainel, paginaRedefinirSenha, passoDe, paginaDashboard } from '../src/paginas'
 import type { Conta, ContaResumo } from '../src/contas'
 import type { Convite } from '../src/convites'
 import type { Visao } from '../src/sessoes'
@@ -219,5 +221,55 @@ describe('admin: contas', () => {
 
   it('sem contas: mensagem de lista vazia', () => {
     expect(paginaAdmin('admin@x.com', [], [], false)).toContain('Nenhuma conta cadastrada ainda.')
+  })
+})
+
+describe('paginaDashboard', () => {
+  const serie: MesSerie[] = [
+    { ano: 2026, mes: 8, receitas: 100000, despesas: 50000 },
+    { ano: 2026, mes: 9, receitas: 150000, despesas: 25000 },
+  ]
+  const ind = (despesas = [{ conta: 'mercado', total: 25000 }]) => montarIndicadores(serie, { receitas: [], despesas })
+
+  it('mostra os cartões, o gráfico, as categorias e a tabela alternativa', () => {
+    const html = paginaDashboard('ana@x.com', ind(), false)
+    expect(html).toContain('R$ 1.250,00') // saldo
+    expect(html).toContain('+50%')
+    expect(html).toContain('role="img"')
+    expect(html).toContain('mercado')
+    expect(html).toContain('<details')
+    expect(html).toContain('href="/painel"')
+  })
+
+  it('escapa nome de categoria vindo do usuário', () => {
+    const html = paginaDashboard('ana@x.com', ind([{ conta: '<img src=x onerror=alert(1)>', total: 100 }]), false)
+    expect(html).not.toContain('<img src=x')
+    expect(html).toContain('&lt;img src=x')
+  })
+
+  it('sem lançamentos mostra orientação em vez de gráficos', () => {
+    const zerado = montarIndicadores([{ ano: 2026, mes: 9, receitas: 0, despesas: 0 }], { receitas: [], despesas: [] })
+    const html = paginaDashboard('ana@x.com', zerado, false)
+    expect(html).toContain('Nenhum lançamento')
+    expect(html).not.toContain('role="img"')
+  })
+
+  it('seletor de contas só aparece para o dev, com a atual marcada', () => {
+    expect(paginaDashboard('ana@x.com', ind(), false)).not.toContain('<select')
+    const html = paginaDashboard('dev@x.com', ind(), true, { contas: [{ id: 'c1', email: 'a@x.com' }, { id: 'c2', email: 'b@x.com' }], selecionada: 'c2' })
+    expect(html).toContain('<select')
+    expect(html).toContain('value="c2" selected')
+    expect(html).toContain('Todas as contas')
+  })
+
+  it('o painel ganha o link para o dashboard', () => {
+    expect(paginaPainel('ana@x.com', '', 'conectar')).toContain('href="/dashboard"')
+  })
+})
+
+describe('CSS compartilhado', () => {
+  it('o estilo do dashboard não redefine .legenda da vitrine (regra solta só uma vez)', () => {
+    const soltas = paginaEntrar().match(/(^|\n)\.legenda\{/g) ?? []
+    expect(soltas).toHaveLength(1)
   })
 })

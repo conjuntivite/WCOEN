@@ -1,5 +1,6 @@
 import type { Pool } from 'pg'
-import type { Balancete, Intervalo, Lancamento, Natureza, NovoLancamento, Repo } from './types'
+import { intervaloDoMes, mesesTerminandoEm } from './period'
+import type { Balancete, Intervalo, Lancamento, Leitura, MesSerie, Natureza, NovoLancamento, Repo } from './types'
 
 type Row = {
   tipo: Natureza
@@ -25,7 +26,9 @@ const paraLancamento = (r: Row): Lancamento => ({
 class PgRepo implements Repo {
   constructor(
     private pool: Pool,
-    private contaId: string,
+    // null = todas as contas; só as leituras (balancete, serieMensal) aceitam. add/desfazerUltimo/extrato seguem
+    // com "conta_id = $1", que com null não casa nada (e o tipo Leitura esconde a escrita).
+    private contaId: string | null,
   ) {}
 
   async add(l: NovoLancamento) {
@@ -68,7 +71,7 @@ class PgRepo implements Repo {
   async balancete(intervalo: Intervalo): Promise<Balancete> {
     const r = await this.pool.query<{ tipo: Natureza; conta: string; total: string }>(
       `SELECT tipo, conta, SUM(valor)::bigint AS total FROM lancamentos
-       WHERE conta_id = $1 AND desfeito_em IS NULL
+       WHERE ($1::text IS NULL OR conta_id = $1) AND desfeito_em IS NULL
          AND ($2::timestamptz IS NULL OR data >= $2)
          AND ($3::timestamptz IS NULL OR data < $3)
        GROUP BY tipo, conta
@@ -77,6 +80,24 @@ class PgRepo implements Repo {
     )
     const linhas = (t: Natureza) => r.rows.filter((g) => g.tipo === t).map((g) => ({ conta: g.conta, total: Number(g.total) }))
     return { receitas: linhas('receita'), despesas: linhas('despesa') }
+  }
+
+  async serieMensal(ate: Date, meses: number): Promise<MesSerie[]> {
+    const lista = mesesTerminandoEm(ate, meses)
+    const primeiro = lista[0]
+    const ultimo = lista[lista.length - 1]
+    // ponytail: -3 horas fixas = mesmo offset de period.ts (Brasil sem horário de verão desde 2019)
+    const r = await this.pool.query<{ ano: number; mes: number; tipo: Natureza; total: string }>(
+      `SELECT EXTRACT(YEAR FROM loc)::int AS ano, EXTRACT(MONTH FROM loc)::int AS mes, tipo, SUM(valor)::bigint AS total
+       FROM (
+         SELECT tipo, valor, (data AT TIME ZONE 'UTC') - interval '3 hours' AS loc FROM lancamentos
+         WHERE ($1::text IS NULL OR conta_id = $1) AND desfeito_em IS NULL AND data >= $2 AND data < $3
+       ) t
+       GROUP BY 1, 2, tipo`,
+      [this.contaId, intervaloDoMes(primeiro.ano, primeiro.mes).de, intervaloDoMes(ultimo.ano, ultimo.mes).ate],
+    )
+    const total = (ano: number, mes: number, tipo: Natureza) => Number(r.rows.find((x) => x.ano === ano && x.mes === mes && x.tipo === tipo)?.total ?? 0)
+    return lista.map(({ ano, mes }) => ({ ano, mes, receitas: total(ano, mes, 'receita'), despesas: total(ano, mes, 'despesa') }))
   }
 }
 
@@ -99,6 +120,7 @@ export async function criarRepo(pool: Pool) {
   `)
   return {
     repoDe: (contaId: string) => new PgRepo(pool, contaId) as Repo,
+    leitura: (contaId: string | null) => new PgRepo(pool, contaId) as Leitura, // null = todas as contas (só o dev, no dashboard)
     apagarConta: (contaId: string) => pool.query('DELETE FROM lancamentos WHERE conta_id = $1', [contaId]).then(() => undefined),
   }
 }
