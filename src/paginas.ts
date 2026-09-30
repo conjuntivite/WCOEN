@@ -55,6 +55,7 @@ input[aria-invalid=true]{border-color:var(--erro)}
 .legenda{color:#f0d4d4;font-size:.88rem;margin-top:10px}
 /* painel */
 .pagina{max-width:560px;margin:0 auto;padding:16px}
+.pagina.larga{max-width:880px}
 .topo{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0 16px}
 .topo .marca{color:var(--texto)}
 .usuario{display:flex;align-items:center;gap:10px;min-width:0}.usuario form{margin:0}
@@ -98,9 +99,9 @@ details{margin-top:14px}summary{cursor:pointer;color:var(--suave);font-weight:60
 .dash{display:grid;gap:16px}
 .kpis{display:grid;gap:12px;grid-template-columns:1fr}
 .kpi{background:var(--cartao);border:1px solid var(--borda);border-radius:14px;padding:16px;box-shadow:var(--sombra)}
-.kpi .rot{color:var(--suave);font-size:.9rem}.kpi .num{font-size:1.6rem;font-weight:700;letter-spacing:-.01em}
+.kpi .rot{color:var(--suave);font-size:.9rem}.kpi .num{white-space:nowrap;font-size:1.6rem;font-weight:700;letter-spacing:-.01em}
 .var{display:inline-flex;align-items:center;gap:4px;font-size:.88rem;font-weight:600}.var.bom{color:var(--receita)}.var.ruim{color:var(--erro)}.var.neutro{color:var(--suave)}
-.grafico{display:block;width:100%;max-width:560px;height:auto}
+.grafico{display:block;width:100%;max-width:560px;height:auto;margin:0 auto}
 .grafico .b-rec{fill:var(--receita)}.grafico .b-desp{fill:url(#hachura);stroke:var(--despesa);stroke-width:1.5}
 .grafico .h-fundo{fill:var(--cartao)}.grafico .h-traco{stroke:var(--despesa);stroke-width:3}
 .grafico .val,.grafico .eixo{fill:var(--texto);font-size:10px}.grafico .eixo{fill:var(--suave);font-size:11px}.grafico .base{stroke:var(--borda)}
@@ -242,7 +243,7 @@ export const paginaDashboard = (
 <section class="cartao"><h2>Despesas por categoria</h2>${ind.categorias.length ? `<ul class="cats">${ind.categorias.map((c) => `<li><span class="nome">${esc(c.conta)}</span><span class="valor">${formatBRL(c.total)}</span><div class="trilho" aria-hidden="true"><div style="width:${c.largura}%"></div></div></li>`).join('')}</ul>` : '<p class="sub">Sem despesas neste mês.</p>'}</section>`
   return layout(
     'Dashboard',
-    `<div class="pagina"><header class="topo">${marca('/painel')}<div class="usuario"><a class="link-admin" href="/painel">Painel</a>${admin ? '<a class="link-admin" href="/admin">Administração</a>' : ''}<span class="email" title="${esc(email)}">${esc(email)}</span><form method="post" action="/sair"><button class="btn sec pequeno">${ic('sair')}Sair</button></form></div></header><main id="conteudo" class="dash"><div><h1>Dashboard</h1><p class="sub">${nomeMes(ind.mes.ano, ind.mes.mes)}</p></div>${seletor}${corpo}</main></div>`,
+    `<div class="pagina larga"><header class="topo">${marca('/painel')}<div class="usuario"><a class="link-admin" href="/painel">Painel</a>${admin ? '<a class="link-admin" href="/admin">Administração</a>' : ''}<span class="email" title="${esc(email)}">${esc(email)}</span><form method="post" action="/sair"><button class="btn sec pequeno">${ic('sair')}Sair</button></form></div></header><main id="conteudo" class="dash"><div><h1>Dashboard</h1><p class="sub">${nomeMes(ind.mes.ano, ind.mes.mes)}</p></div>${seletor}${corpo}</main></div>`,
   )
 }
 
