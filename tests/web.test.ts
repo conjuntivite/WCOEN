@@ -41,7 +41,7 @@ let contas: Contas
 let convites: Convites
 let sessoes: ReturnType<typeof sessoesFalsas>
 let mailer: ReturnType<typeof mailerFalso>
-let repoFalso: { repoDe: ReturnType<typeof vi.fn>; apagarConta: ReturnType<typeof vi.fn> }
+let repoFalso: { repoDe: ReturnType<typeof vi.fn>; apagarConta: ReturnType<typeof vi.fn>; leitura: ReturnType<typeof vi.fn> }
 let cookieAdmin: string
 let server: Server
 let base = ''
@@ -54,7 +54,14 @@ beforeAll(async () => {
   convites = await criarConvites(pool)
   contas = await criarContas(pool, { convite: 'segredo', convites })
   await contas.semearDev(EMAIL_DEV, 'senha-dev-123')
-  repoFalso = { repoDe: vi.fn(), apagarConta: vi.fn(async (_id: string) => {}) }
+  repoFalso = {
+    repoDe: vi.fn(),
+    apagarConta: vi.fn(async (_id: string) => {}),
+    leitura: vi.fn((_id: string | null) => ({
+      serieMensal: async () => [{ ano: 2026, mes: 9, receitas: 123400, despesas: 5600 }],
+      balancete: async () => ({ receitas: [], despesas: [{ conta: 'mercado-teste', total: 5600 }] }),
+    })),
+  }
   sessoes = sessoesFalsas()
   mailer = mailerFalso()
   server = criarWeb({
@@ -606,5 +613,46 @@ describe('admin: contas', () => {
     expect(r.headers.get('location')).toBe('/admin?ok=redefinicao')
     const html = await (await get('/admin?ok=redefinicao', cookieAdmin)).text()
     expect(html).toContain('Link de redefinição enviado.')
+  })
+})
+
+describe('GET /dashboard', () => {
+  it('sem login redireciona para /entrar', async () => {
+    const r = await get('/dashboard')
+    expect(r.status).toBe(303)
+    expect(r.headers.get('location')).toBe('/entrar')
+  })
+
+  it('usuário comum lê só a própria conta, mesmo forjando ?conta=', async () => {
+    const a = await entrar()
+    const b = await entrar()
+    const r = await get(`/dashboard?conta=${b.conta.id}`, a.cookie)
+    expect(r.status).toBe(200)
+    const html = await r.text()
+    expect(html).toContain('mercado-teste')
+    expect(html).not.toContain('<select')
+    expect(repoFalso.leitura).toHaveBeenCalledTimes(1)
+    expect(repoFalso.leitura).toHaveBeenCalledWith(a.conta.id)
+  })
+
+  it('admin comum não vê outras contas', async () => {
+    const cookie = await entrarComo(EMAIL_ADMIN, 'senha-boa-123')
+    const html = await (await get('/dashboard', cookie)).text()
+    expect(html).not.toContain('<select')
+    expect(repoFalso.leitura).not.toHaveBeenCalledWith(null)
+  })
+
+  it('dev vê todas por padrão, escolhe uma conta e ignora id inexistente', async () => {
+    const cookieDev = await entrarComo(EMAIL_DEV, 'senha-dev-123')
+    const alvo = await entrar()
+    const padrao = await (await get('/dashboard', cookieDev)).text()
+    expect(padrao).toContain('<select')
+    expect(repoFalso.leitura).toHaveBeenLastCalledWith(null)
+    expect(padrao).toContain(alvo.conta.email)
+    await get(`/dashboard?conta=${alvo.conta.id}`, cookieDev)
+    expect(repoFalso.leitura).toHaveBeenLastCalledWith(alvo.conta.id)
+    const r = await get('/dashboard?conta=nao-existe', cookieDev)
+    expect(r.status).toBe(200)
+    expect(repoFalso.leitura).toHaveBeenLastCalledWith(null)
   })
 })

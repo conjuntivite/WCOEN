@@ -1,10 +1,12 @@
 import { readFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import QRCode from 'qrcode'
-import { criarLimitador, type Conta, type Contas, type ErroCadastro } from './contas'
+import { criarLimitador, type Conta, type ContaResumo, type Contas, type ErroCadastro } from './contas'
 import type { Convites } from './convites'
+import { montarIndicadores } from './dashboard'
 import type { Mailer } from './mailer'
-import { AVISOS_ADMIN, ERROS_ADMIN, ERROS_PAINEL, SCRIPT_PAINEL, fragmentoPainel, paginaAdmin, paginaCadastro, paginaEntrar, paginaEsqueciSenha, paginaPainel, paginaRedefinirSenha, passoDe, type CampoCadastro } from './paginas'
+import { intervaloDoMes, mesAtual } from './period'
+import { AVISOS_ADMIN, ERROS_ADMIN, ERROS_PAINEL, SCRIPT_PAINEL, fragmentoPainel, paginaAdmin, paginaCadastro, paginaDashboard, paginaEntrar, paginaEsqueciSenha, paginaPainel, paginaRedefinirSenha, passoDe, type CampoCadastro } from './paginas'
 import type { Repositorio } from './repo'
 import type { Sessoes } from './sessoes'
 
@@ -12,7 +14,7 @@ export type OpcoesWeb = {
   contas: Contas
   sessoes: Sessoes
   convites: Convites
-  repo: Repositorio // usado pra apagar o histórico de lançamentos ao excluir uma conta definitivamente
+  repo: Repositorio // apaga o histórico ao excluir uma conta definitivamente e fornece as leituras do dashboard
   mailer?: Mailer
   adminEmails?: string[] // veem /admin; comparado ao e-mail já normalizado da conta
   devEmail?: string // além de admin, pode excluir contas definitivamente; some da lista de contas do admin comum
@@ -140,6 +142,23 @@ export function criarWeb(op: OpcoesWeb): Server {
         const f = (await montarFragmento(conta.id))!
         const chave = url.searchParams.get('erro') ?? ''
         return html(res, 200, paginaPainel(conta.email, f.html, f.passo, Object.hasOwn(ERROS_PAINEL, chave) ? ERROS_PAINEL[chave] : undefined, isAdmin(conta.email)))
+      }
+      if (caminho === '/dashboard') {
+        if (!conta) return ir(res, '/entrar')
+        const dev = conta.email === op.devEmail
+        // usuário comum: sempre a própria conta (?conta= é ignorado). Só o dev escolhe; id desconhecido = todas.
+        let alvo: string | null = conta.id
+        let lista: ContaResumo[] = []
+        if (dev) {
+          lista = await contas.listarContas()
+          const pedido = url.searchParams.get('conta') ?? ''
+          alvo = lista.some((c) => c.id === pedido) ? pedido : null
+        }
+        const agora = new Date()
+        const { ano, mes } = mesAtual(agora)
+        const leitura = op.repo.leitura(alvo)
+        const [serie, balancete] = await Promise.all([leitura.serieMensal(agora, 6), leitura.balancete(intervaloDoMes(ano, mes))])
+        return html(res, 200, paginaDashboard(conta.email, montarIndicadores(serie, balancete), isAdmin(conta.email), dev ? { contas: lista, selecionada: alvo } : undefined))
       }
       if (caminho === '/admin') {
         if (!conta) return ir(res, '/entrar')
