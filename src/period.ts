@@ -16,6 +16,15 @@ export function mesAtual(agora: Date): { ano: number; mes: number } {
   return { ano, mes }
 }
 
+// n meses consecutivos terminando no mês local de `ate`, do mais antigo ao mais novo
+export function mesesTerminandoEm(ate: Date, n: number): { ano: number; mes: number }[] {
+  const { ano, mes } = mesAtual(ate)
+  return Array.from({ length: n }, (_, i) => {
+    const d = new Date(Date.UTC(ano, mes - 1 - (n - 1 - i), 1)) // Date.UTC normaliza mês <= 0
+    return { ano: d.getUTCFullYear(), mes: d.getUTCMonth() + 1 }
+  })
+}
+
 export function intervaloDoMes(ano: number, mes: number): { de: Date; ate: Date } {
   return {
     de: new Date(Date.UTC(ano, mes - 1, 1, OFFSET_H)),

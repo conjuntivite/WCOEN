@@ -47,6 +47,29 @@ export function repoContract(nome: string, criar: () => Promise<Repo>, criarPar?
       expect(b.despesas.map((l) => l.conta)).toEqual(['dentro'])
     })
 
+    it('serieMensal soma por mês local, preenche meses vazios, ignora desfeitos e respeita a fronteira', async () => {
+      const repo = await criar()
+      await repo.add(novo({ tipo: 'receita', valor: 5000, data: new Date('2026-09-01T03:00:00Z') })) // 1/set 00:00 local
+      await repo.add(novo({ valor: 1000, data: new Date('2026-09-01T02:59:59Z') })) // 31/ago 23:59 local
+      await repo.add(novo({ valor: 300, data: new Date('2026-07-15T12:00:00Z') }))
+      await repo.add(novo({ valor: 999, data: new Date('2026-07-16T12:00:00Z'), enviadoEm: new Date('2026-12-01T00:00:00Z') }))
+      await repo.desfazerUltimo() // desfaz os 999 (maior enviadoEm)
+      await repo.add(novo({ valor: 777, data: new Date('2026-10-01T03:00:00Z') })) // outubro: fora da janela
+      expect(await repo.serieMensal(new Date('2026-09-30T12:00:00Z'), 3)).toEqual([
+        { ano: 2026, mes: 7, receitas: 0, despesas: 300 },
+        { ano: 2026, mes: 8, receitas: 0, despesas: 1000 },
+        { ano: 2026, mes: 9, receitas: 5000, despesas: 0 },
+      ])
+    })
+
+    it('serieMensal de conta sem lançamentos devolve todos os meses zerados', async () => {
+      const repo = await criar()
+      expect(await repo.serieMensal(new Date('2026-09-30T12:00:00Z'), 2)).toEqual([
+        { ano: 2026, mes: 8, receitas: 0, despesas: 0 },
+        { ano: 2026, mes: 9, receitas: 0, despesas: 0 },
+      ])
+    })
+
     it('desfazerUltimo segue enviadoEm (mensagem recuperada mais antiga é a última desfeita)', async () => {
       const repo = await criar()
       await repo.add(novo({ conta: 'a', valor: 100, enviadoEm: new Date('2026-09-10T10:00:00Z') }))
