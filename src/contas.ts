@@ -12,9 +12,11 @@ export const AVATAR_CORES = ['vermelho', 'laranja', 'amarelo', 'verde', 'azul', 
 export const AVATAR_ICONES = ['inicial', 'pessoa', 'estrela', 'coracao', 'raio', 'folha', 'chama', 'foguete'] as const
 export type Perfil = { nome?: string; cor?: string; icone?: string }
 
-export type Conta = { id: string; email: string; grupoId?: string; grupoNome?: string; nome?: string; avatarCor?: string; avatarIcone?: string; criadaEm?: Date }
+export type Papel = 'admin' | 'usuario'
+// validadeAte: último dia de acesso, "AAAA-MM-DD" (só para usuário; vale o dia inteiro, no fuso de São Paulo)
+export type Conta = { id: string; email: string; papel?: Papel; validadeAte?: string; grupoId?: string; grupoNome?: string; nome?: string; avatarCor?: string; avatarIcone?: string; criadaEm?: Date }
 export type ErroCadastro = 'convite_invalido' | 'email_invalido' | 'senha_curta' | 'email_em_uso'
-export type ContaResumo = { id: string; email: string; criadaEm: Date; grupoNome?: string; conectada: boolean; ativa: boolean }
+export type ContaResumo = { id: string; email: string; criadaEm: Date; grupoNome?: string; conectada: boolean; ativa: boolean; papel: Papel; validadeAte?: string; vencida: boolean }
 type RowConta = {
   id: string
   email: string
@@ -24,6 +26,8 @@ type RowConta = {
   grupo_nome: string | null
   conectada: boolean | null
   ativa: boolean
+  papel: Papel
+  validade_ate: string | null
   nome: string | null
   avatar_cor: string | null
   avatar_icone: string | null
@@ -33,6 +37,8 @@ const normalizar = (email: string) => email.trim().toLowerCase()
 const paraConta = (d: RowConta): Conta => ({
   id: d.id,
   email: d.email,
+  papel: d.papel,
+  validadeAte: d.validade_ate ?? undefined,
   grupoId: d.grupo_id ?? undefined,
   grupoNome: d.grupo_nome ?? undefined,
   nome: d.nome ?? undefined,
@@ -57,10 +63,8 @@ async function senhaConfere(senha: string, hash: string): Promise<boolean> {
 }
 
 // `convite` é o código mestre do .env (plano B); `convites`, os criados por um admin no painel (uso único cada)
-// `dev` é o acesso master: vem só da configuração, nunca é gravado em `contas` (a sessão dele fica em `logins` como as demais)
-export const ID_DEV = 'dev'
-
-export async function criarContas(pool: Pool, { convite, convites, dev }: { convite: string; convites?: Convites; dev?: { email: string; senha: string } }) {
+// `agora` existe para os testes fixarem o relógio
+export async function criarContas(pool: Pool, { convite, convites, agora = () => new Date() }: { convite: string; convites?: Convites; agora?: () => Date }) {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS contas (
       id TEXT PRIMARY KEY,
@@ -75,6 +79,8 @@ export async function criarContas(pool: Pool, { convite, convites, dev }: { conv
     ALTER TABLE contas ADD COLUMN IF NOT EXISTS nome TEXT;
     ALTER TABLE contas ADD COLUMN IF NOT EXISTS avatar_cor TEXT;
     ALTER TABLE contas ADD COLUMN IF NOT EXISTS avatar_icone TEXT;
+    ALTER TABLE contas ADD COLUMN IF NOT EXISTS papel TEXT NOT NULL DEFAULT 'usuario';
+    ALTER TABLE contas ADD COLUMN IF NOT EXISTS validade_ate TEXT;
     -- ponytail: sem TTL automático (o Mongo tinha expireAfterSeconds); a validade já é checada em
     -- contaDoLogin, então linhas expiradas só ficam paradas na tabela. Nos pilotos (poucas contas) não
     -- importa; se crescer, apagar as expiradas de tempos em tempos (ex.: um DELETE agendado).
@@ -91,14 +97,14 @@ export async function criarContas(pool: Pool, { convite, convites, dev }: { conv
   `)
   const hashFalso = await hashSenha('senha-inexistente') // e-mail desconhecido gasta o mesmo tempo de um conhecido
 
-  const emailDev = dev ? normalizar(dev.email) : undefined
-  const contaDev: Conta | null = emailDev ? { id: ID_DEV, email: emailDev } : null
+  // "AAAA-MM-DD" de hoje em São Paulo: comparar texto ISO é comparar datas
+  const hoje = () => agora().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
+  const vencida = (d: RowConta) => d.validade_ate !== null && d.validade_ate < hoje()
 
   const porId = async (id: string): Promise<Conta | null> => {
-    if (id === ID_DEV) return contaDev
     const r = await pool.query<RowConta>('SELECT * FROM contas WHERE id = $1', [id])
     const d = r.rows[0]
-    return d && d.ativa && d.email !== emailDev ? paraConta(d) : null
+    return d && d.ativa && !vencida(d) ? paraConta(d) : null
   }
 
   return {
@@ -106,7 +112,6 @@ export async function criarContas(pool: Pool, { convite, convites, dev }: { conv
 
     async cadastrar(email: string, senha: string, conviteInformado: string): Promise<{ ok: true; conta: Conta } | { ok: false; erro: ErroCadastro }> {
       const e = normalizar(email)
-      if (e === emailDev) return { ok: false, erro: 'email_em_uso' } // o e-mail do dev é reservado
       const codigo = conviteInformado ?? ''
       const viaMestre = Boolean(convite) && igual(codigo, convite) // sem convite configurado no .env, o mestre nunca bate
       const viaConvites = !viaMestre && Boolean(convites) && (await convites!.existe(codigo)) // só espia; não consome antes de validar e-mail/senha
@@ -125,12 +130,13 @@ export async function criarContas(pool: Pool, { convite, convites, dev }: { conv
       return { ok: true, conta: { id, email: e } }
     },
 
-    async verificar(email: string, senha: string): Promise<Conta | null> {
-      if (dev && normalizar(email) === emailDev) return igual(senha, dev.senha) ? contaDev : null // ignora qualquer linha antiga no banco
+    // 'expirada' só aparece com a senha certa, para não revelar quais e-mails existem
+    async verificar(email: string, senha: string): Promise<Conta | 'expirada' | null> {
       const r = await pool.query<RowConta>('SELECT * FROM contas WHERE email = $1', [normalizar(email)])
       const d = r.rows[0]
       const ok = await senhaConfere(senha, d?.senha_hash ?? hashFalso)
-      return d && ok && d.ativa ? paraConta(d) : null
+      if (!d || !ok || !d.ativa) return null
+      return vencida(d) ? 'expirada' : paraConta(d)
     },
 
     async criarLogin(contaId: string): Promise<string> {
@@ -163,13 +169,27 @@ export async function criarContas(pool: Pool, { convite, convites, dev }: { conv
     },
 
     async conectadas(): Promise<string[]> {
-      const r = await pool.query<{ id: string }>('SELECT id FROM contas WHERE conectada = true AND ativa')
+      const r = await pool.query<{ id: string }>('SELECT id FROM contas WHERE conectada = true AND ativa AND (validade_ate IS NULL OR validade_ate >= $1)', [hoje()])
+      return r.rows.map((d) => d.id)
+    },
+
+    // contas que venceram mas ainda têm o WhatsApp conectado: quem chama desconecta
+    async vencidasConectadas(): Promise<string[]> {
+      const r = await pool.query<{ id: string }>('SELECT id FROM contas WHERE conectada = true AND ativa AND validade_ate < $1', [hoje()])
       return r.rows.map((d) => d.id)
     },
 
     async listarContas(): Promise<ContaResumo[]> {
       const r = await pool.query<RowConta>('SELECT * FROM contas ORDER BY criada_em DESC')
-      return r.rows.map((d) => ({ id: d.id, email: d.email, criadaEm: d.criada_em, grupoNome: d.grupo_nome ?? undefined, conectada: Boolean(d.conectada), ativa: d.ativa }))
+      return r.rows.map((d) => ({ id: d.id, email: d.email, criadaEm: d.criada_em, grupoNome: d.grupo_nome ?? undefined, conectada: Boolean(d.conectada), ativa: d.ativa, papel: d.papel, validadeAte: d.validade_ate ?? undefined, vencida: vencida(d) }))
+    },
+
+    // admin nunca tem validade; usuário sem data fica sem validade
+    async definirPapel(contaId: string, papel: Papel, validadeAte?: string): Promise<'ok' | 'data_invalida'> {
+      const data = papel === 'admin' || !validadeAte ? null : validadeAte
+      if (data !== null && (!/^\d{4}-\d{2}-\d{2}$/.test(data) || new Date(`${data}T00:00:00Z`).toJSON()?.slice(0, 10) !== data)) return 'data_invalida' // toJSON dá null em data impossível
+      await pool.query('UPDATE contas SET papel = $2, validade_ate = $3 WHERE id = $1', [contaId, papel, data])
+      return 'ok'
     },
 
     async definirAtiva(contaId: string, ativa: boolean): Promise<void> {
@@ -189,7 +209,7 @@ export async function criarContas(pool: Pool, { convite, convites, dev }: { conv
     async porEmail(email: string): Promise<Conta | null> {
       const r = await pool.query<RowConta>('SELECT * FROM contas WHERE email = $1', [normalizar(email)])
       const d = r.rows[0]
-      return d && d.ativa && d.email !== emailDev ? paraConta(d) : null
+      return d && d.ativa && !vencida(d) ? paraConta(d) : null
     },
 
     async definirPerfil(contaId: string, { nome, cor, icone }: Perfil): Promise<void> {
@@ -230,12 +250,6 @@ export async function criarContas(pool: Pool, { convite, convites, dev }: { conv
         [sha256(token).toString('hex')],
       )
       return r.rows[0]?.conta_id ?? null
-    },
-
-    async excluirConta(contaId: string): Promise<void> {
-      await pool.query('DELETE FROM logins WHERE conta_id = $1', [contaId])
-      await pool.query('DELETE FROM redefinicoes_senha WHERE conta_id = $1', [contaId])
-      await pool.query('DELETE FROM contas WHERE id = $1', [contaId])
     },
   }
 }

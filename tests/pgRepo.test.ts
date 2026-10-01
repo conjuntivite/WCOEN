@@ -50,23 +50,12 @@ it('desfazerUltimo em concorrência: exatamente um sucede, outro retorna null', 
   expect(resultados.filter((x) => x === null)).toHaveLength(1)
 })
 
-it('apagarConta remove só os lançamentos daquela conta', async () => {
-  const { repoDe, apagarConta } = await abrir()
-  const l = (msgId: string) => ({ tipo: 'despesa' as const, conta: 'x', valor: 100, remetente: 'u', msgId, data: new Date(), enviadoEm: new Date() })
-  await repoDe('a').add(l('m1'))
-  await repoDe('b').add(l('m1'))
-  await apagarConta('a')
-  expect((await repoDe('a').balancete(null)).despesas).toEqual([])
-  expect((await repoDe('b').balancete(null)).despesas).toEqual([{ conta: 'x', total: 100 }])
-})
-
-it('leitura(null) soma todas as contas; leitura(id) só a própria', async () => {
+it('leitura(id) só vê a própria conta', async () => {
   const { repoDe, leitura } = await abrir()
   const l = (msgId: string, valor: number) => ({ tipo: 'despesa' as const, conta: 'x', valor, remetente: 'u', msgId, data: new Date('2026-09-10T12:00:00Z'), enviadoEm: new Date() })
   await repoDe('a').add(l('m1', 100))
   await repoDe('b').add(l('m1', 250))
-  expect((await leitura(null).balancete(null)).despesas).toEqual([{ conta: 'x', total: 350 }])
   expect((await leitura('a').balancete(null)).despesas).toEqual([{ conta: 'x', total: 100 }])
-  const serie = await leitura(null).serieMensal(new Date('2026-09-30T12:00:00Z'), 1)
-  expect(serie).toEqual([{ ano: 2026, mes: 9, receitas: 0, despesas: 350 }])
+  expect((await leitura('b').balancete(null)).despesas).toEqual([{ conta: 'x', total: 250 }])
+  expect(await leitura('a').serieMensal(new Date('2026-09-30T12:00:00Z'), 1)).toEqual([{ ano: 2026, mes: 9, receitas: 0, despesas: 100 }])
 })

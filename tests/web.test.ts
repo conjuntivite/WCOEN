@@ -36,12 +36,11 @@ function mailerFalso() {
 }
 
 const EMAIL_ADMIN = 'admin@x.com'
-const EMAIL_DEV = 'dev@x.com'
 let contas: Contas
 let convites: Convites
 let sessoes: ReturnType<typeof sessoesFalsas>
 let mailer: ReturnType<typeof mailerFalso>
-let repoFalso: { repoDe: ReturnType<typeof vi.fn>; apagarConta: ReturnType<typeof vi.fn>; leitura: ReturnType<typeof vi.fn> }
+let repoFalso: { repoDe: ReturnType<typeof vi.fn>; leitura: ReturnType<typeof vi.fn> }
 let cookieAdmin: string
 let server: Server
 let base = ''
@@ -52,11 +51,10 @@ beforeAll(async () => {
   await pool.query('DROP TABLE IF EXISTS contas')
   await pool.query('DROP TABLE IF EXISTS convites')
   convites = await criarConvites(pool)
-  contas = await criarContas(pool, { convite: 'segredo', convites, dev: { email: EMAIL_DEV, senha: 'senha-dev-123' } })
+  contas = await criarContas(pool, { convite: 'segredo', convites })
   repoFalso = {
     repoDe: vi.fn(),
-    apagarConta: vi.fn(async (_id: string) => {}),
-    leitura: vi.fn((_id: string | null) => ({
+    leitura: vi.fn((_id: string) => ({
       serieMensal: async () => [{ ano: 2026, mes: 9, receitas: 123400, despesas: 5600 }],
       balancete: async () => ({ receitas: [], despesas: [{ conta: 'mercado-teste', total: 5600 }] }),
     })),
@@ -73,7 +71,6 @@ beforeAll(async () => {
     cookieSeguro: true,
     confiarProxy: true,
     repo: repoFalso as unknown as Repositorio,
-    devEmail: EMAIL_DEV,
   })
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
@@ -106,7 +103,7 @@ async function entrar(email = `u${++seq}@x.com`) {
   const r = await post('/cadastro', { email, senha: 'senha-boa-123', convite: 'segredo' })
   expect(r.status).toBe(303)
   const cookie = r.headers.getSetCookie()[0].split(';')[0]
-  const conta = (await contas.verificar(email, 'senha-boa-123'))!
+  const conta = (await contas.porEmail(email))!
   return { cookie, conta }
 }
 
@@ -534,63 +531,16 @@ describe('esqueci a senha', () => {
   })
 })
 
-describe('dev: acesso master sem cadastro', () => {
-  it('entra pelo /entrar, vai ao dashboard e não existe na tabela contas', async () => {
-    const r = await post('/entrar', { email: EMAIL_DEV, senha: 'senha-dev-123' })
-    expect(r.status).toBe(303)
-    expect(r.headers.get('location')).toBe('/dashboard')
-    expect((await pool.query('SELECT 1 FROM contas WHERE email = $1', [EMAIL_DEV])).rowCount).toBe(0)
-    const cookie = r.headers.getSetCookie()[0].split(';')[0]
-    expect((await get('/entrar', cookie)).headers.get('location')).toBe('/dashboard')
-    expect((await get('/', cookie)).headers.get('location')).toBe('/dashboard')
-  })
-
-  it('senha errada não entra e esqueci-senha não gera link para o dev', async () => {
-    expect((await post('/entrar', { email: EMAIL_DEV, senha: 'errada-1234' })).status).toBe(401)
-    await post('/esqueci-senha', { email: EMAIL_DEV })
+describe('sem acesso dev', () => {
+  it('o antigo login dev@x.com não existe: não entra e esqueci-senha não manda nada', async () => {
+    expect((await post('/entrar', { email: 'dev@x.com', senha: 'senha-dev-123' })).status).toBe(401)
+    await post('/esqueci-senha', { email: 'dev@x.com' })
     await new Promise((r) => setTimeout(r, 100))
     expect(mailer.enviarRedefinicaoSenha).not.toHaveBeenCalled()
-  })
-
-  it('sem painel de WhatsApp: GET /painel e POSTs /painel/* dão 403', async () => {
-    const cookie = await entrarComo(EMAIL_DEV, 'senha-dev-123')
-    expect((await get('/painel', cookie)).status).toBe(403)
-    expect((await get('/painel/eventos', cookie)).status).toBe(403)
-    for (const c of ['conectar', 'parear', 'grupo', 'desconectar']) expect((await post('/painel/' + c, {}, { cookie })).status).toBe(403)
-    expect(sessoes.iniciar).not.toHaveBeenCalled()
-  })
-
-  it('menu do dev: sem Painel, com Dashboard e Administração, e papel "Dev (acesso master)"', async () => {
-    const cookie = await entrarComo(EMAIL_DEV, 'senha-dev-123')
-    for (const caminho of ['/dashboard', '/admin']) {
-      const html = await (await get(caminho, cookie)).text()
-      expect(html).not.toContain('href="/painel"')
-      expect(html).toContain('href="/dashboard"')
-      expect(html).toContain('href="/admin"')
-      expect(html).toContain('Dev (acesso master)')
-    }
-  })
-
-  it('linha antiga do dev no banco não aparece na lista do seletor do dashboard', async () => {
-    await pool.query("INSERT INTO contas (id, email, senha_hash, criada_em) VALUES ('antigo-dev', $1, 'scrypt$aa$bb', now()) ON CONFLICT DO NOTHING", [EMAIL_DEV])
-    const cookie = await entrarComo(EMAIL_DEV, 'senha-dev-123')
-    expect(await (await get('/dashboard', cookie)).text()).not.toContain('value="antigo-dev"')
-    await pool.query("DELETE FROM contas WHERE id = 'antigo-dev'")
   })
 })
 
 describe('admin: contas', () => {
-  let cookieDev: string
-  beforeAll(async () => {
-    cookieDev = await entrarComo(EMAIL_DEV, 'senha-dev-123')
-  })
-
-  it('conta DEV é admin e some da lista de contas do admin comum', async () => {
-    const htmlAdmin = await (await get('/admin', cookieAdmin)).text()
-    expect(htmlAdmin).not.toContain(EMAIL_DEV)
-    expect((await get('/admin', cookieDev)).status).toBe(200)
-  })
-
   it('lista a conta na tela; desativar bloqueia login e desconecta o WhatsApp; reativar libera de novo', async () => {
     const { conta } = await entrar('contaadmin1@x.com')
     const html1 = await (await get('/admin', cookieAdmin)).text()
@@ -607,54 +557,22 @@ describe('admin: contas', () => {
 
   it('"enviar link de redefinição" dispara o e-mail pra conta certa', async () => {
     const { conta } = await entrar('contaadmin2@x.com')
-    const r = await post('/admin/contas/redefinir', { id: conta.id }, { cookie: cookieAdmin })
-    expect(r.headers.get('location')).toBe('/admin?ok=redefinicao')
+    await post('/admin/contas/redefinir', { id: conta.id }, { cookie: cookieAdmin })
     expect(mailer.enviarRedefinicaoSenha).toHaveBeenCalledWith('contaadmin2@x.com', expect.stringContaining('/redefinir-senha?token='))
   })
 
   it('rotas de contas exigem admin (403 pra quem não é)', async () => {
     const { cookie } = await entrar('naoadmin@x.com')
-    expect((await post('/admin/contas/desativar', { id: 'x' }, { cookie })).status).toBe(403)
-    expect((await post('/admin/contas/reativar', { id: 'x' }, { cookie })).status).toBe(403)
-    expect((await post('/admin/contas/redefinir', { id: 'x' }, { cookie })).status).toBe(403)
-    expect((await post('/admin/contas/excluir', { id: 'x', confirmarEmail: 'x' }, { cookie })).status).toBe(403)
+    for (const rota of ['desativar', 'reativar', 'redefinir', 'papel']) expect((await post(`/admin/contas/${rota}`, { id: 'x' }, { cookie })).status).toBe(403)
   })
 
-  it('excluir exige ser a conta DEV: admin comum toma 403 mesmo sendo admin', async () => {
+  it('não existe mais exclusão de conta: a rota dá 404, até para o admin', async () => {
     const { conta } = await entrar('naoexcluivel@x.com')
     const r = await post('/admin/contas/excluir', { id: conta.id, confirmarEmail: 'naoexcluivel@x.com' }, { cookie: cookieAdmin })
-    expect(r.status).toBe(403)
+    expect(r.status).toBe(404)
     expect(await contas.porId(conta.id)).not.toBeNull()
-  })
-
-  it('excluir com e-mail de confirmação errado não apaga nada; certo apaga tudo (WhatsApp, lançamentos, conta)', async () => {
-    const { conta } = await entrar('excluivel@x.com')
-    const errado = await post('/admin/contas/excluir', { id: conta.id, confirmarEmail: 'errado@x.com' }, { cookie: cookieDev })
-    expect(errado.headers.get('location')).toBe('/admin?erro=confirmacao')
-    expect(await contas.porId(conta.id)).not.toBeNull()
-    expect(repoFalso.apagarConta).not.toHaveBeenCalled()
-
-    const certo = await post('/admin/contas/excluir', { id: conta.id, confirmarEmail: 'excluivel@x.com' }, { cookie: cookieDev })
-    expect(certo.headers.get('location')).toBe('/admin')
-    expect(sessoes.desconectar).toHaveBeenCalledWith(conta.id)
-    expect(repoFalso.apagarConta).toHaveBeenCalledWith(conta.id)
-    expect((await pool.query('SELECT 1 FROM contas WHERE id = $1', [conta.id])).rowCount).toBe(0)
-  })
-
-  // Review Focus do plano: id forjado/inexistente não pode quebrar nem apagar nada.
-  it('excluir com id inexistente não quebra e não apaga nada', async () => {
-    const r = await post('/admin/contas/excluir', { id: 'nunca-existiu', confirmarEmail: 'qualquer@x.com' }, { cookie: cookieDev })
-    expect(r.status).toBe(303)
-    expect(r.headers.get('location')).toBe('/admin')
-  })
-
-  // Correção da revisão final: as duas ações redirecionavam pra /admin sem feedback nenhum.
-  it('confirmação de e-mail errada ao excluir mostra aviso em /admin', async () => {
-    const { conta } = await entrar('feedback-excluir@x.com')
-    const r = await post('/admin/contas/excluir', { id: conta.id, confirmarEmail: 'errado@x.com' }, { cookie: cookieDev })
-    expect(r.headers.get('location')).toBe('/admin?erro=confirmacao')
-    const html = await (await get('/admin?erro=confirmacao', cookieDev)).text()
-    expect(html).toContain('E-mail de confirmação não confere.')
+    const html = await (await get('/admin', cookieAdmin)).text()
+    expect(html).not.toContain('Excluir')
   })
 
   it('redefinir com sucesso mostra aviso em /admin', async () => {
@@ -663,6 +581,92 @@ describe('admin: contas', () => {
     expect(r.headers.get('location')).toBe('/admin?ok=redefinicao')
     const html = await (await get('/admin?ok=redefinicao', cookieAdmin)).text()
     expect(html).toContain('Link de redefinição enviado.')
+  })
+})
+
+describe('admin: permissões', () => {
+  it('a tela mostra o seletor de papel (Administrador, Usuário, Usuário com validade) e o campo de data', async () => {
+    await entrar('menu-papel@x.com')
+    const html = await (await get('/admin', cookieAdmin)).text()
+    expect(html).toContain('action="/admin/contas/papel"')
+    for (const rotulo of ['Administrador', 'Usuário com validade']) expect(html).toContain(rotulo)
+    expect(html).toContain('type="date"')
+  })
+
+  it('promover a admin: a conta passa a ver /admin; voltar a usuário tira o acesso', async () => {
+    const { cookie, conta } = await entrar('promovida@x.com')
+    expect((await get('/admin', cookie)).status).toBe(403)
+    const r = await post('/admin/contas/papel', { id: conta.id, papel: 'admin' }, { cookie: cookieAdmin })
+    expect(r.headers.get('location')).toBe('/admin?ok=papel')
+    expect((await get('/admin', cookie)).status).toBe(200)
+    await post('/admin/contas/papel', { id: conta.id, papel: 'usuario' }, { cookie: cookieAdmin })
+    expect((await get('/admin', cookie)).status).toBe(403)
+  })
+
+  it('usuário com validade: guarda a data; sem data ou com data inválida volta com aviso e não muda nada', async () => {
+    const { conta } = await entrar('validade@x.com')
+    const ok = await post('/admin/contas/papel', { id: conta.id, papel: 'validade', ate: '2099-12-31' }, { cookie: cookieAdmin })
+    expect(ok.headers.get('location')).toBe('/admin?ok=papel')
+    expect(await contas.porId(conta.id)).toMatchObject({ papel: 'usuario', validadeAte: '2099-12-31' })
+    expect(await (await get('/admin', cookieAdmin)).text()).toContain('31/12/2099')
+
+    for (const ate of ['', 'abc', '2099-02-30']) {
+      const r = await post('/admin/contas/papel', { id: conta.id, papel: 'validade', ate }, { cookie: cookieAdmin })
+      expect(r.headers.get('location')).toBe('/admin?erro=data')
+    }
+    expect(await contas.porId(conta.id)).toMatchObject({ validadeAte: '2099-12-31' })
+    expect(await (await get('/admin?erro=data', cookieAdmin)).text()).toContain('Data inválida')
+  })
+
+  it('papel desconhecido é ignorado; id inexistente não quebra', async () => {
+    const { conta } = await entrar('papel-estranho@x.com')
+    const r = await post('/admin/contas/papel', { id: conta.id, papel: 'dev' }, { cookie: cookieAdmin })
+    expect(r.status).toBe(303)
+    expect(await contas.porId(conta.id)).toMatchObject({ papel: 'usuario' })
+    expect((await post('/admin/contas/papel', { id: 'nunca-existiu', papel: 'admin' }, { cookie: cookieAdmin })).status).toBe(303)
+  })
+
+  it('o admin não altera o próprio papel', async () => {
+    const eu = (await contas.porEmail(EMAIL_ADMIN))!
+    const r = await post('/admin/contas/papel', { id: eu.id, papel: 'usuario' }, { cookie: cookieAdmin })
+    expect(r.headers.get('location')).toBe('/admin?erro=proprio')
+    expect((await get('/admin', cookieAdmin)).status).toBe(200)
+  })
+
+  it('admin fixo (ADMIN_EMAILS) não é rebaixado por outro admin do banco', async () => {
+    const { cookie, conta } = await entrar('segundo-admin@x.com')
+    await post('/admin/contas/papel', { id: conta.id, papel: 'admin' }, { cookie: cookieAdmin })
+    const fixo = (await contas.porEmail(EMAIL_ADMIN))!
+    const r = await post('/admin/contas/papel', { id: fixo.id, papel: 'usuario' }, { cookie })
+    expect(r.headers.get('location')).toBe('/admin?erro=fixo')
+    expect(await (await get('/admin', cookieAdmin)).text()).toContain('Administrador')
+  })
+
+  it('conta vencida não entra: senha certa avisa que o acesso expirou; senha errada segue como erro comum', async () => {
+    const { conta } = await entrar('vencida-web@x.com')
+    await contas.definirPapel(conta.id, 'usuario', '2000-01-01')
+    const certa = await post('/entrar', { email: 'vencida-web@x.com', senha: 'senha-boa-123' })
+    expect(certa.status).toBe(401)
+    expect(await certa.text()).toContain('Seu acesso expirou')
+    expect(certa.headers.getSetCookie()).toEqual([])
+    const errada = await post('/entrar', { email: 'vencida-web@x.com', senha: 'errada-123' })
+    expect(await errada.text()).not.toContain('Seu acesso expirou')
+  })
+
+  it('o admin consegue estender a validade de uma conta que já venceu (e de uma desativada)', async () => {
+    const { conta } = await entrar('renovar@x.com')
+    await contas.definirPapel(conta.id, 'usuario', '2000-01-01')
+    expect((await post('/entrar', { email: 'renovar@x.com', senha: 'senha-boa-123' })).status).toBe(401)
+    const r = await post('/admin/contas/papel', { id: conta.id, papel: 'validade', ate: '2099-12-31' }, { cookie: cookieAdmin })
+    expect(r.headers.get('location')).toBe('/admin?ok=papel')
+    expect((await post('/entrar', { email: 'renovar@x.com', senha: 'senha-boa-123' })).status).toBe(303)
+  })
+
+  it('a sessão aberta de uma conta vencida cai no mesmo instante', async () => {
+    const { cookie, conta } = await entrar('vence-logada@x.com')
+    expect((await get('/painel', cookie)).status).toBe(200)
+    await contas.definirPapel(conta.id, 'usuario', '2000-01-01')
+    expect((await get('/painel', cookie)).headers.get('location')).toBe('/entrar')
   })
 })
 
@@ -685,25 +689,15 @@ describe('GET /dashboard', () => {
     expect(repoFalso.leitura).toHaveBeenCalledWith(a.conta.id)
   })
 
-  it('admin comum não vê outras contas', async () => {
+  it('admin também lê só a própria conta, mesmo forjando ?conta=', async () => {
+    const outra = await entrar()
     const cookie = await entrarComo(EMAIL_ADMIN, 'senha-boa-123')
-    const html = await (await get('/dashboard', cookie)).text()
+    const eu = (await contas.porEmail(EMAIL_ADMIN))!
+    const html = await (await get(`/dashboard?conta=${outra.conta.id}`, cookie)).text()
     expect(html).not.toContain('<select')
-    expect(repoFalso.leitura).not.toHaveBeenCalledWith(null)
-  })
-
-  it('dev vê todas por padrão, escolhe uma conta e ignora id inexistente', async () => {
-    const cookieDev = await entrarComo(EMAIL_DEV, 'senha-dev-123')
-    const alvo = await entrar()
-    const padrao = await (await get('/dashboard', cookieDev)).text()
-    expect(padrao).toContain('<select')
-    expect(repoFalso.leitura).toHaveBeenLastCalledWith(null)
-    expect(padrao).toContain(alvo.conta.email)
-    await get(`/dashboard?conta=${alvo.conta.id}`, cookieDev)
-    expect(repoFalso.leitura).toHaveBeenLastCalledWith(alvo.conta.id)
-    const r = await get('/dashboard?conta=nao-existe', cookieDev)
-    expect(r.status).toBe(200)
-    expect(repoFalso.leitura).toHaveBeenLastCalledWith(null)
+    expect(html).not.toContain(outra.conta.email)
+    expect(repoFalso.leitura).toHaveBeenCalledTimes(1)
+    expect(repoFalso.leitura).toHaveBeenCalledWith(eu.id)
   })
 })
 
@@ -777,13 +771,5 @@ describe('perfil', () => {
     expect(r.headers.get('location')).toBe('/perfil?ok=aparelhos')
     expect((await get('/perfil', cookie)).status).toBe(200)
     expect((await get('/perfil', outro)).headers.get('location')).toBe('/entrar')
-  })
-
-  it('dev: vê o cartão de acesso master, mas não altera nada (403)', async () => {
-    const cookie = await entrarComo(EMAIL_DEV, 'senha-dev-123')
-    const r = await get('/perfil', cookie)
-    expect(r.status).toBe(200)
-    expect(await r.text()).toContain('Dev (acesso master)')
-    for (const c of ['/perfil', '/perfil/senha', '/perfil/sair-aparelhos']) expect((await post(c, {}, { cookie })).status).toBe(403)
   })
 })

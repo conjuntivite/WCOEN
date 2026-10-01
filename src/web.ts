@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import QRCode from 'qrcode'
-import { ID_DEV, criarLimitador, type Conta, type ContaResumo, type Contas, type ErroCadastro } from './contas'
+import { criarLimitador, type Conta, type Contas, type ErroCadastro } from './contas'
 import type { Convites } from './convites'
 import { montarIndicadores } from './dashboard'
 import type { Mailer } from './mailer'
@@ -14,10 +14,9 @@ export type OpcoesWeb = {
   contas: Contas
   sessoes: Sessoes
   convites: Convites
-  repo: Repositorio // apaga o histórico ao excluir uma conta definitivamente e fornece as leituras do dashboard
+  repo: Repositorio // leituras do dashboard (sempre da própria conta)
   mailer?: Mailer
-  adminEmails?: string[] // veem /admin; comparado ao e-mail já normalizado da conta
-  devEmail?: string // e-mail do dev (acesso master só por configuração, sem cadastro); se houver linha antiga no banco, some das listas
+  adminEmails?: string[] // admins fixos (ADMIN_EMAILS): veem /admin e não são rebaixados pelo menu; os demais admins vêm do papel gravado na conta
   limitador?: ReturnType<typeof criarLimitador>
   cookieSeguro?: boolean // com HTTPS (DOMINIO definido)
   confiarProxy?: boolean // lê o IP de X-Forwarded-For (atrás do Caddy ou do proxy do Render)
@@ -75,9 +74,8 @@ function origemOk(req: IncomingMessage): boolean {
 export function criarWeb(op: OpcoesWeb): Server {
   const { contas, sessoes, convites } = op
   const limitador = op.limitador ?? criarLimitador(5, 15 * 60_000)
-  const souDev = (c: Conta) => c.id === ID_DEV
-  const isAdmin = (c: Conta) => souDev(c) || (op.adminEmails ?? []).includes(c.email)
-  const inicio = (c: Conta) => (souDev(c) ? '/dashboard' : '/painel') // o dev não tem WhatsApp
+  const fixos = op.adminEmails ?? []
+  const isAdmin = (c: Conta) => fixos.includes(c.email) || c.papel === 'admin'
 
   const html = (res: ServerResponse, status: number, corpo: string) => {
     res.writeHead(status, { ...CABECALHOS, 'Content-Type': 'text/html; charset=utf-8' })
@@ -123,13 +121,13 @@ export function criarWeb(op: OpcoesWeb): Server {
     const conta = await contaDe(req)
 
     if (metodo === 'GET') {
-      if (caminho === '/') return ir(res, conta ? inicio(conta) : '/painel')
+      if (caminho === '/') return ir(res, '/painel')
       if (caminho === '/entrar' || caminho === '/cadastro') {
-        if (conta) return ir(res, inicio(conta))
+        if (conta) return ir(res, '/painel')
         return html(res, 200, caminho === '/entrar' ? paginaEntrar() : paginaCadastro())
       }
       if (caminho === '/esqueci-senha') {
-        if (conta) return ir(res, inicio(conta))
+        if (conta) return ir(res, '/painel')
         return html(res, 200, paginaEsqueciSenha())
       }
       if (caminho === '/redefinir-senha') {
@@ -145,47 +143,36 @@ export function criarWeb(op: OpcoesWeb): Server {
       }
       if (caminho === '/painel') {
         if (!conta) return ir(res, '/entrar')
-        if (souDev(conta)) throw new HttpErro(403)
         const f = (await montarFragmento(conta.id))!
         const chave = url.searchParams.get('erro') ?? ''
         return html(res, 200, paginaPainel(conta.email, f.html, f.passo, Object.hasOwn(ERROS_PAINEL, chave) ? ERROS_PAINEL[chave] : undefined, isAdmin(conta), perfilDe(conta)))
       }
       if (caminho === '/dashboard') {
         if (!conta) return ir(res, '/entrar')
-        const dev = souDev(conta)
-        // usuário comum: sempre a própria conta (?conta= é ignorado). Só o dev escolhe; id desconhecido = todas.
-        let alvo: string | null = conta.id
-        let lista: ContaResumo[] = []
-        if (dev) {
-          lista = (await contas.listarContas()).filter((c) => c.email !== op.devEmail)
-          const pedido = url.searchParams.get('conta') ?? ''
-          alvo = lista.some((c) => c.id === pedido) ? pedido : null
-        }
         const agora = new Date()
         const { ano, mes } = mesAtual(agora)
-        const leitura = op.repo.leitura(alvo)
+        const leitura = op.repo.leitura(conta.id) // sempre a própria conta; ?conta= é ignorado, até para admin
         const [serie, balancete] = await Promise.all([leitura.serieMensal(agora, 6), leitura.balancete(intervaloDoMes(ano, mes))])
-        return html(res, 200, paginaDashboard(conta.email, montarIndicadores(serie, balancete), isAdmin(conta), dev ? { contas: lista, selecionada: alvo } : undefined, perfilDe(conta)))
+        return html(res, 200, paginaDashboard(conta.email, montarIndicadores(serie, balancete), isAdmin(conta), perfilDe(conta)))
       }
       if (caminho === '/admin') {
         if (!conta) return ir(res, '/entrar')
         if (!isAdmin(conta)) throw new HttpErro(403)
-        const contasAdmin = (await contas.listarContas()).filter((c) => c.email !== op.devEmail)
+        const contasAdmin = await contas.listarContas()
         const chaveErro = url.searchParams.get('erro') ?? ''
         const chaveOk = url.searchParams.get('ok') ?? ''
         const mensagem = Object.hasOwn(ERROS_ADMIN, chaveErro) ? ERROS_ADMIN[chaveErro] : Object.hasOwn(AVISOS_ADMIN, chaveOk) ? AVISOS_ADMIN[chaveOk] : undefined
-        return html(res, 200, paginaAdmin(conta.email, await convites.listar(), contasAdmin, souDev(conta), mensagem, perfilDe(conta)))
+        return html(res, 200, paginaAdmin(conta.email, await convites.listar(), contasAdmin, mensagem, perfilDe(conta), fixos))
       }
       if (caminho === '/perfil') {
         if (!conta) return ir(res, '/entrar')
         const chaveErro = url.searchParams.get('erro') ?? ''
         const chaveOk = url.searchParams.get('ok') ?? ''
         const mensagem = { erro: Object.hasOwn(ERROS_PERFIL, chaveErro) ? ERROS_PERFIL[chaveErro] : undefined, ok: Object.hasOwn(AVISOS_PERFIL, chaveOk) ? AVISOS_PERFIL[chaveOk] : undefined }
-        return html(res, 200, paginaPerfil(conta, souDev(conta) ? 'dev' : isAdmin(conta) ? 'admin' : 'usuario', souDev(conta) ? null : sessoes.visao(conta.id).estado, mensagem))
+        return html(res, 200, paginaPerfil(conta, isAdmin(conta) ? 'admin' : 'usuario', sessoes.visao(conta.id).estado, mensagem))
       }
       if (caminho === '/painel/eventos') {
         if (!conta) throw new HttpErro(401)
-        if (souDev(conta)) throw new HttpErro(403)
         res.writeHead(200, { ...CABECALHOS, 'Content-Type': 'text/event-stream', Connection: 'keep-alive' })
         let fila: Promise<unknown> = Promise.resolve()
         const enviar = () => {
@@ -215,12 +202,13 @@ export function criarWeb(op: OpcoesWeb): Server {
       const chaves = [`e:${email}`, `i:${ipDe(req)}`]
       if (chaves.some((k) => limitador.bloqueado(k))) return html(res, 429, paginaEntrar('Muitas tentativas. Aguarde alguns minutos.', email))
       const c = await contas.verificar(email, f.get('senha') ?? '')
+      if (c === 'expirada') return html(res, 401, paginaEntrar('Seu acesso expirou. Fale com o administrador.', email))
       if (!c) {
         chaves.forEach((k) => limitador.falhou(k))
         return html(res, 401, paginaEntrar('E-mail ou senha incorretos.', email))
       }
       limitador.limpar(chaves[0])
-      return ir(res, inicio(c), cookieSessao(await contas.criarLogin(c.id), TRINTA_DIAS_S))
+      return ir(res, '/painel', cookieSessao(await contas.criarLogin(c.id), TRINTA_DIAS_S))
     }
 
     if (caminho === '/cadastro') {
@@ -275,7 +263,6 @@ export function criarWeb(op: OpcoesWeb): Server {
     }
 
     if (!conta) return ir(res, '/entrar')
-    if ((caminho.startsWith('/painel/') || caminho.startsWith('/perfil')) && souDev(conta)) throw new HttpErro(403)
 
     if (caminho === '/perfil') {
       await contas.definirPerfil(conta.id, { nome: f.get('nome') ?? '', cor: f.get('cor') ?? '', icone: f.get('icone') ?? '' })
@@ -359,17 +346,19 @@ export function criarWeb(op: OpcoesWeb): Server {
       }
       return ir(res, '/admin?ok=redefinicao')
     }
-    if (caminho === '/admin/contas/excluir') {
+    if (caminho === '/admin/contas/papel') {
       if (!isAdmin(conta)) throw new HttpErro(403)
-      if (!souDev(conta)) throw new HttpErro(403)
       const id = f.get('id') ?? ''
-      const alvo = (await contas.listarContas()).find((c) => c.id === id)
-      if (!alvo) return ir(res, '/admin') // id forjado/inexistente: sem alvo para mostrar erro de confirmação
-      if ((f.get('confirmarEmail') ?? '').trim().toLowerCase() !== alvo.email) return ir(res, '/admin?erro=confirmacao')
-      await sessoes.desconectar(id)
-      await op.repo.apagarConta(id)
-      await contas.excluirConta(id)
-      return ir(res, '/admin')
+      const alvo = (await contas.listarContas()).find((c) => c.id === id) // porId esconde contas vencidas/desativadas, justamente as que o admin precisa renovar
+      if (!alvo) return ir(res, '/admin')
+      if (alvo.id === conta.id) return ir(res, '/admin?erro=proprio')
+      if (fixos.includes(alvo.email)) return ir(res, '/admin?erro=fixo')
+      const escolha = f.get('papel')
+      if (escolha !== 'admin' && escolha !== 'usuario' && escolha !== 'validade') return ir(res, '/admin')
+      const ate = f.get('ate') ?? ''
+      if (escolha === 'validade' && !ate) return ir(res, '/admin?erro=data')
+      const r = await contas.definirPapel(id, escolha === 'admin' ? 'admin' : 'usuario', escolha === 'validade' ? ate : undefined)
+      return ir(res, r === 'ok' ? '/admin?ok=papel' : '/admin?erro=data')
     }
     throw new HttpErro(404)
   }

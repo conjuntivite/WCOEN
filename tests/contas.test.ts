@@ -192,52 +192,92 @@ describe('redefinição de senha por e-mail', () => {
   })
 })
 
-describe('conta DEV e exclusão definitiva', () => {
-  describe('dev = acesso master só por configuração (sem cadastro)', () => {
-    let comDev: Awaited<ReturnType<typeof criarContas>>
-    const linhas = async (email: string) => (await pool.query('SELECT 1 FROM contas WHERE email = $1', [email])).rowCount
-    beforeAll(async () => {
-      comDev = await criarContas(pool, { convite: 'segredo', dev: { email: 'Devvirtual@X.com', senha: 'senha-dev-1' } })
-    })
+describe('papel e validade', () => {
+  const novaConta = async (email: string) => ((await cadastrar(email)) as { ok: true; conta: { id: string } }).conta
+  // relógio fixo: 2026-10-10 12:00Z = 09:00 em São Paulo
+  const comRelogio = (iso: string) => criarContas(pool, { convite: 'segredo', agora: () => new Date(iso) })
 
-    it('entra com e-mail e senha configurados, sem criar linha em contas', async () => {
-      const c = await comDev.verificar('devvirtual@x.com', 'senha-dev-1')
-      expect(c?.email).toBe('devvirtual@x.com')
-      expect(await comDev.verificar('devvirtual@x.com', 'errada-123')).toBeNull()
-      expect(await linhas('devvirtual@x.com')).toBe(0)
-    })
-
-    it('o login do dev vale como sessão e a conta virtual não tem grupo', async () => {
-      const c = (await comDev.verificar('devvirtual@x.com', 'senha-dev-1'))!
-      const token = await comDev.criarLogin(c.id)
-      expect(await comDev.contaDoLogin(token)).toEqual(c)
-    })
-
-    it('ninguém se cadastra com o e-mail do dev, nem com convite válido', async () => {
-      const r = await comDev.cadastrar('DEVVIRTUAL@x.com', 'senha-boa-123', 'segredo')
-      expect(r).toEqual({ ok: false, erro: 'email_em_uso' })
-      expect(await linhas('devvirtual@x.com')).toBe(0)
-    })
-
-    it('linha antiga no banco com o e-mail do dev fica inerte: só a senha da configuração entra', async () => {
-      const antiga = (await contas.cadastrar('devantigo@x.com', 'senha-antiga-1', 'segredo')) as { ok: true; conta: { id: string } }
-      const tokenAntigo = await contas.criarLogin(antiga.conta.id)
-      const c2 = await criarContas(pool, { convite: '', dev: { email: 'devantigo@x.com', senha: 'senha-nova-123' } })
-      expect(await c2.verificar('devantigo@x.com', 'senha-antiga-1')).toBeNull()
-      expect(await c2.verificar('devantigo@x.com', 'senha-nova-123')).not.toBeNull()
-      expect(await c2.contaDoLogin(tokenAntigo)).toBeNull() // sessão antiga não vira acesso master
-      expect(await c2.porEmail('devantigo@x.com')).toBeNull() // esqueci-senha não age sobre ela
-    })
+  it('conta nova é usuário, sem validade', async () => {
+    const c = await novaConta('novo@x.com')
+    expect(await contas.porId(c.id)).toMatchObject({ papel: 'usuario' })
+    expect((await contas.porId(c.id))?.validadeAte).toBeUndefined()
   })
 
-  it('excluirConta apaga logins, redefinições pendentes e a conta', async () => {
-    const { conta } = (await cadastrar('excluir@x.com')) as { ok: true; conta: { id: string } }
-    const token = await contas.criarLogin(conta.id)
-    await contas.criarRedefinicao(conta.id)
-    await contas.excluirConta(conta.id)
-    expect(await contas.contaDoLogin(token)).toBeNull()
-    expect((await pool.query('SELECT 1 FROM redefinicoes_senha WHERE conta_id = $1', [conta.id])).rowCount).toBe(0)
-    expect((await pool.query('SELECT 1 FROM contas WHERE id = $1', [conta.id])).rowCount).toBe(0)
+  it('definirPapel: admin, usuário e usuário com validade', async () => {
+    const c = await novaConta('papel@x.com')
+    expect(await contas.definirPapel(c.id, 'admin')).toBe('ok')
+    expect(await contas.porId(c.id)).toMatchObject({ papel: 'admin' })
+    expect(await contas.definirPapel(c.id, 'usuario', '2026-12-31')).toBe('ok')
+    expect(await contas.porId(c.id)).toMatchObject({ papel: 'usuario', validadeAte: '2026-12-31' })
+    expect(await contas.definirPapel(c.id, 'usuario')).toBe('ok') // sem data = sem validade
+    expect((await contas.porId(c.id))?.validadeAte).toBeUndefined()
+  })
+
+  it('admin nunca guarda validade', async () => {
+    const c = await novaConta('adm@x.com')
+    await contas.definirPapel(c.id, 'usuario', '2026-12-31')
+    await contas.definirPapel(c.id, 'admin', '2026-12-31')
+    expect((await contas.porId(c.id))?.validadeAte).toBeUndefined()
+  })
+
+  it.each([['amanhã'], ['2026-13-40'], ['2026-02-30'], ['31/12/2026']])('data inválida %j é recusada e nada muda', async (data) => {
+    const c = await novaConta('data@x.com')
+    expect(await contas.definirPapel(c.id, 'usuario', data)).toBe('data_invalida')
+    expect((await contas.porId(c.id))?.validadeAte).toBeUndefined()
+  })
+
+  it('vale até o último dia inteiro: no dia do término ainda entra', async () => {
+    const c = await novaConta('ultimo@x.com')
+    await contas.definirPapel(c.id, 'usuario', '2026-10-10')
+    const hoje = await comRelogio('2026-10-10T12:00:00Z')
+    expect(await hoje.verificar('ultimo@x.com', 'senha-boa-123')).not.toBeNull()
+    expect(await hoje.porId(c.id)).not.toBeNull()
+  })
+
+  it('no dia seguinte: senha certa vira "expirada" e senha errada continua nula', async () => {
+    const c = await novaConta('vencida@x.com')
+    await contas.definirPapel(c.id, 'usuario', '2026-10-10')
+    const token = await contas.criarLogin(c.id)
+    const depois = await comRelogio('2026-10-11T12:00:00Z')
+    expect(await depois.verificar('vencida@x.com', 'senha-boa-123')).toBe('expirada')
+    expect(await depois.verificar('vencida@x.com', 'errada-123')).toBeNull()
+    expect(await depois.porId(c.id)).toBeNull()
+    expect(await depois.contaDoLogin(token)).toBeNull() // a sessão aberta também cai
+    expect(await depois.porEmail('vencida@x.com')).toBeNull() // esqueci-senha não age
+  })
+
+  it('o dia vira à meia-noite de São Paulo, não à de UTC', async () => {
+    const c = await novaConta('fuso@x.com')
+    await contas.definirPapel(c.id, 'usuario', '2026-10-10')
+    // 2026-10-11T01:00Z = 22:00 do dia 10 em São Paulo: ainda vale
+    expect(await (await comRelogio('2026-10-11T01:00:00Z')).porId(c.id)).not.toBeNull()
+    // 2026-10-11T03:00Z = 00:00 do dia 11 em São Paulo: venceu
+    expect(await (await comRelogio('2026-10-11T03:00:00Z')).porId(c.id)).toBeNull()
+  })
+
+  it('conectadas() ignora vencidas; vencidasConectadas() as lista para desconectar', async () => {
+    const a = await novaConta('a@x.com')
+    const b = await novaConta('b@x.com')
+    await contas.marcarConectada(a.id, true)
+    await contas.marcarConectada(b.id, true)
+    await contas.definirPapel(b.id, 'usuario', '2026-10-10')
+    const depois = await comRelogio('2026-10-11T12:00:00Z')
+    expect(await depois.conectadas()).toEqual([a.id])
+    expect(await depois.vencidasConectadas()).toEqual([b.id])
+    expect(await (await comRelogio('2026-10-10T12:00:00Z')).vencidasConectadas()).toEqual([])
+  })
+
+  it('listarContas traz papel, validade e se já venceu', async () => {
+    const c = await novaConta('lista@x.com')
+    await contas.definirPapel(c.id, 'usuario', '2026-10-10')
+    const [r] = await (await comRelogio('2026-10-11T12:00:00Z')).listarContas()
+    expect(r).toMatchObject({ email: 'lista@x.com', papel: 'usuario', validadeAte: '2026-10-10', vencida: true })
+    const [r2] = await (await comRelogio('2026-10-10T12:00:00Z')).listarContas()
+    expect(r2.vencida).toBe(false)
+  })
+
+  it('não existe mais acesso dev: o e-mail dev@x.com se cadastra como qualquer outro', async () => {
+    expect((await cadastrar('dev@x.com')).ok).toBe(true)
   })
 })
 
