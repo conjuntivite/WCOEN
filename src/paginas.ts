@@ -1,4 +1,4 @@
-import { AVATAR_CORES, AVATAR_ICONES, type Conta, type ContaResumo, type Perfil } from './contas'
+import { AVATAR_CORES, AVATAR_ICONES, type Conta, type ContaResumo, type Papel, type Perfil } from './contas'
 import type { Convite } from './convites'
 import type { Aviso, Visao } from './sessoes'
 import { rotuloMesCurto, svgTendencia, type Indicadores } from './dashboard'
@@ -197,8 +197,7 @@ const layout = (titulo: string, corpo: string, script = '') =>
 // menu lateral das telas logadas (painel, dashboard, admin, perfil)
 type Tela = 'painel' | 'dashboard' | 'admin' | 'perfil'
 const NAV: Tela[] = ['painel', 'dashboard', 'admin']
-export type Papel = 'usuario' | 'admin' | 'dev'
-const PAPEIS: Record<Papel, string> = { usuario: 'Usuário', admin: 'Administrador', dev: 'Dev (acesso master)' }
+const PAPEIS: Record<Papel, string> = { usuario: 'Usuário', admin: 'Administrador' }
 const TELAS: Record<Tela, [string, keyof typeof ICONES]> = { painel: ['Painel', 'casa'], dashboard: ['Dashboard', 'grafico'], admin: ['Administração', 'escudo'], perfil: ['Perfil', 'pessoa'] }
 
 export const perfilDe = (c: Conta): Perfil => ({ nome: c.nome, cor: c.avatarCor, icone: c.avatarIcone })
@@ -210,10 +209,10 @@ const avatar = (email: string, p?: Perfil) => {
 
 const shell = (ativa: Tela, email: string, papel: Papel, principal: string, larga = false, script = '', perfil?: Perfil) => {
   const itens = NAV
-    .filter((t) => (t !== 'admin' || papel !== 'usuario') && (t !== 'painel' || papel !== 'dev')) // o dev não tem painel de WhatsApp
+    .filter((t) => t !== 'admin' || papel === 'admin')
     .map((t) => `<a class="item" href="/${t}"${t === ativa ? ' aria-current="page"' : ''}>${ic(TELAS[t][1])}<span class="rotulo">${TELAS[t][0]}</span></a>`)
     .join('')
-  const inicio = papel === 'dev' ? '/dashboard' : '/painel'
+  const inicio = '/painel'
   const nome = perfil?.nome?.trim()
   return layout(
     TELAS[ativa][0],
@@ -309,10 +308,13 @@ export const ERROS_PAINEL: Record<string, string> = {
 }
 
 export const ERROS_ADMIN: Record<string, string> = {
-  confirmacao: 'E-mail de confirmação não confere.',
+  data: 'Data inválida. Escolha o último dia de acesso no calendário.',
+  proprio: 'Você não pode alterar a própria permissão.',
+  fixo: 'Esta conta é administradora fixa (ADMIN_EMAILS) e só pode ser alterada na configuração do servidor.',
 }
 export const AVISOS_ADMIN: Record<string, string> = {
   redefinicao: 'Link de redefinição enviado.',
+  papel: 'Permissão atualizada.',
 }
 
 export const SCRIPT_PAINEL = `const alvo = document.getElementById('estado')
@@ -345,23 +347,15 @@ const variacao = (v: number | null, altaEhBoa: boolean) => {
 const kpi = (rotulo: string, valor: number, v: number | null, altaEhBoa: boolean) =>
   `<div class="kpi"><div class="rot">${rotulo}</div><div class="num">${formatBRL(valor)}</div>${variacao(v, altaEhBoa)}</div>`
 
-export const paginaDashboard = (
-  email: string,
-  ind: Indicadores,
-  admin: boolean,
-  dev?: { contas: { id: string; email: string }[]; selecionada: string | null },
-  perfil?: Perfil,
-) => {
-  const seletor = dev
-    ? `<form class="filtro" method="get" action="/dashboard"><label for="conta">Conta</label><select id="conta" name="conta"><option value="">Todas as contas</option>${dev.contas.map((c) => `<option value="${esc(c.id)}"${c.id === dev.selecionada ? ' selected' : ''}>${esc(c.email)}</option>`).join('')}</select><button class="btn sec pequeno">Ver</button></form>`
-    : ''
+// o dashboard é sempre da própria conta: nem o admin enxerga os valores de outras
+export const paginaDashboard = (email: string, ind: Indicadores, admin: boolean, perfil?: Perfil) => {
   const corpo = ind.vazio
     ? '<div class="cartao"><p>Nenhum lançamento nos últimos 6 meses. Registre uma despesa ou receita no grupo do WhatsApp e ela aparece aqui.</p></div>'
     : `<div class="kpis">${kpi('Saldo do mês', ind.saldo, ind.variacao.saldo, true)}${kpi('Receitas', ind.mes.receitas, ind.variacao.receitas, true)}${kpi('Despesas', ind.mes.despesas, ind.variacao.despesas, false)}</div>
 <section class="cartao"><h2>Últimos ${ind.serie.length} meses</h2>${svgTendencia(ind.serie)}<ul class="legenda"><li><i class="l-rec"></i>Receitas</li><li><i class="l-desp"></i>Despesas</li></ul>
 <details><summary>Ver dados em tabela</summary><table><thead><tr><th>Mês</th><th>Receitas</th><th>Despesas</th></tr></thead><tbody>${ind.serie.map((s) => `<tr><td>${rotuloMesCurto(s)}/${s.ano}</td><td>${formatBRL(s.receitas)}</td><td>${formatBRL(s.despesas)}</td></tr>`).join('')}</tbody></table></details></section>
 <section class="cartao"><h2>Despesas por categoria</h2>${ind.categorias.length ? `<ul class="cats">${ind.categorias.map((c) => `<li><span class="nome">${esc(c.conta)}</span><span class="valor">${formatBRL(c.total)}</span><div class="trilho" aria-hidden="true"><div style="width:${c.largura}%"></div></div></li>`).join('')}</ul>` : '<p class="sub">Sem despesas neste mês.</p>'}</section>`
-  return shell('dashboard', email, dev ? 'dev' : admin ? 'admin' : 'usuario', `<main id="conteudo" class="dash"><div><h1>Dashboard</h1><p class="sub">${nomeMes(ind.mes.ano, ind.mes.mes)}</p></div>${seletor}${corpo}</main>`, true, '', perfil)
+  return shell('dashboard', email, admin ? 'admin' : 'usuario', `<main id="conteudo" class="dash"><div><h1>Dashboard</h1><p class="sub">${nomeMes(ind.mes.ano, ind.mes.mes)}</p></div>${corpo}</main>`, true, '', perfil)
 }
 
 // --- administração (convites) --------------------------------------------
@@ -376,21 +370,27 @@ const itemConvite = (c: Convite) => {
 
 const dataHoraCurta = (d: Date) => new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeZone: 'America/Sao_Paulo' }).format(d)
 
-const itemConta = (c: ContaResumo, souDev: boolean) => {
-  const status = c.ativa ? '<span class="chip chip-ok">Ativa</span>' : '<span class="chip">Desativada</span>'
+const dataBR = (iso: string) => iso.split('-').reverse().join('/')
+
+// o seletor de permissão só aparece para quem o admin pode mudar: não para si mesmo nem para os admins fixos (ADMIN_EMAILS)
+const itemConta = (c: ContaResumo, editavel: boolean) => {
+  const status = !c.ativa ? '<span class="chip">Desativada</span>' : c.vencida ? '<span class="chip">Vencida</span>' : '<span class="chip chip-ok">Ativa</span>'
   const conexao = c.conectada ? `<span class="sub">· conectada${c.grupoNome ? ` (${esc(c.grupoNome)})` : ''}</span>` : ''
   const alternar = `<form method="post" action="/admin/contas/${c.ativa ? 'desativar' : 'reativar'}"><input type="hidden" name="id" value="${esc(c.id)}"><button class="btn sec pequeno">${c.ativa ? 'Desativar' : 'Reativar'}</button></form>`
   const redefinir = c.ativa
     ? `<form method="post" action="/admin/contas/redefinir"><input type="hidden" name="id" value="${esc(c.id)}"><button class="btn sec pequeno">Enviar link de redefinição</button></form>`
     : ''
-  const excluir = souDev
-    ? `<details><summary>Excluir definitivamente</summary><form method="post" action="/admin/contas/excluir"><input type="hidden" name="id" value="${esc(c.id)}"><div class="campo"><label for="confirmar-${esc(c.id)}">Digite ${esc(c.email)} para confirmar</label><input id="confirmar-${esc(c.id)}" name="confirmarEmail" type="text" required autocomplete="off"></div><button class="btn sec pequeno">Excluir definitivamente</button></form></details>`
+  const atual = c.papel === 'admin' ? 'admin' : c.validadeAte ? 'validade' : 'usuario'
+  const opcao = (v: string, rotulo: string) => `<option value="${v}"${v === atual ? ' selected' : ''}>${rotulo}</option>`
+  const permissao = editavel
+    ? `<form method="post" action="/admin/contas/papel" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input type="hidden" name="id" value="${esc(c.id)}"><select name="papel" aria-label="Permissão de ${esc(c.email)}">${opcao('admin', 'Administrador')}${opcao('usuario', 'Usuário')}${opcao('validade', 'Usuário com validade')}</select><input type="date" name="ate" value="${esc(c.validadeAte ?? '')}" aria-label="Último dia de acesso"><button class="btn sec pequeno">Salvar</button></form>`
     : ''
-  return `<li class="convite"><div><code>${esc(c.email)}</code> <span class="sub">· ${dataHoraCurta(c.criadaEm)}</span>${conexao}</div>${status}${alternar}${redefinir}${excluir}</li>`
+  const papel = `<span class="chip">${c.papel === 'admin' ? 'Administrador' : 'Usuário'}</span>${c.validadeAte ? `<span class="sub">Até ${dataBR(c.validadeAte)}</span>` : ''}`
+  return `<li class="convite"><div><code>${esc(c.email)}</code> <span class="sub">· ${dataHoraCurta(c.criadaEm)}</span>${conexao}</div>${status}${papel}${permissao}${alternar}${redefinir}</li>`
 }
 
-export const paginaAdmin = (email: string, convites: Convite[], contasAdmin: ContaResumo[] = [], souDev = false, mensagem?: string, perfil?: Perfil) =>
-  shell('admin', email, souDev ? 'dev' : 'admin', `<main id="conteudo">${aviso(mensagem)}<div class="cartao"><h2>Novo convite</h2><p class="sub">Gera um código de uso único para um cadastro.</p><form method="post" action="/admin/convites"><div class="campo"><label for="nota">Nota (opcional)</label><input id="nota" name="nota" type="text" maxlength="80" placeholder="Ex.: para o João"></div><button class="btn">Gerar convite</button></form></div><div class="cartao"><h2>Convites</h2>${convites.length ? `<ul class="convites">${convites.map(itemConvite).join('')}</ul>` : '<p class="sub">Nenhum convite ainda.</p>'}</div><div class="cartao"><h2>Contas</h2>${contasAdmin.length ? `<ul class="convites">${contasAdmin.map((c) => itemConta(c, souDev)).join('')}</ul>` : '<p class="sub">Nenhuma conta cadastrada ainda.</p>'}</div></main>`, false, '', perfil)
+export const paginaAdmin = (email: string, convites: Convite[], contasAdmin: ContaResumo[] = [], mensagem?: string, perfil?: Perfil, fixos: string[] = []) =>
+  shell('admin', email, 'admin', `<main id="conteudo">${aviso(mensagem)}<div class="cartao"><h2>Novo convite</h2><p class="sub">Gera um código de uso único para um cadastro.</p><form method="post" action="/admin/convites"><div class="campo"><label for="nota">Nota (opcional)</label><input id="nota" name="nota" type="text" maxlength="80" placeholder="Ex.: para o João"></div><button class="btn">Gerar convite</button></form></div><div class="cartao"><h2>Convites</h2>${convites.length ? `<ul class="convites">${convites.map(itemConvite).join('')}</ul>` : '<p class="sub">Nenhum convite ainda.</p>'}</div><div class="cartao"><h2>Contas</h2>${contasAdmin.length ? `<ul class="convites">${contasAdmin.map((c) => itemConta(c, c.email !== email && !fixos.includes(c.email))).join('')}</ul>` : '<p class="sub">Nenhuma conta cadastrada ainda.</p>'}</div></main>`, false, '', perfil)
 
 const AVISOS: Record<Aviso, string> = {
   qr_expirado: 'O QR expirou. Clique em Conectar para gerar outro.',
@@ -480,12 +480,9 @@ const opcaoCor = (c: (typeof AVATAR_CORES)[number], atual: string) =>
 const opcaoIcone = (i: (typeof AVATAR_ICONES)[number], atual: string) =>
   `<label class="op"><input type="radio" name="icone" value="${i}"${i === atual ? ' checked' : ''}><span class="avatar neutro" aria-hidden="true">${i === 'inicial' ? 'A' : ic(i)}</span><span class="so-leitor">${NOMES_ICONE[i]}</span></label>`
 
-export const paginaPerfil = (conta: Conta, papel: Papel, estado: Visao['estado'] | null, mensagem: { erro?: string; ok?: string } = {}) => {
+export const paginaPerfil = (conta: Conta, papel: Papel, estado: Visao['estado'], mensagem: { erro?: string; ok?: string } = {}) => {
   const dados = `<dl class="dados"><dt>E-mail</dt><dd>${esc(conta.email)}</dd><dt>Papel</dt><dd>${PAPEIS[papel]}</dd>${conta.criadaEm ? `<dt>Membro desde</dt><dd>${dataHoraCurta(conta.criadaEm)}</dd>` : ''}</dl>`
   const cabeca = `<div><h1>Perfil</h1></div>${aviso(mensagem.erro)}${aviso(mensagem.ok, 'ok')}`
-  if (papel === 'dev' || !estado) {
-    return shell('perfil', conta.email, papel, `<main id="conteudo" class="pilha">${cabeca}<section class="cartao"><h2>Acesso master</h2>${dados}<p class="sub" style="margin-top:12px">Este acesso existe só na configuração do servidor: não tem cadastro, avatar, WhatsApp nem senha editável aqui.</p></section></main>`, false, '', perfilDe(conta))
-  }
   const corAtual = conta.avatarCor ?? 'vermelho'
   const iconeAtual = conta.avatarIcone ?? 'inicial'
   const identidade = `<section class="cartao"><h2>Identidade</h2><form method="post" action="/perfil"><div class="campo"><label for="nome">Nome de exibição</label><input id="nome" name="nome" type="text" maxlength="40" autocomplete="name" placeholder="Como você quer aparecer" value="${esc(conta.nome ?? '')}"></div><fieldset class="opcoes"><legend>Cor do avatar</legend>${AVATAR_CORES.map((c) => opcaoCor(c, corAtual)).join('')}</fieldset><fieldset class="opcoes"><legend>Ícone do avatar</legend>${AVATAR_ICONES.map((i) => opcaoIcone(i, iconeAtual)).join('')}</fieldset><button class="btn">Salvar perfil</button></form></section>`

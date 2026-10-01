@@ -165,12 +165,9 @@ describe('menu lateral das telas logadas', () => {
     expect(paginaPainel('a@x.com', 'x', 'desconectado')).toContain('Usuário')
   })
 
-  it('dev: sem item Painel, logo aponta ao dashboard e papel próprio', () => {
-    const html = paginaDashboard('dev@x.com', ind, true, { contas: [], selecionada: null })
-    expect(html).not.toContain('href="/painel"')
-    expect(html).toContain('Dev (acesso master)')
-    expect(paginaAdmin('dev@x.com', [], [], true)).toContain('Dev (acesso master)')
-    expect(paginaAdmin('ana@x.com', [], [], false)).toContain('Administrador')
+  it('papéis: Administrador e Usuário', () => {
+    expect(paginaAdmin('ana@x.com', [])).toContain('Administrador')
+    expect(paginaDashboard('ana@x.com', ind, false)).toContain('Usuário')
   })
 
   it('Administração só no menu de admin', () => {
@@ -243,32 +240,57 @@ describe('esqueci a senha / redefinir senha', () => {
 })
 
 describe('admin: contas', () => {
-  const contaAtiva: ContaResumo = { id: 'c1', email: 'ana@x.com', criadaEm: new Date('2026-09-10T12:00:00Z'), conectada: true, grupoNome: 'Casa', ativa: true }
-  const contaInativa: ContaResumo = { id: 'c2', email: 'bob@x.com', criadaEm: new Date('2026-09-11T12:00:00Z'), conectada: false, ativa: false }
+  const base = { criadaEm: new Date('2026-09-10T12:00:00Z'), conectada: false, ativa: true, papel: 'usuario' as const, vencida: false }
+  const contaAtiva: ContaResumo = { ...base, id: 'c1', email: 'ana@x.com', conectada: true, grupoNome: 'Casa' }
+  const contaInativa: ContaResumo = { ...base, id: 'c2', email: 'bob@x.com', ativa: false }
 
   it('lista as contas com e-mail e ação de alternar status', () => {
-    const html = paginaAdmin('admin@x.com', [], [contaAtiva, contaInativa], false)
+    const html = paginaAdmin('admin@x.com', [], [contaAtiva, contaInativa])
     expect(html).toContain('ana@x.com')
     expect(html).toMatch(/action="\/admin\/contas\/desativar"[\s\S]*?value="c1"/)
     expect(html).toMatch(/action="\/admin\/contas\/reativar"[\s\S]*?value="c2"/)
   })
 
   it('"Enviar link de redefinição" só aparece para conta ativa', () => {
-    const html = paginaAdmin('admin@x.com', [], [contaAtiva, contaInativa], false)
+    const html = paginaAdmin('admin@x.com', [], [contaAtiva, contaInativa])
     expect(html).toMatch(/value="c1"[\s\S]{0,300}Enviar link de redefinição/)
     expect(html).not.toMatch(/value="c2"[\s\S]{0,300}Enviar link de redefinição/)
   })
 
-  it('"Excluir definitivamente" só aparece quando souDev é true', () => {
-    const semDev = paginaAdmin('admin@x.com', [], [contaAtiva], false)
-    const comDev = paginaAdmin('dev@x.com', [], [contaAtiva], true)
-    expect(semDev).not.toContain('Excluir definitivamente')
-    expect(comDev).toContain('Excluir definitivamente')
-    expect(comDev).toContain('Digite ana@x.com para confirmar')
+  it('não existe exclusão de conta na tela', () => {
+    const html = paginaAdmin('admin@x.com', [], [contaAtiva])
+    expect(html).not.toContain('Excluir')
+    expect(html).not.toContain('/admin/contas/excluir')
   })
 
   it('sem contas: mensagem de lista vazia', () => {
-    expect(paginaAdmin('admin@x.com', [], [], false)).toContain('Nenhuma conta cadastrada ainda.')
+    expect(paginaAdmin('admin@x.com', [], [])).toContain('Nenhuma conta cadastrada ainda.')
+  })
+
+  it('menu de permissões: seletor com os 3 níveis e o atual marcado', () => {
+    const html = paginaAdmin('admin@x.com', [], [contaAtiva])
+    expect(html).toContain('action="/admin/contas/papel"')
+    expect(html).toMatch(/<option value="admin">Administrador<\/option>/)
+    expect(html).toMatch(/<option value="usuario" selected>Usuário<\/option>/)
+    expect(html).toMatch(/<option value="validade">Usuário com validade<\/option>/)
+    const comValidade = paginaAdmin('admin@x.com', [], [{ ...contaAtiva, validadeAte: '2026-12-31' }])
+    expect(comValidade).toMatch(/<option value="validade" selected>/)
+    expect(comValidade).toContain('type="date"')
+    expect(comValidade).toContain('value="2026-12-31"')
+    expect(comValidade).toContain('Até 31/12/2026')
+    expect(paginaAdmin('admin@x.com', [], [{ ...contaAtiva, papel: 'admin' }])).toMatch(/<option value="admin" selected>/)
+  })
+
+  it('conta vencida aparece marcada', () => {
+    const html = paginaAdmin('admin@x.com', [], [{ ...contaAtiva, validadeAte: '2026-01-01', vencida: true }])
+    expect(html).toContain('Vencida')
+  })
+
+  it('a própria conta e os admins fixos não têm seletor (só o rótulo do papel)', () => {
+    const html = paginaAdmin('ana@x.com', [], [contaAtiva, contaInativa], undefined, undefined, ['bob@x.com'])
+    expect(html).not.toMatch(/action="\/admin\/contas\/papel"/)
+    const outra = paginaAdmin('admin@x.com', [], [contaAtiva, contaInativa], undefined, undefined, ['bob@x.com'])
+    expect(outra.match(/action="\/admin\/contas\/papel"/g)).toHaveLength(1) // só a de ana; bob é fixo
   })
 })
 
@@ -302,12 +324,9 @@ describe('paginaDashboard', () => {
     expect(html).not.toContain('role="img"')
   })
 
-  it('seletor de contas só aparece para o dev, com a atual marcada', () => {
+  it('nunca tem seletor de contas, nem para o admin', () => {
     expect(paginaDashboard('ana@x.com', ind(), false)).not.toContain('<select')
-    const html = paginaDashboard('dev@x.com', ind(), true, { contas: [{ id: 'c1', email: 'a@x.com' }, { id: 'c2', email: 'b@x.com' }], selecionada: 'c2' })
-    expect(html).toContain('<select')
-    expect(html).toContain('value="c2" selected')
-    expect(html).toContain('Todas as contas')
+    expect(paginaDashboard('adm@x.com', ind(), true)).not.toContain('<select')
   })
 
   it('o painel ganha o link para o dashboard', () => {
@@ -361,13 +380,6 @@ describe('página de perfil', () => {
   it('mensagem de erro e de sucesso', () => {
     expect(paginaPerfil(ana, 'usuario', 'desconectado', { erro: 'Senha atual incorreta.' })).toContain('Senha atual incorreta.')
     expect(paginaPerfil(ana, 'usuario', 'desconectado', { ok: 'Perfil salvo.' })).toMatch(/class="aviso ok"[^>]*>[\s\S]*Perfil salvo\./)
-  })
-
-  it('dev: só o cartão de acesso master, sem formulários', () => {
-    const html = paginaPerfil({ id: 'dev', email: 'dev@x.com' }, 'dev', null)
-    expect(html).toContain('Dev (acesso master)')
-    expect(html).not.toContain('<form method="post" action="/perfil')
-    expect(html).not.toContain('href="/painel"')
   })
 
   it('o menu de todas as telas usa o avatar e o nome escolhidos', () => {

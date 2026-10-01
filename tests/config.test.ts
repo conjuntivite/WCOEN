@@ -79,14 +79,4 @@ describe('loadConfig', () => {
     expect(c.smtp).toMatchObject({ port: 465, from: 'no-reply@exemplo.com' })
   })
 
-  it('DEV é opcional: sem DEV_EMAIL/DEV_PASSWORD fica desligado', () => {
-    expect(loadConfig(base).dev).toBeUndefined()
-  })
-
-  it('lê e normaliza DEV_EMAIL; exige os dois definidos juntos', () => {
-    const c = loadConfig({ ...base, DEV_EMAIL: ' Dev@X.com ', DEV_PASSWORD: 'senha-dev-123' })
-    expect(c.dev).toEqual({ email: 'dev@x.com', senha: 'senha-dev-123' })
-    expect(() => loadConfig({ ...base, DEV_EMAIL: 'dev@x.com' })).toThrow('DEV_EMAIL e DEV_PASSWORD')
-    expect(() => loadConfig({ ...base, DEV_PASSWORD: 'senha-dev-123' })).toThrow('DEV_EMAIL e DEV_PASSWORD')
-  })
 })

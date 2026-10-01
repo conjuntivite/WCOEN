@@ -26,9 +26,7 @@ const paraLancamento = (r: Row): Lancamento => ({
 class PgRepo implements Repo {
   constructor(
     private pool: Pool,
-    // null = todas as contas; só as leituras (balancete, serieMensal) aceitam. add/desfazerUltimo/extrato seguem
-    // com "conta_id = $1", que com null não casa nada (e o tipo Leitura esconde a escrita).
-    private contaId: string | null,
+    private contaId: string,
   ) {}
 
   async add(l: NovoLancamento) {
@@ -120,8 +118,7 @@ export async function criarRepo(pool: Pool) {
   `)
   return {
     repoDe: (contaId: string) => new PgRepo(pool, contaId) as Repo,
-    leitura: (contaId: string | null) => new PgRepo(pool, contaId) as Leitura, // null = todas as contas (só o dev, no dashboard)
-    apagarConta: (contaId: string) => pool.query('DELETE FROM lancamentos WHERE conta_id = $1', [contaId]).then(() => undefined),
+    leitura: (contaId: string) => new PgRepo(pool, contaId) as Leitura,
   }
 }
 

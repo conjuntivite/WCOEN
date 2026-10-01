@@ -11,7 +11,6 @@ export type Config = {
   openrouter?: { apiKey: string; models: string[] } // opcional: sem chave, a auditoria fica desligada; models (só pagos) em ordem de tentativa
   smtp?: { host: string; port: number; user: string; pass: string; from: string } // opcional: sem SMTP_HOST, o link de redefinição só é logado no console
   resend?: { apiKey: string; from: string } // opcional: e-mail por API HTTPS (vale no Render gratuito, que bloqueia SMTP); tem prioridade sobre o SMTP
-  dev?: { email: string; senha: string } // opcional: acesso master (dev) só por configuração, sem cadastro no banco
 }
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
@@ -40,12 +39,6 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
 
   const resend = env.RESEND_API_KEY ? { apiKey: env.RESEND_API_KEY, from: env.RESEND_FROM || 'WCOEN <onboarding@resend.dev>' } : undefined
 
-  let dev: Config['dev']
-  if (env.DEV_EMAIL || env.DEV_PASSWORD) {
-    if (!env.DEV_EMAIL || !env.DEV_PASSWORD) throw new Error('DEV_EMAIL e DEV_PASSWORD precisam ser definidos juntos')
-    dev = { email: env.DEV_EMAIL.trim().toLowerCase(), senha: env.DEV_PASSWORD }
-  }
-
   return {
     databaseUrl,
     porta: Number(env.PORTA) || 3000,
@@ -57,6 +50,5 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     openrouter,
     smtp,
     resend,
-    dev,
   }
 }

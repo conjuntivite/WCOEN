@@ -69,11 +69,17 @@ O bot roda como serviço: cada cliente se cadastra no portal, conecta o próprio
 
 ### Dashboard
 
-`/dashboard` mostra saldo, receitas e despesas do mês (com variação sobre o mês anterior), a tendência dos últimos 6 meses e as despesas por categoria, só da própria conta. O acesso DEV (`DEV_EMAIL`/`DEV_PASSWORD`) existe só na configuração, sem cadastro no banco: vê todas as contas somadas ou escolhe uma, e não usa o painel de WhatsApp.
+`/dashboard` mostra saldo, receitas e despesas do mês (com variação sobre o mês anterior), a tendência dos últimos 6 meses e as despesas por categoria, só da própria conta. Nem o admin vê os valores de outras contas.
 
 ### Administração
 
-Definir `ADMIN_EMAILS` (e-mails já cadastrados, separados por vírgula) libera `/admin` para essas contas — um link "Administração" aparece no painel delas. Lá dá para gerar convites de uso único (com uma nota opcional para lembrar quem é) e revogar os que ainda não foram usados. O `CONVITE` do `.env` continua funcionando como plano B, multiuso, para não depender só do banco de convites.
+`ADMIN_EMAILS` (e-mails já cadastrados, separados por vírgula) define os administradores fixos: veem `/admin` e não podem ser rebaixados pelo menu. Não há login especial nem senha fixa: todo acesso é por e-mail e senha de uma conta. Em `/admin` dá para gerar convites de uso único (com uma nota opcional para lembrar quem é) e revogar os que ainda não foram usados, e também:
+
+- **Permissões** de cada conta: *Administrador*, *Usuário* ou *Usuário com validade* (com o último dia de acesso). Quem não é admin fixo começa como usuário. O admin não altera a própria permissão.
+- **Validade:** vale até o fim do dia escolhido, no fuso de São Paulo. Depois disso a conta se comporta como desativada: o login avisa que o acesso expirou, as sessões abertas caem e o WhatsApp é desconectado (a conferência roda ao subir e a cada hora).
+- **Desativar/reativar** contas e enviar o link de redefinição de senha. Contas não são excluídas pelo portal.
+
+O `CONVITE` do `.env` continua funcionando como plano B, multiuso, para não depender só do banco de convites.
 
 ### Operação
 

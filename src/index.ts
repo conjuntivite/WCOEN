@@ -22,7 +22,7 @@ try {
 }
 
 const convites = await criarConvites(banco.pool)
-const contas = await criarContas(banco.pool, { convite: config.convite, convites, dev: config.dev })
+const contas = await criarContas(banco.pool, { convite: config.convite, convites })
 const repo = await criarRepo(banco.pool)
 await garantirTabelaAuth(banco.pool)
 
@@ -49,7 +49,6 @@ const web = criarWeb({
   repo,
   mailer,
   adminEmails: config.adminEmails,
-  devEmail: config.dev?.email,
   limitador: criarLimitador(5, 15 * 60_000),
   cookieSeguro: Boolean(config.dominio),
   confiarProxy: Boolean(config.dominio),
@@ -59,6 +58,18 @@ web.listen(config.porta, () => console.log(`Portal em http://localhost:${config.
 
 // reabre as sessões que estavam conectadas antes do reinício, escalonadas
 void sessoes.reabrir(await contas.conectadas())
+
+// A validade já barra login e sessão; aqui o bot de quem venceu é desconectado (na hora de subir e a cada hora).
+// ponytail: até 1 h de atraso entre o vencimento e o WhatsApp cair; encurtar o intervalo se isso importar.
+const desconectarVencidas = () =>
+  contas
+    .vencidasConectadas()
+    .then(async (ids) => {
+      for (const id of ids) await sessoes.desconectar(id)
+    })
+    .catch((err) => console.error('vencidas:', err instanceof Error ? err.message : err))
+await desconectarVencidas()
+const vencimentos = setInterval(() => void desconectarVencidas(), 60 * 60_000)
 
 // ponytail: "self-ping" para plataformas free-tier (ex.: Render) que hibernam o serviço sem tráfego
 // HTTP por um tempo — comportamento observado, não uma garantia documentada da plataforma; se o
@@ -71,6 +82,7 @@ async function sair() {
   if (saindo) process.exit(1) // segundo sinal: sai já
   saindo = true
   if (autoPing) clearInterval(autoPing)
+  clearInterval(vencimentos)
   web.close()
   web.closeAllConnections()
   await sessoes.encerrar()
