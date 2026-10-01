@@ -22,27 +22,25 @@ Requer Node >= 20.6 (o `npm start` usa `--env-file`).
 
 | Digite | Efeito |
 |---|---|
-| `mercado 45,90` | despesa |
-| `+ 70 plantão` ou `+ plantão 70` | receita (o `+` no início marca receita; o valor pode vir antes ou depois) |
-| `salário 3000`, `plantão 450`, `venda beck 120` | receita **sem precisar do `+`**, quando a descrição começa com uma palavra de receita: salário, décimo terceiro, plantão, freela/freelance, comissão, bônus, venda(s), reembolso, rendimento(s), pró-labore. O sinal `-` sempre vence (`- salário 100` é despesa). Palavras ambíguas (`pix`, `pagamento`, `aluguel`) exigem o `+` |
-| `- 130 role na avenida` ou `- role 130` | despesa (o `-` no início marca despesa; o valor pode vir antes ou depois) |
-| `balancete` | os movimentos **de hoje** (dia, hora, valor e descrição de cada um) e o total do dia |
-| `balancete mensal` | resumo (receitas, despesas e saldo) do mês atual e dos meses anteriores, até 12 |
-| `balancete semanal` | resumo da semana atual (domingo a sábado) e das 3 anteriores |
-| `balancete anual` | resumo do ano atual e dos 4 anteriores |
-| `extrato` / `extrato 2` | todos os lançamentos, do mais recente ao mais antigo, **20 por página**; no fim da página o bot diz qual comando digitar para ver a próxima (`extrato 2`, `extrato 3`...) |
-| `auditoria` (+ `semanal` ou `anual`) | ranking dos maiores gastos, comparação com o período anterior e sugestões da IA |
-| `+ plantão 450 ontem`, `mercado 45 15/09` | data opcional no fim: `hoje`, `ontem`, `anteontem`, `dd/mm`, `dd/mm/aaaa`. Sem data, vale o dia do envio da mensagem |
-| `desfazer` | desfaz o último lançamento |
-| `ajuda` | lista os comandos |
+| `/d mercado 45,90` ou `/despesa mercado 45,90` | despesa: `/d descrição valor [data]` |
+| `/r plantão 70` ou `/receita plantão 70` | receita: `/r descrição valor [data]` |
+| `/balancete` (`/b`) | os movimentos **de hoje** (dia, hora, valor e descrição de cada um) e o total do dia |
+| `/balancete mensal` | resumo (receitas, despesas e saldo) do mês atual e dos meses anteriores, até 12 |
+| `/balancete semanal` | resumo da semana atual (domingo a sábado) e das 3 anteriores |
+| `/balancete anual` | resumo do ano atual e dos 4 anteriores |
+| `/extrato` (`/e`) / `/extrato 2` | todos os lançamentos, do mais recente ao mais antigo, **20 por página**; no fim da página o bot diz qual comando digitar para ver a próxima (`/extrato 2`, `/extrato 3`...) |
+| `/auditoria` (`/a`) (+ `semanal` ou `anual`) | ranking dos maiores gastos, comparação com o período anterior e sugestões da IA |
+| `/r plantão 450 ontem`, `/d mercado 45 15/09` | data opcional no fim: `hoje`, `ontem`, `anteontem`, `dd/mm`, `dd/mm/aaaa`. Sem data, vale o dia do envio da mensagem |
+| `/desfazer` | desfaz o último lançamento |
+| `/ajuda` (`/h`) | lista os comandos |
 
-Nos resumos (mensal, semanal e anual), períodos sem movimento não aparecem. No balancete do dia, a hora é a do envio da mensagem e a data é a do lançamento. Qualquer outro uso de `balancete` (`trimestre`, `tudo`, uma conta...) responde com a dica dos comandos; o mesmo vale para `auditoria <outra coisa>`.
+Nos resumos (mensal, semanal e anual), períodos sem movimento não aparecem. No balancete do dia, a hora é a do envio da mensagem e a data é a do lançamento. Só mensagens que começam com `/` são comandos; texto livre é ignorado. Lançamento incompleto (`/d mercado`) responde com a dica do formato. Qualquer outro uso de `/balancete` (`trimestre`, `tudo`, uma conta...) responde com a dica dos comandos; o mesmo vale para `/auditoria <outra coisa>`.
 
 A auditoria pode levar até ~45 s (chamada à IA); o bot processa uma mensagem por vez, então o que for digitado nesse intervalo espera (um desligamento nessa janela pode perdê-lo).
 
 ## IA opcional
 
-`auditoria` (= `auditoria mensal`), `auditoria semanal` e `auditoria anual` mostram os totais, o ranking dos 5 maiores gastos e a comparação com o período anterior (tudo calculado pelo bot) e, no fim, até 5 dicas escritas por uma IA (OpenRouter). A IA só escreve as dicas: não faz conta nem grava nada.
+`/auditoria` (= `/auditoria mensal`), `/auditoria semanal` e `/auditoria anual` mostram os totais, o ranking dos 5 maiores gastos e a comparação com o período anterior (tudo calculado pelo bot) e, no fim, até 5 dicas escritas por uma IA (OpenRouter). A IA só escreve as dicas: não faz conta nem grava nada.
 
 Para ligar, defina no `.env` `OPENROUTER_API_KEY` e `OPENROUTER_MODEL` (um ou mais modelos **pagos**, separados por vírgula, tentados em ordem). Sem a chave, `auditoria` responde que a IA não está configurada.
 

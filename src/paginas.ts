@@ -427,12 +427,12 @@ const seletorGrupo = (grupos: DadosFragmento['grupos'], atual?: string) =>
     : '<p class="sub">Nenhum grupo encontrado. Crie um grupo no WhatsApp e recarregue a página.</p>'
 
 const COMANDOS: [string, string][] = [
-  ['Lançar despesa', 'mercado 45,90'],
-  ['Lançar receita', '+ 70 plantão'],
-  ['Movimento de hoje', 'balancete'],
-  ['Todos os lançamentos', 'extrato'],
-  ['Corrigir o último', 'desfazer'],
-  ['Ver todos os comandos', 'ajuda'],
+  ['Lançar despesa', '/d mercado 45,90'],
+  ['Lançar receita', '/r plantão 70'],
+  ['Movimento de hoje', '/balancete'],
+  ['Todos os lançamentos', '/extrato'],
+  ['Corrigir o último', '/desfazer'],
+  ['Ver todos os comandos', '/ajuda'],
 ]
 
 // o que muda ao vivo dentro do painel (renderizado também no SSE)

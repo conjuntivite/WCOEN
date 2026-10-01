@@ -8,24 +8,19 @@ export type Comando =
   | { tipo: 'balancete'; relatorio: 'hoje' | Relatorio } // 'hoje' = extrato do dia
   | { tipo: 'auditoria'; relatorio: Relatorio }
   | { tipo: 'extrato'; pagina: number } // extrato completo da conta, paginado
-  | { tipo: 'uso'; comando: 'balancete' | 'auditoria' | 'extrato' } // uso incorreto: o service responde a dica
+  | { tipo: 'uso'; comando: 'balancete' | 'auditoria' | 'extrato' | 'despesa' | 'receita' } // uso incorreto: o service responde a dica
   | { tipo: 'desfazer' }
   | { tipo: 'ajuda' }
 
-const RESERVADAS = ['balancete', 'auditoria', 'extrato', 'desfazer', 'ajuda']
 const MAX_CONTA = 40
 
-// Palavras que, no começo da descrição e sem sinal, marcam receita (sem acento, minúsculas).
-// Ambíguas como "pix", "pagamento" e "aluguel" ficam de fora de propósito: para elas vale o "+".
-const RECEITAS = [
-  'salario', 'decimo terceiro', 'plantao', 'freela', 'freelance', 'comissao', 'bonus',
-  'venda', 'vendas', 'reembolso', 'rendimento', 'rendimentos', 'pro-labore', 'prolabore',
-]
-const semAcento = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '')
-const indicaReceita = (conta: string) => {
-  const c = semAcento(conta)
-  return RECEITAS.some((p) => c === p || c.startsWith(p + ' '))
-}
+// só vale mensagem que começa com "/"; "/d" é despesa, por isso desfazer não tem atalho
+type Nome = 'despesa' | 'receita' | 'balancete' | 'extrato' | 'auditoria' | 'desfazer' | 'ajuda'
+const COMANDOS = new Map<string, Nome>([
+  ['d', 'despesa'], ['despesa', 'despesa'], ['r', 'receita'], ['receita', 'receita'],
+  ['b', 'balancete'], ['balancete', 'balancete'], ['e', 'extrato'], ['extrato', 'extrato'],
+  ['a', 'auditoria'], ['auditoria', 'auditoria'], ['desfazer', 'desfazer'], ['h', 'ajuda'], ['ajuda', 'ajuda'],
+])
 const RELATIVAS = new Map([['hoje', 0], ['ontem', 1], ['anteontem', 2]])
 const DIA_MES = /^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/
 
@@ -45,45 +40,32 @@ export function parse(texto: string): Comando | null {
   if (/[\r\n]/.test(texto.trim())) return null // várias linhas: conversa, não comando
 
   const t = texto.trim().replace(/r\$\s*/gi, '').replace(/\s+/g, ' ').toLowerCase()
-  if (t === 'ajuda') return { tipo: 'ajuda' }
-  if (t === 'desfazer') return { tipo: 'desfazer' }
+  if (!t.startsWith('/')) return null
+  const [palavra, ...args] = t.slice(1).split(' ')
+  const nome = COMANDOS.get(palavra)
+  if (!nome) return null // "/xyz" desconhecido: pode ser de outro bot
+  const resto = args.join(' ')
 
-  const ext = /^extrato(?: (.*))?$/.exec(t)
-  if (ext) {
-    const pagina = ext[1] ?? '1'
+  if (nome === 'ajuda' || nome === 'desfazer') return resto ? null : { tipo: nome }
+
+  if (nome === 'extrato') {
+    const pagina = resto || '1'
     return /^\d{1,6}$/.test(pagina) && Number(pagina) >= 1 ? { tipo: 'extrato', pagina: Number(pagina) } : { tipo: 'uso', comando: 'extrato' }
   }
 
-  const rel = /^(balancete|auditoria)(?: (.*))?$/.exec(t)
-  if (rel) {
-    const comando = rel[1] as 'balancete' | 'auditoria'
-    const relatorio = rel[2] ?? (comando === 'balancete' ? 'hoje' : 'mensal')
-    if (relatorio === 'hoje' && comando === 'balancete') return { tipo: 'balancete', relatorio }
-    if (relatorio !== 'mensal' && relatorio !== 'semanal' && relatorio !== 'anual') return { tipo: 'uso', comando }
-    return comando === 'balancete' ? { tipo: 'balancete', relatorio } : { tipo: 'auditoria', relatorio }
+  if (nome === 'balancete' || nome === 'auditoria') {
+    const relatorio = resto || (nome === 'balancete' ? 'hoje' : 'mensal')
+    if (relatorio === 'hoje' && nome === 'balancete') return { tipo: 'balancete', relatorio }
+    if (relatorio !== 'mensal' && relatorio !== 'semanal' && relatorio !== 'anual') return { tipo: 'uso', comando: nome }
+    return nome === 'balancete' ? { tipo: 'balancete', relatorio } : { tipo: 'auditoria', relatorio }
   }
 
-  // "+" marca receita e "-" marca despesa; sem sinal é despesa (ex.: "mercado 45,90")
-  const sinal = t.startsWith('+') || t.startsWith('-') ? t[0] : null
-  const partes = (sinal ? t.slice(1).trim() : t).split(' ')
-  if (partes.length < 2 || RESERVADAS.includes(partes[0])) return null
+  // "/d conta valor [data]": data opcional no fim ("ontem", "15/09", "15/09/2026"); sem ela, o service usa a data de envio
+  const data = args.length ? lerData(args[args.length - 1]) : null
+  const itens = data ? args.slice(0, -1) : args
+  const valor = itens.length >= 2 ? parseValor(itens[itens.length - 1]) : null
+  const conta = itens.slice(0, -1).join(' ')
+  if (valor === null || conta.length > MAX_CONTA || !/^\p{L}/u.test(conta)) return { tipo: 'uso', comando: nome }
 
-  // data opcional no fim: "ontem", "15/09", "15/09/2026". Sem ela, o service usa a data de envio da mensagem.
-  const data = lerData(partes[partes.length - 1])
-  const fim = data ? partes.length - 1 : partes.length
-  if (fim < 2) return null
-
-  // com sinal o valor pode vir primeiro ("+ 70 plantão") ou por último ("+ plantão 70"); sem sinal, só por último
-  const itens = partes.slice(0, fim)
-  const valorPrimeiro = sinal !== null && parseValor(itens[0]) !== null
-  if (valorPrimeiro && parseValor(itens[itens.length - 1]) !== null) return null // ambíguo ("- 2 cafés 10"): não adivinha dinheiro
-  const valor = parseValor(valorPrimeiro ? itens[0] : itens[itens.length - 1])
-  const conta = (valorPrimeiro ? itens.slice(1) : itens.slice(0, -1)).join(' ')
-  // conta começar com letra também barra as respostas do próprio bot (🟢, 🔴, 🤖, ↩️, ⚠️...)
-  if (valor === null || conta.length > MAX_CONTA || !/^\p{L}/u.test(conta) || RESERVADAS.includes(conta.split(' ')[0])) return null
-
-  // o sinal explícito manda; sem sinal, uma palavra de receita no começo da descrição marca receita
-  const natureza = sinal === '+' ? 'receita' : sinal === '-' ? 'despesa' : indicaReceita(conta) ? 'receita' : 'despesa'
-
-  return { tipo: 'lancamento', natureza, conta, valor, ...(data && { data }) }
+  return { tipo: 'lancamento', natureza: nome, conta, valor, ...(data && { data }) }
 }
