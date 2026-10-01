@@ -341,6 +341,16 @@ describe('CSS compartilhado', () => {
   })
 })
 
+describe('áreas seguras laterais (notch na horizontal)', () => {
+  const html = paginaPainel('a@x.com', 'x', 'desconectado')
+  it('página, menu e barra mobile respeitam a área segura esquerda/direita', () => {
+    expect(html).toContain('env(safe-area-inset-left)')
+    expect(html).toContain('env(safe-area-inset-right)')
+    expect(html).toMatch(/\.menu\{[^}]*env\(safe-area-inset-left\)/)
+    expect(html).toMatch(/\.barra-mobile\{[^}]*env\(safe-area-inset-left\)/)
+  })
+})
+
 describe('página de perfil', () => {
   const ana: Conta = { id: 'c1', email: 'ana@x.com', nome: 'Ana <b>', avatarCor: 'azul', avatarIcone: 'estrela', criadaEm: new Date('2026-09-01T12:00:00Z') }
 
@@ -394,5 +404,97 @@ describe('página de perfil', () => {
     const html = paginaPainel('ana@x.com', 'x', 'desconectado', undefined, false, { cor: 'x" onclick="1' })
     expect(html).not.toContain('onclick')
     expect(html).toContain('av-vermelho')
+  })
+})
+
+describe('layout fluido (largura total, sem centralizar)', () => {
+  const ind = montarIndicadores([{ ano: 2026, mes: 9, receitas: 100000, despesas: 25000 }], { receitas: [], despesas: [{ conta: 'mercado', total: 25000 }] })
+  const telas = {
+    painel: paginaPainel('a@x.com', 'x', 'desconectado'),
+    dashboard: paginaDashboard('a@x.com', ind, false),
+    admin: paginaAdmin('a@x.com', []),
+    perfil: paginaPerfil(conta, 'usuario', 'desconectado'),
+  }
+
+  it('o conteúdo não é mais limitado a 560/880px nem centralizado', () => {
+    const css = telas.painel
+    expect(css).not.toContain('max-width:560px;margin:0 auto')
+    expect(css).not.toContain('.pagina.larga')
+    expect(css).toContain('max-width:1280px')
+  })
+
+  it('toda tela logada tem cabeçalho padrão com h1 e a viewport cobre a área segura', () => {
+    for (const html of Object.values(telas)) {
+      expect(html).toMatch(/<header class="topo-tela"><h1>[^<]+<\/h1>/)
+      expect(html).toContain('viewport-fit=cover')
+    }
+  })
+
+  it('tokens de espaçamento e sombras no :root', () => {
+    expect(telas.painel).toMatch(/--e4:16px/)
+    expect(telas.painel).toMatch(/--sombra2:/)
+  })
+})
+
+describe('grades por tela', () => {
+  const ind = montarIndicadores([{ ano: 2026, mes: 9, receitas: 100000, despesas: 25000 }], { receitas: [], despesas: [{ conta: 'mercado', total: 25000 }] })
+  const vazio = montarIndicadores([{ ano: 2026, mes: 9, receitas: 0, despesas: 0 }], { receitas: [], despesas: [] })
+
+  it('dashboard: gráfico (7) ao lado das categorias (5)', () => {
+    const html = paginaDashboard('a@x.com', ind, false)
+    expect(html).toMatch(/class="grade duas"[\s\S]*class="cartao c7"[\s\S]*Últimos[\s\S]*class="cartao c5"[\s\S]*Despesas por categoria/)
+  })
+
+  it('dashboard vazio: estado vazio com ícone e o texto de antes', () => {
+    const html = paginaDashboard('a@x.com', vazio, false)
+    expect(html).toMatch(/class="vazio"[^>]*><svg[^>]*aria-hidden="true"/)
+    expect(html).toContain('Nenhum lançamento nos últimos 6 meses')
+  })
+
+  it('painel pronto: duas colunas, comandos antes no celular', () => {
+    const html = frag({ estado: 'conectado' }, comGrupo)
+    expect(html).toMatch(/class="pronto-grade"[\s\S]*class="pg-info"[\s\S]*class="pg-cmd"[\s\S]*\/d mercado 45,90/)
+    expect(frag({ estado: 'desconectado' })).not.toContain('pronto-grade')
+  })
+
+  it('perfil: identidade (6) e as demais seções (6)', () => {
+    const html = paginaPerfil(conta, 'usuario', 'desconectado')
+    expect(html).toMatch(/class="grade duas"[\s\S]*class="cartao c6"[\s\S]*Identidade[\s\S]*class="pilha c6"[\s\S]*Segurança/)
+  })
+
+  it('admin: novo convite (5) ao lado de convites e contas (7); formulários e textos de antes', () => {
+    const html = paginaAdmin('a@x.com', [])
+    expect(html).toMatch(/class="grade duas"[\s\S]*class="cartao c5"[\s\S]*Novo convite[\s\S]*class="pilha c7"[\s\S]*Convites[\s\S]*Contas/)
+    expect(html).toContain('Nenhum convite')
+    expect(html).toMatch(/<form[^>]*action="\/admin\/convites"/)
+  })
+})
+
+describe('celular', () => {
+  const html = paginaPainel('a@x.com', 'x', 'desconectado')
+  it('véu da gaveta esmaece (opacity/visibility) em vez de aparecer de repente', () => {
+    expect(html).toMatch(/\.veu\{display:block;[^}]*opacity:0;visibility:hidden/)
+    expect(html).toMatch(/data-gaveta=aberta\] \.veu\{opacity:1;visibility:visible\}/)
+  })
+  it('barra superior respeita a área segura do aparelho', () => {
+    expect(html).toContain('env(safe-area-inset-top)')
+  })
+})
+
+describe('movimento e acabamento', () => {
+  const html = paginaPainel('a@x.com', 'x', 'desconectado')
+  it('transição nativa entre páginas, com o menu parado', () => {
+    expect(html).toContain('@view-transition{navigation:auto}')
+    expect(html).toContain('.menu{view-transition-name:menu}')
+  })
+  it('entrada em cascata e barras que crescem', () => {
+    expect(html).toContain('@keyframes entra')
+    expect(html).toContain('@keyframes cresce')
+  })
+  it('movimento reduzido desliga animações e transições de página', () => {
+    expect(html).toMatch(/prefers-reduced-motion:reduce\)\{[^@]*::view-transition-old\(\*\)/)
+  })
+  it('item ativo do menu tem barra de destaque', () => {
+    expect(html).toContain('.item[aria-current=page]::before')
   })
 })

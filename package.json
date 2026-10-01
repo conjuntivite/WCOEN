@@ -8,6 +8,7 @@
   "scripts": {
     "start": "node --env-file=.env --import tsx src/index.ts",
     "test": "vitest run",
+    "test:paginas": "vitest run tests/paginas.test.ts --config vitest.paginas.config.ts",
     "typecheck": "tsc --noEmit",
     "senha": "node --env-file=.env --import tsx src/cli/senha.ts"
   },

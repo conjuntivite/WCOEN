@@ -10,10 +10,10 @@ export const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ENTIDADES[c])
 // --- identidade visual ---------------------------------------------------
 // Sem fontes nem imagens externas (a CSP só permite o próprio site): pilha do sistema e SVG inline.
 
-const ESCURO = '--fundo:#0d0a0a;--cartao:#171213;--texto:#f3eaea;--suave:#b5a2a4;--borda:#322627;--marca:#ff4444;--marca-forte:#ff7a7a;--sobre-marca:#1a0505;--marca-suave:#33191a;--erro:#f97066;--erro-suave:#33191a;--alerta:#f5b544;--alerta-suave:#33280f;--foco:#ff7a7a;--receita:#4ade80;--despesa:#fbbf24;--sombra:none'
+const ESCURO = '--fundo:#0d0a0a;--cartao:#171213;--texto:#f3eaea;--suave:#b5a2a4;--borda:#322627;--marca:#ff4444;--marca-forte:#ff7a7a;--sobre-marca:#1a0505;--marca-suave:#33191a;--erro:#f97066;--erro-suave:#33191a;--alerta:#f5b544;--alerta-suave:#33280f;--foco:#ff7a7a;--receita:#4ade80;--despesa:#fbbf24;--sombra:none;--sombra2:0 10px 30px rgba(0,0,0,.5)'
 
 const ESTILO = `
-:root{color-scheme:light dark;--fundo:#f8f5f4;--cartao:#fff;--texto:#1a1213;--suave:#5e5052;--borda:#e6dcdb;--marca:#d10f0f;--marca-forte:#a80b0b;--sobre-marca:#fff;--marca-suave:#fbe9e8;--erro:#b42318;--erro-suave:#fdeceb;--alerta:#9a5b00;--alerta-suave:#fdf3dc;--foco:#d10f0f;--receita:#0f7a43;--despesa:#b45309;--sombra:0 1px 2px rgba(40,10,10,.06),0 8px 24px rgba(40,10,10,.07)}
+:root{color-scheme:light dark;--fundo:#f8f5f4;--cartao:#fff;--texto:#1a1213;--suave:#5e5052;--borda:#e6dcdb;--marca:#d10f0f;--marca-forte:#a80b0b;--sobre-marca:#fff;--marca-suave:#fbe9e8;--erro:#b42318;--erro-suave:#fdeceb;--alerta:#9a5b00;--alerta-suave:#fdf3dc;--foco:#d10f0f;--receita:#0f7a43;--despesa:#b45309;--sombra:0 1px 2px rgba(40,10,10,.06),0 8px 24px rgba(40,10,10,.07);--e1:4px;--e2:8px;--e3:12px;--e4:16px;--e5:24px;--e6:32px;--raio:16px;--sombra2:0 2px 4px rgba(40,10,10,.08),0 14px 32px rgba(40,10,10,.14);--ease:cubic-bezier(.2,.8,.2,1)}
 @media (prefers-color-scheme:dark){:root:not([data-tema=light]){${ESCURO}}}
 :root[data-tema=dark]{color-scheme:dark;${ESCURO}}:root[data-tema=light]{color-scheme:light}
 *{box-sizing:border-box}
@@ -35,7 +35,7 @@ p{margin:0 0 12px}a{color:var(--marca);font-weight:600}a:hover{color:var(--marca
 .vitrine .extra{display:none}
 .lado-form{padding:20px 16px 40px;display:flex;justify-content:center;align-items:flex-start}
 .lado-form>div{width:100%;max-width:420px}
-.cartao{background:var(--cartao);border:1px solid var(--borda);border-radius:16px;padding:22px;box-shadow:var(--sombra)}
+.cartao{background:var(--cartao);border:1px solid var(--borda);border-radius:var(--raio);padding:22px;box-shadow:var(--sombra)}
 .cartao h2{margin-bottom:4px}
 .campo{margin:14px 0}
 label{display:block;font-size:.9rem;font-weight:600;margin-bottom:6px}
@@ -56,8 +56,11 @@ input[aria-invalid=true]{border-color:var(--erro)}
 .balao p{margin:0 0 8px}.balao hr{border:0;border-top:1px solid #d8e2dd;margin:8px 0}
 .legenda{color:#f0d4d4;font-size:.88rem;margin-top:10px}
 /* painel */
-.pagina{max-width:560px;margin:0 auto;padding:16px}
-.pagina.larga{max-width:880px}
+.pagina{max-width:1280px;padding:var(--e4) max(var(--e4),env(safe-area-inset-right)) calc(var(--e6) + env(safe-area-inset-bottom)) max(var(--e4),env(safe-area-inset-left))}
+.pagina>main{display:grid;gap:var(--e4);align-content:start}.pagina>main>.aviso{margin:0}
+.topo-tela h1{margin:0;font-size:clamp(1.5rem,1.2rem + 1vw,2rem)}.topo-tela .sub{margin:var(--e1) 0 0}
+.grade{display:grid;gap:var(--e4);align-items:start}
+.cartao,.kpi,.comandos li,.menu,input,select{transition:background-color .25s,border-color .25s,color .25s,box-shadow .2s var(--ease),transform .2s var(--ease)}
 .passos{display:flex;gap:6px;list-style:none;margin:0 0 20px;padding:0}
 .passos li{flex:1;display:flex;align-items:center;gap:8px;font-size:.88rem;color:var(--suave);font-weight:600;padding:8px 10px;border-radius:12px;background:var(--fundo)}
 .passos .num{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;border:1.5px solid var(--borda);font-size:.8rem;flex:none}
@@ -83,7 +86,7 @@ code{font:600 .92rem ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wra
 details{margin-top:14px}summary{cursor:pointer;color:var(--suave);font-weight:600;min-height:44px;display:flex;align-items:center}
 /* menu lateral */
 .app{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100vh;transition:grid-template-columns .2s}
-.menu{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:10px;padding:14px 12px;background:var(--cartao);border-right:1px solid var(--borda)}
+.menu{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:10px;padding:14px 12px 14px max(12px,env(safe-area-inset-left));background:var(--cartao);border-right:1px solid var(--borda)}
 .menu-topo{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px}
 .menu nav{display:flex;flex-direction:column;gap:4px;flex:1}
 .menu-base{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--borda);padding-top:10px}
@@ -108,12 +111,13 @@ html[data-menu=estreito] .item{justify-content:center;padding:8px}
 }
 @media (max-width:859px){
 .app{display:block}
-.barra-mobile{display:flex;align-items:center;gap:8px;position:sticky;top:0;z-index:10;padding:6px 10px;background:var(--cartao);border-bottom:1px solid var(--borda)}
+.barra-mobile{display:flex;align-items:center;gap:8px;position:sticky;top:0;z-index:10;padding:max(6px,env(safe-area-inset-top)) 10px 6px max(10px,env(safe-area-inset-left));background:var(--cartao);border-bottom:1px solid var(--borda)}
 .barra-mobile .item{width:44px;padding:0;justify-content:center}
-.menu{position:fixed;left:0;top:0;bottom:0;width:264px;z-index:30;transform:translateX(-100%);visibility:hidden;transition:transform .2s,visibility .2s}
+.menu{position:fixed;left:0;top:0;bottom:0;width:264px;z-index:30;transform:translateX(-100%);visibility:hidden;padding-bottom:max(14px,env(safe-area-inset-bottom));transition:transform .2s ease-in,visibility .2s}
 #menu-alternar{display:none}
-html[data-gaveta=aberta] .menu{transform:none;visibility:visible}
-html[data-gaveta=aberta] .veu{display:block;position:fixed;inset:0;z-index:25;background:rgba(0,0,0,.45)}
+html[data-gaveta=aberta] .menu{transform:none;visibility:visible;transition-duration:.28s;transition-timing-function:var(--ease)}
+.veu{display:block;position:fixed;inset:0;z-index:25;background:rgba(0,0,0,.45);opacity:0;visibility:hidden;transition:opacity .2s,visibility .2s}
+html[data-gaveta=aberta] .veu{opacity:1;visibility:visible}
 }
 /* avatar e perfil */
 .av-vermelho{background:#d10f0f}.av-laranja{background:#c2410c}.av-amarelo{background:#a16207}.av-verde{background:#15803d}.av-azul{background:#1d4ed8}.av-roxo{background:#7e22ce}.av-rosa{background:#be185d}.av-cinza{background:#52525b}
@@ -143,7 +147,7 @@ fieldset.opcoes{border:0;padding:0;margin:14px 0}fieldset.opcoes legend{font-siz
 /* dashboard */
 .dash{display:grid;gap:16px}
 .kpis{display:grid;gap:12px;grid-template-columns:1fr}
-.kpi{background:var(--cartao);border:1px solid var(--borda);border-radius:14px;padding:16px;box-shadow:var(--sombra)}
+.kpi{background:var(--cartao);border:1px solid var(--borda);border-radius:var(--raio);padding:16px;box-shadow:var(--sombra)}
 .kpi .rot{color:var(--suave);font-size:.9rem}.kpi .num{white-space:nowrap;font-size:1.6rem;font-weight:700;letter-spacing:-.01em}
 .var{display:inline-flex;align-items:center;gap:4px;font-size:.88rem;font-weight:600}.var.bom{color:var(--receita)}.var.ruim{color:var(--erro)}.var.neutro{color:var(--suave)}
 .grafico{display:block;width:100%;max-width:560px;height:auto;margin:0 auto}
@@ -156,9 +160,37 @@ fieldset.opcoes{border:0;padding:0;margin:14px 0}fieldset.opcoes legend{font-siz
 .trilho{grid-column:1/-1;height:8px;background:var(--borda);border-radius:99px;overflow:hidden}.trilho div{height:100%;background:var(--despesa);border-radius:99px}
 .dash details{margin-top:12px;font-size:.9rem}.dash summary{cursor:pointer;color:var(--suave)}.dash table{width:100%;border-collapse:collapse;margin-top:8px}.dash th,.dash td{text-align:right;padding:6px 8px;border-bottom:1px solid var(--borda)}.dash th:first-child,.dash td:first-child{text-align:left}
 .filtro{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+@media (min-width:860px){.pagina{padding:var(--e6) max(40px,env(safe-area-inset-right)) 64px max(40px,env(safe-area-inset-left))}}
+@media (min-width:1024px){.grade.duas{grid-template-columns:repeat(12,minmax(0,1fr))}.c5{grid-column:span 5}.c6{grid-column:span 6}.c7{grid-column:span 7}}
+#estado{max-width:640px}#estado[data-passo*=pronto]{max-width:none}
+.pronto-grade{display:grid;gap:var(--e5)}.pg-cmd{order:-1}
+@media (min-width:1024px){.pronto-grade{grid-template-columns:1fr 1fr}.pg-cmd{order:0}}
+.vazio{display:grid;justify-items:center;gap:var(--e2);padding:var(--e6) var(--e4);text-align:center;color:var(--suave)}.vazio .ic{width:2rem;height:2rem}.vazio p{margin:0}
+.convite select,.convite input[type=date]{width:auto}
 @media (min-width:640px){.kpis{grid-template-columns:repeat(3,1fr)}}
 @media (max-width:420px){.comandos{grid-template-columns:1fr}}
-@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}.giro{border-top-color:var(--borda)}}
+/* movimento */
+@view-transition{navigation:auto}
+.menu{view-transition-name:menu}.conteudo{view-transition-name:conteudo}
+::view-transition-group(conteudo){animation:none}
+::view-transition-old(conteudo){animation:sai .12s ease-in both}
+::view-transition-new(conteudo){animation:none}
+@keyframes entra{from{opacity:0;transform:translateY(8px)}}
+@keyframes sai{to{opacity:0}}
+.topo-tela,.cartao,.kpi{animation:entra .25s var(--ease) backwards}
+:is(.kpis,.grade,.pilha,main)>:nth-child(2){animation-delay:40ms}
+:is(.kpis,.grade,.pilha,main)>:nth-child(3){animation-delay:80ms}
+:is(.kpis,.grade,.pilha,main)>:nth-child(n+4){animation-delay:120ms}
+.grafico .b-rec,.grafico .b-desp{transform-box:fill-box;transform-origin:50% 100%;animation:cresce .5s var(--ease) .1s backwards}
+.trilho div{transform-origin:0 50%;animation:cresce-x .6s var(--ease) .15s backwards}
+@keyframes cresce{from{transform:scaleY(0)}}@keyframes cresce-x{from{transform:scaleX(0)}}
+@media (hover:hover){.kpi:hover,.comandos li:hover{transform:translateY(-1px);box-shadow:var(--sombra2)}}
+/* acabamento */
+.item[aria-current=page]{position:relative}
+.item[aria-current=page]::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:3px;background:var(--marca)}
+.kpi .rot{text-transform:uppercase;letter-spacing:.06em;font-size:.78rem;font-weight:700}
+.kpi .num,.cats .valor,.dash td{font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:reduce){*,::before,::after{transition:none!important;animation:none!important}::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation:none!important}.giro{border-top-color:var(--borda)}}
 `
 
 const ICONES = {
@@ -192,7 +224,9 @@ const marca = (href = '/', cheia = false) =>
   `<a class="marca" href="${href}" aria-label="WCOEN, início">${cheia ? '<img class="logo-cheia" src="/logo.svg" alt="WCOEN">' : '<img class="logo" src="/mascote.svg" alt=""><span>WCOEN</span>'}</a>`
 
 const layout = (titulo: string, corpo: string, script = '') =>
-  `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><link rel="icon" type="image/svg+xml" href="/mascote.svg"><title>${esc(titulo)} · WCOEN</title><style>${ESTILO}</style><script src="/app.js"></script></head><body><a class="pular" href="#conteudo">Pular para o conteúdo</a>${corpo}${script}</body></html>`
+  `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="color-scheme" content="light dark"><link rel="icon" type="image/svg+xml" href="/mascote.svg"><title>${esc(titulo)} · WCOEN</title><style>${ESTILO}</style><script src="/app.js"></script></head><body><a class="pular" href="#conteudo">Pular para o conteúdo</a>${corpo}${script}</body></html>`
+
+const topo = (titulo: string, sub = '') => `<header class="topo-tela"><h1>${esc(titulo)}</h1>${sub ? `<p class="sub">${esc(sub)}</p>` : ''}</header>`
 
 // menu lateral das telas logadas (painel, dashboard, admin, perfil)
 type Tela = 'painel' | 'dashboard' | 'admin' | 'perfil'
@@ -207,7 +241,7 @@ const avatar = (email: string, p?: Perfil) => {
   return `<span class="avatar av-${corDe(p)}" aria-hidden="true">${icone ? ic(icone) : esc([...(p?.nome?.trim() || email)][0]?.toUpperCase() ?? '?')}</span>`
 }
 
-const shell = (ativa: Tela, email: string, papel: Papel, principal: string, larga = false, script = '', perfil?: Perfil) => {
+const shell = (ativa: Tela, email: string, papel: Papel, principal: string, script = '', perfil?: Perfil) => {
   const itens = NAV
     .filter((t) => t !== 'admin' || papel === 'admin')
     .map((t) => `<a class="item" href="/${t}"${t === ativa ? ' aria-current="page"' : ''}>${ic(TELAS[t][1])}<span class="rotulo">${TELAS[t][0]}</span></a>`)
@@ -216,7 +250,7 @@ const shell = (ativa: Tela, email: string, papel: Papel, principal: string, larg
   const nome = perfil?.nome?.trim()
   return layout(
     TELAS[ativa][0],
-    `<div class="app"><div class="barra-mobile"><button class="item" type="button" id="gaveta-abrir" aria-label="Abrir menu" aria-controls="menu" aria-expanded="false">${ic('menu')}</button>${marca(inicio)}</div><div class="veu" id="veu"></div><aside class="menu" id="menu"><div class="menu-topo">${marca(inicio)}<button class="icone" type="button" id="menu-alternar" aria-label="Recolher menu" aria-controls="menu" aria-expanded="true" title="Recolher menu">${ic('recolher')}</button></div><nav aria-label="Menu principal">${itens}</nav><div class="menu-base"><button class="item" type="button" id="tema-alternar" title="Alternar tema claro/escuro">${ic('lua', 'ic-lua')}${ic('sol', 'ic-sol')}<span class="rotulo">Tema</span></button><details class="perfil"><summary class="item" title="Perfil">${avatar(email, perfil)}<span class="rotulo">Perfil</span></summary><div class="perfil-menu"><p class="perfil-email">${esc(nome || email)}</p>${nome ? `<p class="sub">${esc(email)}</p>` : ''}<p class="sub">${PAPEIS[papel]}</p><a class="item" href="/perfil">Meu perfil</a></div></details><form method="post" action="/sair"><button class="item" title="Sair">${ic('sair')}<span class="rotulo">Sair</span></button></form></div></aside><div class="conteudo"><div class="pagina${larga ? ' larga' : ''}">${principal}</div></div></div>`,
+    `<div class="app"><div class="barra-mobile"><button class="item" type="button" id="gaveta-abrir" aria-label="Abrir menu" aria-controls="menu" aria-expanded="false">${ic('menu')}</button>${marca(inicio)}</div><div class="veu" id="veu"></div><aside class="menu" id="menu"><div class="menu-topo">${marca(inicio)}<button class="icone" type="button" id="menu-alternar" aria-label="Recolher menu" aria-controls="menu" aria-expanded="true" title="Recolher menu">${ic('recolher')}</button></div><nav aria-label="Menu principal">${itens}</nav><div class="menu-base"><button class="item" type="button" id="tema-alternar" title="Alternar tema claro/escuro">${ic('lua', 'ic-lua')}${ic('sol', 'ic-sol')}<span class="rotulo">Tema</span></button><details class="perfil"><summary class="item" title="Perfil">${avatar(email, perfil)}<span class="rotulo">Perfil</span></summary><div class="perfil-menu"><p class="perfil-email">${esc(nome || email)}</p>${nome ? `<p class="sub">${esc(email)}</p>` : ''}<p class="sub">${PAPEIS[papel]}</p><a class="item" href="/perfil">Meu perfil</a></div></details><form method="post" action="/sair"><button class="item" title="Sair">${ic('sair')}<span class="rotulo">Sair</span></button></form></div></aside><div class="conteudo"><div class="pagina">${principal}</div></div></div>`,
     script,
   )
 }
@@ -271,6 +305,8 @@ const campo = ({ nome, rotulo, tipo = 'text', valor = '', extra = '', erro }: Ca
   `<div class="campo"><label for="${nome}">${rotulo}</label><input id="${nome}" name="${nome}" type="${tipo}" required ${valor ? `value="${esc(valor)}" ` : ''}${erro ? `aria-invalid="true" aria-describedby="erro-${nome}" ` : ''}${extra}>${erro ? `<p class="erro-campo" id="erro-${nome}" role="alert">${ic('alerta')}<span>${esc(erro)}</span></p>` : ''}</div>`
 
 const aviso = (texto?: string, classe = '') => (texto ? `<div class="aviso ${classe}" role="${classe === 'ok' ? 'status' : 'alert'}">${ic(classe === 'ok' ? 'check' : 'alerta')}<span>${esc(texto)}</span></div>` : '')
+
+const vazio = (icone: keyof typeof ICONES, texto: string) => `<div class="vazio">${ic(icone)}<p>${esc(texto)}</p></div>`
 
 export const paginaEntrar = (erro?: string, email = '') =>
   telaAuth(
@@ -330,7 +366,7 @@ new EventSource('/painel/eventos').onmessage = (e) => {
 `
 
 export const paginaPainel = (email: string, fragmento: string, passo: string, erro?: string, admin = false, perfil?: Perfil) =>
-  shell('painel', email, admin ? 'admin' : 'usuario', `<main id="conteudo">${aviso(erro)}<div class="cartao" id="estado" data-passo="${esc(passo)}" aria-live="polite">${fragmento}</div></main>`, false, '<script src="/painel.js"></script>', perfil)
+  shell('painel', email, admin ? 'admin' : 'usuario', `<main id="conteudo">${topo('Painel', 'Conecte seu WhatsApp e acompanhe o bot')}${aviso(erro)}<div class="cartao" id="estado" data-passo="${esc(passo)}" aria-live="polite">${fragmento}</div></main>`, '<script src="/painel.js"></script>', perfil)
 
 // --- dashboard -----------------------------------------------------------
 
@@ -350,12 +386,12 @@ const kpi = (rotulo: string, valor: number, v: number | null, altaEhBoa: boolean
 // o dashboard é sempre da própria conta: nem o admin enxerga os valores de outras
 export const paginaDashboard = (email: string, ind: Indicadores, admin: boolean, perfil?: Perfil) => {
   const corpo = ind.vazio
-    ? '<div class="cartao"><p>Nenhum lançamento nos últimos 6 meses. Registre uma despesa ou receita no grupo do WhatsApp e ela aparece aqui.</p></div>'
-    : `<div class="kpis">${kpi('Saldo do mês', ind.saldo, ind.variacao.saldo, true)}${kpi('Receitas', ind.mes.receitas, ind.variacao.receitas, true)}${kpi('Despesas', ind.mes.despesas, ind.variacao.despesas, false)}</div>
-<section class="cartao"><h2>Últimos ${ind.serie.length} meses</h2>${svgTendencia(ind.serie)}<ul class="legenda"><li><i class="l-rec"></i>Receitas</li><li><i class="l-desp"></i>Despesas</li></ul>
+    ? `<div class="cartao">${vazio('grafico', 'Nenhum lançamento nos últimos 6 meses. Registre uma despesa ou receita no grupo do WhatsApp e ela aparece aqui.')}</div>`
+    : `<div class="kpis">${kpi('Saldo do mês', ind.saldo, ind.variacao.saldo, true)}${kpi('Receitas', ind.mes.receitas, ind.variacao.receitas, true)}${kpi('Despesas', ind.mes.despesas, ind.variacao.despesas, false)}</div><div class="grade duas">
+<section class="cartao c7"><h2>Últimos ${ind.serie.length} meses</h2>${svgTendencia(ind.serie)}<ul class="legenda"><li><i class="l-rec"></i>Receitas</li><li><i class="l-desp"></i>Despesas</li></ul>
 <details><summary>Ver dados em tabela</summary><table><thead><tr><th>Mês</th><th>Receitas</th><th>Despesas</th></tr></thead><tbody>${ind.serie.map((s) => `<tr><td>${rotuloMesCurto(s)}/${s.ano}</td><td>${formatBRL(s.receitas)}</td><td>${formatBRL(s.despesas)}</td></tr>`).join('')}</tbody></table></details></section>
-<section class="cartao"><h2>Despesas por categoria</h2>${ind.categorias.length ? `<ul class="cats">${ind.categorias.map((c) => `<li><span class="nome">${esc(c.conta)}</span><span class="valor">${formatBRL(c.total)}</span><div class="trilho" aria-hidden="true"><div style="width:${c.largura}%"></div></div></li>`).join('')}</ul>` : '<p class="sub">Sem despesas neste mês.</p>'}</section>`
-  return shell('dashboard', email, admin ? 'admin' : 'usuario', `<main id="conteudo" class="dash"><div><h1>Dashboard</h1><p class="sub">${nomeMes(ind.mes.ano, ind.mes.mes)}</p></div>${corpo}</main>`, true, '', perfil)
+<section class="cartao c5"><h2>Despesas por categoria</h2>${ind.categorias.length ? `<ul class="cats">${ind.categorias.map((c) => `<li><span class="nome">${esc(c.conta)}</span><span class="valor">${formatBRL(c.total)}</span><div class="trilho" aria-hidden="true"><div style="width:${c.largura}%"></div></div></li>`).join('')}</ul>` : vazio('grafico', 'Sem despesas neste mês.')}</section></div>`
+  return shell('dashboard', email, admin ? 'admin' : 'usuario', `<main id="conteudo" class="dash">${topo('Dashboard', nomeMes(ind.mes.ano, ind.mes.mes))}${corpo}</main>`, '', perfil)
 }
 
 // --- administração (convites) --------------------------------------------
@@ -390,7 +426,7 @@ const itemConta = (c: ContaResumo, editavel: boolean) => {
 }
 
 export const paginaAdmin = (email: string, convites: Convite[], contasAdmin: ContaResumo[] = [], mensagem?: string, perfil?: Perfil, fixos: string[] = []) =>
-  shell('admin', email, 'admin', `<main id="conteudo">${aviso(mensagem)}<div class="cartao"><h2>Novo convite</h2><p class="sub">Gera um código de uso único para um cadastro.</p><form method="post" action="/admin/convites"><div class="campo"><label for="nota">Nota (opcional)</label><input id="nota" name="nota" type="text" maxlength="80" placeholder="Ex.: para o João"></div><button class="btn">Gerar convite</button></form></div><div class="cartao"><h2>Convites</h2>${convites.length ? `<ul class="convites">${convites.map(itemConvite).join('')}</ul>` : '<p class="sub">Nenhum convite ainda.</p>'}</div><div class="cartao"><h2>Contas</h2>${contasAdmin.length ? `<ul class="convites">${contasAdmin.map((c) => itemConta(c, c.email !== email && !fixos.includes(c.email))).join('')}</ul>` : '<p class="sub">Nenhuma conta cadastrada ainda.</p>'}</div></main>`, false, '', perfil)
+  shell('admin', email, 'admin', `<main id="conteudo">${topo('Administração', 'Convites e contas')}${aviso(mensagem)}<div class="grade duas"><div class="cartao c5"><h2>Novo convite</h2><p class="sub">Gera um código de uso único para um cadastro.</p><form method="post" action="/admin/convites"><div class="campo"><label for="nota">Nota (opcional)</label><input id="nota" name="nota" type="text" maxlength="80" placeholder="Ex.: para o João"></div><button class="btn">Gerar convite</button></form></div><div class="pilha c7"><div class="cartao"><h2>Convites</h2>${convites.length ? `<ul class="convites">${convites.map(itemConvite).join('')}</ul>` : vazio('escudo', 'Nenhum convite ainda.')}</div><div class="cartao"><h2>Contas</h2>${contasAdmin.length ? `<ul class="convites">${contasAdmin.map((c) => itemConta(c, c.email !== email && !fixos.includes(c.email))).join('')}</ul>` : vazio('escudo', 'Nenhuma conta cadastrada ainda.')}</div></div></div></main>`, '', perfil)
 
 const AVISOS: Record<Aviso, string> = {
   qr_expirado: 'O QR expirou. Clique em Conectar para gerar outro.',
@@ -455,7 +491,7 @@ export function fragmentoPainel({ visao: v, conta, grupos, qrSvg }: DadosFragmen
   if (!conta.grupoId) {
     return `${passos(2)}${cabeca('Escolha o grupo')}<p class="sub">O bot vai ler e responder só nesse grupo.</p>${seletorGrupo(grupos)}${botao('/painel/desconectar', 'Desconectar', 'sec')}`
   }
-  return `${passos(3)}<div class="cabeca"><h2 class="pronto">${ic('check')}Tudo pronto</h2>${chip(v.estado)}</div><p class="grupo">Grupo: <strong>${esc(conta.grupoNome ?? conta.grupoId)}</strong></p><p class="sub">Digite no grupo:</p><ul class="comandos">${COMANDOS.map(([rot, cmd]) => `<li><span class="rot">${rot}</span><code>${cmd}</code></li>`).join('')}</ul><details><summary>${ic('troca')}&nbsp;Trocar grupo</summary>${seletorGrupo(grupos, conta.grupoId)}</details>${botao('/painel/desconectar', 'Desconectar', 'sec')}`
+  return `${passos(3)}<div class="cabeca"><h2 class="pronto">${ic('check')}Tudo pronto</h2>${chip(v.estado)}</div><div class="pronto-grade"><div class="pg-info"><p class="grupo">Grupo: <strong>${esc(conta.grupoNome ?? conta.grupoId)}</strong></p><details><summary>${ic('troca')}&nbsp;Trocar grupo</summary>${seletorGrupo(grupos, conta.grupoId)}</details>${botao('/painel/desconectar', 'Desconectar', 'sec')}</div><div class="pg-cmd"><p class="sub">Digite no grupo:</p><ul class="comandos">${COMANDOS.map(([rot, cmd]) => `<li><span class="rot">${rot}</span><code>${cmd}</code></li>`).join('')}</ul></div></div>`
 }
 
 // --- perfil ---------------------------------------------------------------
@@ -482,11 +518,11 @@ const opcaoIcone = (i: (typeof AVATAR_ICONES)[number], atual: string) =>
 
 export const paginaPerfil = (conta: Conta, papel: Papel, estado: Visao['estado'], mensagem: { erro?: string; ok?: string } = {}) => {
   const dados = `<dl class="dados"><dt>E-mail</dt><dd>${esc(conta.email)}</dd><dt>Papel</dt><dd>${PAPEIS[papel]}</dd>${conta.criadaEm ? `<dt>Membro desde</dt><dd>${dataHoraCurta(conta.criadaEm)}</dd>` : ''}</dl>`
-  const cabeca = `<div><h1>Perfil</h1></div>${aviso(mensagem.erro)}${aviso(mensagem.ok, 'ok')}`
+  const cabeca = `${topo('Perfil', 'Sua conta e preferências')}${aviso(mensagem.erro)}${aviso(mensagem.ok, 'ok')}`
   const corAtual = conta.avatarCor ?? 'vermelho'
   const iconeAtual = conta.avatarIcone ?? 'inicial'
-  const identidade = `<section class="cartao"><h2>Identidade</h2><form method="post" action="/perfil"><div class="campo"><label for="nome">Nome de exibição</label><input id="nome" name="nome" type="text" maxlength="40" autocomplete="name" placeholder="Como você quer aparecer" value="${esc(conta.nome ?? '')}"></div><fieldset class="opcoes"><legend>Cor do avatar</legend>${AVATAR_CORES.map((c) => opcaoCor(c, corAtual)).join('')}</fieldset><fieldset class="opcoes"><legend>Ícone do avatar</legend>${AVATAR_ICONES.map((i) => opcaoIcone(i, iconeAtual)).join('')}</fieldset><button class="btn">Salvar perfil</button></form></section>`
+  const identidade = `<section class="cartao c6"><h2>Identidade</h2><form method="post" action="/perfil"><div class="campo"><label for="nome">Nome de exibição</label><input id="nome" name="nome" type="text" maxlength="40" autocomplete="name" placeholder="Como você quer aparecer" value="${esc(conta.nome ?? '')}"></div><fieldset class="opcoes"><legend>Cor do avatar</legend>${AVATAR_CORES.map((c) => opcaoCor(c, corAtual)).join('')}</fieldset><fieldset class="opcoes"><legend>Ícone do avatar</legend>${AVATAR_ICONES.map((i) => opcaoIcone(i, iconeAtual)).join('')}</fieldset><button class="btn">Salvar perfil</button></form></section>`
   const whatsapp = `<section class="cartao"><div class="cabeca"><h2>WhatsApp</h2>${chip(estado)}</div><p class="sub">${conta.grupoNome ? `Grupo: <strong>${esc(conta.grupoNome)}</strong>` : 'Nenhum grupo escolhido.'}</p><p><a href="/painel">Abrir o painel</a></p></section>`
   const seguranca = `<section class="cartao"><h2>Segurança</h2><form method="post" action="/perfil/senha">${campo({ nome: 'atual', rotulo: 'Senha atual', tipo: 'password', extra: 'autocomplete="current-password"' })}${campo({ nome: 'nova', rotulo: 'Nova senha (mínimo 8 caracteres)', tipo: 'password', extra: 'minlength="8" autocomplete="new-password"' })}${campo({ nome: 'confirmacao', rotulo: 'Confirme a nova senha', tipo: 'password', extra: 'minlength="8" autocomplete="new-password"' })}<button class="btn">Trocar senha</button></form><hr style="border:0;border-top:1px solid var(--borda);margin:20px 0"><p class="sub">Encerra a sessão em todos os outros aparelhos e navegadores. Esta continua aberta.</p><form method="post" action="/perfil/sair-aparelhos"><button class="btn sec">Sair dos outros aparelhos</button></form></section>`
-  return shell('perfil', conta.email, papel, `<main id="conteudo" class="pilha">${cabeca}${identidade}<section class="cartao"><h2>Conta</h2>${dados}</section>${whatsapp}${seguranca}</main>`, false, '', perfilDe(conta))
+  return shell('perfil', conta.email, papel, `<main id="conteudo">${cabeca}<div class="grade duas">${identidade}<div class="pilha c6"><section class="cartao"><h2>Conta</h2>${dados}</section>${whatsapp}${seguranca}</div></div></main>`, '', perfilDe(conta))
 }
