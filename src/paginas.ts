@@ -169,7 +169,28 @@ fieldset.opcoes{border:0;padding:0;margin:14px 0}fieldset.opcoes legend{font-siz
 .convite select,.convite input[type=date]{width:auto}
 @media (min-width:640px){.kpis{grid-template-columns:repeat(3,1fr)}}
 @media (max-width:420px){.comandos{grid-template-columns:1fr}}
-@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}.giro{border-top-color:var(--borda)}}
+/* movimento */
+@view-transition{navigation:auto}
+.menu{view-transition-name:menu}.conteudo{view-transition-name:conteudo}
+::view-transition-group(conteudo){animation:none}
+::view-transition-old(conteudo){animation:sai .12s ease-in both}
+::view-transition-new(conteudo){animation:none}
+@keyframes entra{from{opacity:0;transform:translateY(8px)}}
+@keyframes sai{to{opacity:0}}
+.topo-tela,.cartao,.kpi,.lado-form>div{animation:entra .25s var(--ease) backwards}
+:is(.kpis,.grade,.pilha,main)>:nth-child(2){animation-delay:40ms}
+:is(.kpis,.grade,.pilha,main)>:nth-child(3){animation-delay:80ms}
+:is(.kpis,.grade,.pilha,main)>:nth-child(n+4){animation-delay:120ms}
+.grafico .b-rec,.grafico .b-desp{transform-box:fill-box;transform-origin:50% 100%;animation:cresce .5s var(--ease) .1s backwards}
+.trilho div{transform-origin:0 50%;animation:cresce-x .6s var(--ease) .15s backwards}
+@keyframes cresce{from{transform:scaleY(0)}}@keyframes cresce-x{from{transform:scaleX(0)}}
+@media (hover:hover){.kpi:hover,.comandos li:hover{transform:translateY(-1px);box-shadow:var(--sombra2)}}
+/* acabamento */
+.item[aria-current=page]{position:relative}
+.item[aria-current=page]::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:3px;background:var(--marca)}
+.kpi .rot{text-transform:uppercase;letter-spacing:.06em;font-size:.78rem;font-weight:700}
+.kpi .num,.cats .valor,.dash td{font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:reduce){*,::before,::after{transition:none!important;animation:none!important}::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation:none!important}.giro{border-top-color:var(--borda)}}
 `
 
 const ICONES = {

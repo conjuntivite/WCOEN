@@ -470,3 +470,21 @@ describe('celular', () => {
     expect(html).toContain('env(safe-area-inset-top)')
   })
 })
+
+describe('movimento e acabamento', () => {
+  const html = paginaPainel('a@x.com', 'x', 'desconectado')
+  it('transição nativa entre páginas, com o menu parado', () => {
+    expect(html).toContain('@view-transition{navigation:auto}')
+    expect(html).toContain('.menu{view-transition-name:menu}')
+  })
+  it('entrada em cascata e barras que crescem', () => {
+    expect(html).toContain('@keyframes entra')
+    expect(html).toContain('@keyframes cresce')
+  })
+  it('movimento reduzido desliga animações e transições de página', () => {
+    expect(html).toMatch(/prefers-reduced-motion:reduce\)\{[^@]*::view-transition-old\(\*\)/)
+  })
+  it('item ativo do menu tem barra de destaque', () => {
+    expect(html).toContain('.item[aria-current=page]::before')
+  })
+})
