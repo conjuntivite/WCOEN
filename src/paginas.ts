@@ -61,12 +61,12 @@ input[aria-invalid=true]{border-color:var(--erro)}
 .topo-tela h1{margin:0;font-size:clamp(1.5rem,1.2rem + 1vw,2rem)}.topo-tela .sub{margin:var(--e1) 0 0}
 .grade{display:grid;gap:var(--e4);align-items:start}
 .cartao,.kpi,.comandos li,.menu,input,select{transition:background-color .25s,border-color .25s,color .25s,box-shadow .2s var(--ease),transform .2s var(--ease)}
-.passos{display:flex;gap:6px;list-style:none;margin:0 0 20px;padding:0}
-.passos li{flex:1;display:flex;align-items:center;gap:8px;font-size:.88rem;color:var(--suave);font-weight:600;padding:8px 10px;border-radius:12px;background:var(--fundo)}
-.passos .num{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;border:1.5px solid var(--borda);font-size:.8rem;flex:none}
-.passos .atual{background:var(--marca-suave);color:var(--texto)}.passos .atual .num{background:var(--marca);border-color:var(--marca);color:var(--sobre-marca)}
-.passos .feito{color:var(--texto)}.passos .feito .num{background:var(--marca-suave);border-color:var(--marca);color:var(--marca)}
-.passos .num .ic{width:14px;height:14px}
+.painel-passos{display:grid;gap:var(--e4);align-items:start}
+.passo .num{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;border:1.5px solid var(--borda);font-size:.85rem;flex:none}.passo .num .ic{width:14px;height:14px}
+.passo h2{display:flex;align-items:center;gap:10px;margin:0}
+.passo.atual{border-color:var(--marca);box-shadow:var(--sombra2)}.passo.atual .num{background:var(--marca);border-color:var(--marca);color:var(--sobre-marca)}
+.passo.feito .num{background:var(--marca-suave);border-color:var(--marca);color:var(--marca)}
+.passo.travado{border-style:dashed;box-shadow:none;color:var(--suave)}.passo.travado h2{color:var(--suave)}
 .cabeca{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}
 .chip{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;font-weight:700;padding:4px 10px;border-radius:999px;background:var(--fundo);color:var(--suave);white-space:nowrap}
 .chip .ponto{width:8px;height:8px;border-radius:50%;background:currentColor}
@@ -162,9 +162,7 @@ fieldset.opcoes{border:0;padding:0;margin:14px 0}fieldset.opcoes legend{font-siz
 .filtro{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 @media (min-width:860px){.pagina{padding:var(--e6) max(40px,env(safe-area-inset-right)) 64px max(40px,env(safe-area-inset-left))}}
 @media (min-width:1024px){.grade.duas{grid-template-columns:repeat(12,minmax(0,1fr))}.c5{grid-column:span 5}.c6{grid-column:span 6}.c7{grid-column:span 7}}
-#estado{max-width:640px}#estado[data-passo*=pronto]{max-width:none}
-.pronto-grade{display:grid;gap:var(--e5)}.pg-cmd{order:-1}
-@media (min-width:1024px){.pronto-grade{grid-template-columns:1fr 1fr}.pg-cmd{order:0}}
+@media (min-width:1180px){.painel-passos{grid-template-columns:repeat(3,minmax(0,1fr))}}
 .vazio{display:grid;justify-items:center;gap:var(--e2);padding:var(--e6) var(--e4);text-align:center;color:var(--suave)}.vazio .ic{width:2rem;height:2rem}.vazio p{margin:0}
 .convite select,.convite input[type=date]{width:auto}
 @media (min-width:640px){.kpis{grid-template-columns:repeat(3,1fr)}}
@@ -177,7 +175,8 @@ fieldset.opcoes{border:0;padding:0;margin:14px 0}fieldset.opcoes legend{font-siz
 ::view-transition-new(conteudo){animation:none}
 @keyframes entra{from{opacity:0;transform:translateY(8px)}}
 @keyframes sai{to{opacity:0}}
-.topo-tela,.cartao,.kpi{animation:entra .25s var(--ease) backwards}
+.topo-tela,.cartao,.kpi,#estado{animation:entra .25s var(--ease) backwards}
+#estado .cartao{animation:none}
 :is(.kpis,.grade,.pilha,main)>:nth-child(2){animation-delay:40ms}
 :is(.kpis,.grade,.pilha,main)>:nth-child(3){animation-delay:80ms}
 :is(.kpis,.grade,.pilha,main)>:nth-child(n+4){animation-delay:120ms}
@@ -366,7 +365,7 @@ new EventSource('/painel/eventos').onmessage = (e) => {
 `
 
 export const paginaPainel = (email: string, fragmento: string, passo: string, erro?: string, admin = false, perfil?: Perfil) =>
-  shell('painel', email, admin ? 'admin' : 'usuario', `<main id="conteudo">${topo('Painel', 'Conecte seu WhatsApp e acompanhe o bot')}${aviso(erro)}<div class="cartao" id="estado" data-passo="${esc(passo)}" aria-live="polite">${fragmento}</div></main>`, '<script src="/painel.js"></script>', perfil)
+  shell('painel', email, admin ? 'admin' : 'usuario', `<main id="conteudo">${topo('Painel', 'Conecte seu WhatsApp e acompanhe o bot')}${aviso(erro)}<div id="estado" class="painel-passos" data-passo="${esc(passo)}" aria-live="polite">${fragmento}</div></main>`, '<script src="/painel.js"></script>', perfil)
 
 // --- dashboard -----------------------------------------------------------
 
@@ -440,13 +439,6 @@ export type DadosFragmento = { visao: Visao; conta: Conta; grupos: { id: string;
 
 export const passoDe = (v: Visao, c: Conta) => `${v.estado}${v.estado === 'conectado' && c.grupoId ? ':pronto' : ''}${v.codigo ? ':codigo' : ''}`
 
-const NOMES_PASSOS = ['Conectar', 'Grupo', 'Pronto']
-const passos = (atual: 1 | 2 | 3) =>
-  `<ol class="passos" aria-label="Progresso da configuração">${NOMES_PASSOS.map((n, i) => {
-    const num = i + 1
-    return `<li class="${num < atual ? 'feito' : num === atual ? 'atual' : ''}"${num === atual ? ' aria-current="step"' : ''}><span class="num">${num < atual ? ic('check') : num}</span><span>${n}</span></li>`
-  }).join('')}</ol>`
-
 const CHIPS: Record<Visao['estado'], [string, string]> = {
   desconectado: ['', 'Desconectado'],
   conectando: ['chip-espera', 'Conectando'],
@@ -471,27 +463,37 @@ const COMANDOS: [string, string][] = [
   ['Ver todos os comandos', '/ajuda'],
 ]
 
-// o que muda ao vivo dentro do painel (renderizado também no SSE)
-export function fragmentoPainel({ visao: v, conta, grupos, qrSvg }: DadosFragmento): string {
-  const cabeca = (titulo: string) => `<div class="cabeca"><h2>${titulo}</h2>${chip(v.estado)}</div>`
+// o que muda ao vivo dentro do painel (renderizado também no SSE): um card por etapa
+type Situacao = 'atual' | 'feito' | 'travado'
+const card = (n: number, titulo: string, sit: Situacao, corpo: string, extra = '') =>
+  `<section class="cartao passo ${sit}"${sit === 'atual' ? ' aria-current="step"' : ''}${sit === 'travado' ? ' aria-disabled="true"' : ''}><div class="cabeca"><h2><span class="num">${sit === 'feito' ? ic('check') : n}</span>${titulo}</h2>${extra}</div>${corpo}</section>`
 
+export function fragmentoPainel({ visao: v, conta, grupos, qrSvg }: DadosFragmento): string {
+  const conectado = v.estado === 'conectado'
+  const pronto = conectado && !!conta.grupoId
+  const gid = conta.grupoId ?? ''
+  let conectar: string
   if (v.estado === 'desconectado') {
-    return `${passos(1)}${aviso(v.aviso ? AVISOS[v.aviso] : undefined)}${cabeca('Conecte seu WhatsApp')}<p class="sub">Você vai vincular este WhatsApp como um aparelho conectado. O bot só responde no grupo que você escolher.</p>${botao('/painel/conectar', 'Conectar WhatsApp', '', ic('celular'))}`
-  }
-  if (v.estado === 'conectando') {
-    return `${passos(1)}${cabeca('Conectando…')}<div class="carregando"><span class="giro" aria-hidden="true"></span><span>Aguarde alguns segundos.</span></div>`
-  }
-  if (v.estado === 'aguardando_qr') {
+    conectar = `${aviso(v.aviso ? AVISOS[v.aviso] : undefined)}<p class="sub">Você vai vincular este WhatsApp como um aparelho conectado. O bot só responde no grupo que você escolher.</p>${botao('/painel/conectar', 'Conectar WhatsApp', '', ic('celular'))}`
+  } else if (v.estado === 'conectando') {
+    conectar = '<div class="carregando"><span class="giro" aria-hidden="true"></span><span>Aguarde alguns segundos.</span></div>'
+  } else if (v.estado === 'aguardando_qr') {
     const pareamento = v.codigo
       ? `<p class="sub">No WhatsApp, abra <b>Aparelhos conectados → Conectar com número de telefone</b> e digite:</p><p class="codigo">${esc(`${v.codigo.slice(0, 4)}-${v.codigo.slice(4)}`)}</p>`
       : `<details><summary>Estou no celular: usar código em vez do QR</summary><form method="post" action="/painel/parear">${campo({ nome: 'telefone', rotulo: 'Seu número com DDI e DDD', tipo: 'tel', extra: 'placeholder="5511999999999" inputmode="numeric" autocomplete="tel"' })}<button class="btn sec">Gerar código</button></form></details>`
-    return `${passos(1)}${cabeca('Escaneie o QR')}<ol class="instrucoes"><li>Abra o WhatsApp no celular</li><li>Toque em <b>Aparelhos conectados</b></li><li>Toque em <b>Conectar um aparelho</b> e aponte para o QR</li></ol><div class="qr" role="img" aria-label="QR Code para conectar o WhatsApp">${qrSvg ?? ''}</div>${pareamento}`
+    conectar = `<ol class="instrucoes"><li>Abra o WhatsApp no celular</li><li>Toque em <b>Aparelhos conectados</b></li><li>Toque em <b>Conectar um aparelho</b> e aponte para o QR</li></ol><div class="qr" role="img" aria-label="QR Code para conectar o WhatsApp">${qrSvg ?? ''}</div>${pareamento}`
+  } else {
+    conectar = `<p class="pronto">${ic('check')}WhatsApp conectado</p><p class="sub">Este WhatsApp está vinculado ao bot.</p>${botao('/painel/desconectar', 'Desconectar', 'sec')}`
   }
-  // conectado
-  if (!conta.grupoId) {
-    return `${passos(2)}${cabeca('Escolha o grupo')}<p class="sub">O bot vai ler e responder só nesse grupo.</p>${seletorGrupo(grupos)}${botao('/painel/desconectar', 'Desconectar', 'sec')}`
-  }
-  return `${passos(3)}<div class="cabeca"><h2 class="pronto">${ic('check')}Tudo pronto</h2>${chip(v.estado)}</div><div class="pronto-grade"><div class="pg-info"><p class="grupo">Grupo: <strong>${esc(conta.grupoNome ?? conta.grupoId)}</strong></p><details><summary>${ic('troca')}&nbsp;Trocar grupo</summary>${seletorGrupo(grupos, conta.grupoId)}</details>${botao('/painel/desconectar', 'Desconectar', 'sec')}</div><div class="pg-cmd"><p class="sub">Digite no grupo:</p><ul class="comandos">${COMANDOS.map(([rot, cmd]) => `<li><span class="rot">${rot}</span><code>${cmd}</code></li>`).join('')}</ul></div></div>`
+  const grupo = !conectado
+    ? '<p class="sub">Conecte o WhatsApp primeiro.</p>'
+    : pronto
+      ? `<p class="grupo">Grupo: <strong>${esc(conta.grupoNome ?? gid)}</strong></p><details><summary>${ic('troca')}&nbsp;Trocar grupo</summary>${seletorGrupo(grupos, gid)}</details>`
+      : `<p class="sub">O bot vai ler e responder só nesse grupo.</p>${seletorGrupo(grupos)}`
+  const final = pronto
+    ? `<h2 class="pronto">${ic('check')}Tudo pronto</h2><p class="sub">Digite no grupo:</p><ul class="comandos">${COMANDOS.map(([rot, cmd]) => `<li><span class="rot">${rot}</span><code>${cmd}</code></li>`).join('')}</ul>`
+    : '<p class="sub">Escolha um grupo para liberar.</p>'
+  return card(1, 'Conectar', conectado ? 'feito' : 'atual', conectar, chip(v.estado)) + card(2, 'Grupo', !conectado ? 'travado' : pronto ? 'feito' : 'atual', grupo) + card(3, 'Pronto', pronto ? 'atual' : 'travado', final)
 }
 
 // --- perfil ---------------------------------------------------------------
