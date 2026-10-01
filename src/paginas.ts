@@ -161,6 +161,11 @@ fieldset.opcoes{border:0;padding:0;margin:14px 0}fieldset.opcoes legend{font-siz
 .filtro{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 @media (min-width:860px){.pagina{padding:var(--e6) 40px 64px}}
 @media (min-width:1024px){.grade.duas{grid-template-columns:repeat(12,minmax(0,1fr))}.c5{grid-column:span 5}.c6{grid-column:span 6}.c7{grid-column:span 7}}
+#estado{max-width:640px}#estado[data-passo*=pronto]{max-width:none}
+.pronto-grade{display:grid;gap:var(--e5)}.pg-cmd{order:-1}
+@media (min-width:1024px){.pronto-grade{grid-template-columns:1fr 1fr}.pg-cmd{order:0}}
+.vazio{display:grid;justify-items:center;gap:var(--e2);padding:var(--e6) var(--e4);text-align:center;color:var(--suave)}.vazio .ic{width:2rem;height:2rem}.vazio p{margin:0}
+.convite select,.convite input[type=date]{width:auto}
 @media (min-width:640px){.kpis{grid-template-columns:repeat(3,1fr)}}
 @media (max-width:420px){.comandos{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}.giro{border-top-color:var(--borda)}}
@@ -279,6 +284,8 @@ const campo = ({ nome, rotulo, tipo = 'text', valor = '', extra = '', erro }: Ca
 
 const aviso = (texto?: string, classe = '') => (texto ? `<div class="aviso ${classe}" role="${classe === 'ok' ? 'status' : 'alert'}">${ic(classe === 'ok' ? 'check' : 'alerta')}<span>${esc(texto)}</span></div>` : '')
 
+const vazio = (icone: keyof typeof ICONES, texto: string) => `<div class="vazio">${ic(icone)}<p>${texto}</p></div>`
+
 export const paginaEntrar = (erro?: string, email = '') =>
   telaAuth(
     'Entrar',
@@ -357,11 +364,11 @@ const kpi = (rotulo: string, valor: number, v: number | null, altaEhBoa: boolean
 // o dashboard é sempre da própria conta: nem o admin enxerga os valores de outras
 export const paginaDashboard = (email: string, ind: Indicadores, admin: boolean, perfil?: Perfil) => {
   const corpo = ind.vazio
-    ? '<div class="cartao"><p>Nenhum lançamento nos últimos 6 meses. Registre uma despesa ou receita no grupo do WhatsApp e ela aparece aqui.</p></div>'
-    : `<div class="kpis">${kpi('Saldo do mês', ind.saldo, ind.variacao.saldo, true)}${kpi('Receitas', ind.mes.receitas, ind.variacao.receitas, true)}${kpi('Despesas', ind.mes.despesas, ind.variacao.despesas, false)}</div>
-<section class="cartao"><h2>Últimos ${ind.serie.length} meses</h2>${svgTendencia(ind.serie)}<ul class="legenda"><li><i class="l-rec"></i>Receitas</li><li><i class="l-desp"></i>Despesas</li></ul>
+    ? `<div class="cartao">${vazio('grafico', 'Nenhum lançamento nos últimos 6 meses. Registre uma despesa ou receita no grupo do WhatsApp e ela aparece aqui.')}</div>`
+    : `<div class="kpis">${kpi('Saldo do mês', ind.saldo, ind.variacao.saldo, true)}${kpi('Receitas', ind.mes.receitas, ind.variacao.receitas, true)}${kpi('Despesas', ind.mes.despesas, ind.variacao.despesas, false)}</div><div class="grade duas">
+<section class="cartao c7"><h2>Últimos ${ind.serie.length} meses</h2>${svgTendencia(ind.serie)}<ul class="legenda"><li><i class="l-rec"></i>Receitas</li><li><i class="l-desp"></i>Despesas</li></ul>
 <details><summary>Ver dados em tabela</summary><table><thead><tr><th>Mês</th><th>Receitas</th><th>Despesas</th></tr></thead><tbody>${ind.serie.map((s) => `<tr><td>${rotuloMesCurto(s)}/${s.ano}</td><td>${formatBRL(s.receitas)}</td><td>${formatBRL(s.despesas)}</td></tr>`).join('')}</tbody></table></details></section>
-<section class="cartao"><h2>Despesas por categoria</h2>${ind.categorias.length ? `<ul class="cats">${ind.categorias.map((c) => `<li><span class="nome">${esc(c.conta)}</span><span class="valor">${formatBRL(c.total)}</span><div class="trilho" aria-hidden="true"><div style="width:${c.largura}%"></div></div></li>`).join('')}</ul>` : '<p class="sub">Sem despesas neste mês.</p>'}</section>`
+<section class="cartao c5"><h2>Despesas por categoria</h2>${ind.categorias.length ? `<ul class="cats">${ind.categorias.map((c) => `<li><span class="nome">${esc(c.conta)}</span><span class="valor">${formatBRL(c.total)}</span><div class="trilho" aria-hidden="true"><div style="width:${c.largura}%"></div></div></li>`).join('')}</ul>` : vazio('grafico', 'Sem despesas neste mês.')}</section></div>`
   return shell('dashboard', email, admin ? 'admin' : 'usuario', `<main id="conteudo" class="dash">${topo('Dashboard', nomeMes(ind.mes.ano, ind.mes.mes))}${corpo}</main>`, '', perfil)
 }
 
@@ -397,7 +404,7 @@ const itemConta = (c: ContaResumo, editavel: boolean) => {
 }
 
 export const paginaAdmin = (email: string, convites: Convite[], contasAdmin: ContaResumo[] = [], mensagem?: string, perfil?: Perfil, fixos: string[] = []) =>
-  shell('admin', email, 'admin', `<main id="conteudo">${topo('Administração', 'Convites e contas')}${aviso(mensagem)}<div class="cartao"><h2>Novo convite</h2><p class="sub">Gera um código de uso único para um cadastro.</p><form method="post" action="/admin/convites"><div class="campo"><label for="nota">Nota (opcional)</label><input id="nota" name="nota" type="text" maxlength="80" placeholder="Ex.: para o João"></div><button class="btn">Gerar convite</button></form></div><div class="cartao"><h2>Convites</h2>${convites.length ? `<ul class="convites">${convites.map(itemConvite).join('')}</ul>` : '<p class="sub">Nenhum convite ainda.</p>'}</div><div class="cartao"><h2>Contas</h2>${contasAdmin.length ? `<ul class="convites">${contasAdmin.map((c) => itemConta(c, c.email !== email && !fixos.includes(c.email))).join('')}</ul>` : '<p class="sub">Nenhuma conta cadastrada ainda.</p>'}</div></main>`, '', perfil)
+  shell('admin', email, 'admin', `<main id="conteudo">${topo('Administração', 'Convites e contas')}${aviso(mensagem)}<div class="grade duas"><div class="cartao c5"><h2>Novo convite</h2><p class="sub">Gera um código de uso único para um cadastro.</p><form method="post" action="/admin/convites"><div class="campo"><label for="nota">Nota (opcional)</label><input id="nota" name="nota" type="text" maxlength="80" placeholder="Ex.: para o João"></div><button class="btn">Gerar convite</button></form></div><div class="pilha c7"><div class="cartao"><h2>Convites</h2>${convites.length ? `<ul class="convites">${convites.map(itemConvite).join('')}</ul>` : vazio('escudo', 'Nenhum convite ainda.')}</div><div class="cartao"><h2>Contas</h2>${contasAdmin.length ? `<ul class="convites">${contasAdmin.map((c) => itemConta(c, c.email !== email && !fixos.includes(c.email))).join('')}</ul>` : vazio('escudo', 'Nenhuma conta cadastrada ainda.')}</div></div></div></main>`, '', perfil)
 
 const AVISOS: Record<Aviso, string> = {
   qr_expirado: 'O QR expirou. Clique em Conectar para gerar outro.',
@@ -462,7 +469,7 @@ export function fragmentoPainel({ visao: v, conta, grupos, qrSvg }: DadosFragmen
   if (!conta.grupoId) {
     return `${passos(2)}${cabeca('Escolha o grupo')}<p class="sub">O bot vai ler e responder só nesse grupo.</p>${seletorGrupo(grupos)}${botao('/painel/desconectar', 'Desconectar', 'sec')}`
   }
-  return `${passos(3)}<div class="cabeca"><h2 class="pronto">${ic('check')}Tudo pronto</h2>${chip(v.estado)}</div><p class="grupo">Grupo: <strong>${esc(conta.grupoNome ?? conta.grupoId)}</strong></p><p class="sub">Digite no grupo:</p><ul class="comandos">${COMANDOS.map(([rot, cmd]) => `<li><span class="rot">${rot}</span><code>${cmd}</code></li>`).join('')}</ul><details><summary>${ic('troca')}&nbsp;Trocar grupo</summary>${seletorGrupo(grupos, conta.grupoId)}</details>${botao('/painel/desconectar', 'Desconectar', 'sec')}`
+  return `${passos(3)}<div class="cabeca"><h2 class="pronto">${ic('check')}Tudo pronto</h2>${chip(v.estado)}</div><div class="pronto-grade"><div class="pg-info"><p class="grupo">Grupo: <strong>${esc(conta.grupoNome ?? conta.grupoId)}</strong></p><details><summary>${ic('troca')}&nbsp;Trocar grupo</summary>${seletorGrupo(grupos, conta.grupoId)}</details>${botao('/painel/desconectar', 'Desconectar', 'sec')}</div><div class="pg-cmd"><p class="sub">Digite no grupo:</p><ul class="comandos">${COMANDOS.map(([rot, cmd]) => `<li><span class="rot">${rot}</span><code>${cmd}</code></li>`).join('')}</ul></div></div>`
 }
 
 // --- perfil ---------------------------------------------------------------
@@ -492,8 +499,8 @@ export const paginaPerfil = (conta: Conta, papel: Papel, estado: Visao['estado']
   const cabeca = `${topo('Perfil', 'Sua conta e preferências')}${aviso(mensagem.erro)}${aviso(mensagem.ok, 'ok')}`
   const corAtual = conta.avatarCor ?? 'vermelho'
   const iconeAtual = conta.avatarIcone ?? 'inicial'
-  const identidade = `<section class="cartao"><h2>Identidade</h2><form method="post" action="/perfil"><div class="campo"><label for="nome">Nome de exibição</label><input id="nome" name="nome" type="text" maxlength="40" autocomplete="name" placeholder="Como você quer aparecer" value="${esc(conta.nome ?? '')}"></div><fieldset class="opcoes"><legend>Cor do avatar</legend>${AVATAR_CORES.map((c) => opcaoCor(c, corAtual)).join('')}</fieldset><fieldset class="opcoes"><legend>Ícone do avatar</legend>${AVATAR_ICONES.map((i) => opcaoIcone(i, iconeAtual)).join('')}</fieldset><button class="btn">Salvar perfil</button></form></section>`
+  const identidade = `<section class="cartao c6"><h2>Identidade</h2><form method="post" action="/perfil"><div class="campo"><label for="nome">Nome de exibição</label><input id="nome" name="nome" type="text" maxlength="40" autocomplete="name" placeholder="Como você quer aparecer" value="${esc(conta.nome ?? '')}"></div><fieldset class="opcoes"><legend>Cor do avatar</legend>${AVATAR_CORES.map((c) => opcaoCor(c, corAtual)).join('')}</fieldset><fieldset class="opcoes"><legend>Ícone do avatar</legend>${AVATAR_ICONES.map((i) => opcaoIcone(i, iconeAtual)).join('')}</fieldset><button class="btn">Salvar perfil</button></form></section>`
   const whatsapp = `<section class="cartao"><div class="cabeca"><h2>WhatsApp</h2>${chip(estado)}</div><p class="sub">${conta.grupoNome ? `Grupo: <strong>${esc(conta.grupoNome)}</strong>` : 'Nenhum grupo escolhido.'}</p><p><a href="/painel">Abrir o painel</a></p></section>`
   const seguranca = `<section class="cartao"><h2>Segurança</h2><form method="post" action="/perfil/senha">${campo({ nome: 'atual', rotulo: 'Senha atual', tipo: 'password', extra: 'autocomplete="current-password"' })}${campo({ nome: 'nova', rotulo: 'Nova senha (mínimo 8 caracteres)', tipo: 'password', extra: 'minlength="8" autocomplete="new-password"' })}${campo({ nome: 'confirmacao', rotulo: 'Confirme a nova senha', tipo: 'password', extra: 'minlength="8" autocomplete="new-password"' })}<button class="btn">Trocar senha</button></form><hr style="border:0;border-top:1px solid var(--borda);margin:20px 0"><p class="sub">Encerra a sessão em todos os outros aparelhos e navegadores. Esta continua aberta.</p><form method="post" action="/perfil/sair-aparelhos"><button class="btn sec">Sair dos outros aparelhos</button></form></section>`
-  return shell('perfil', conta.email, papel, `<main id="conteudo" class="pilha">${cabeca}${identidade}<section class="cartao"><h2>Conta</h2>${dados}</section>${whatsapp}${seguranca}</main>`, '', perfilDe(conta))
+  return shell('perfil', conta.email, papel, `<main id="conteudo">${cabeca}<div class="grade duas">${identidade}<div class="pilha c6"><section class="cartao"><h2>Conta</h2>${dados}</section>${whatsapp}${seguranca}</div></div></main>`, '', perfilDe(conta))
 }

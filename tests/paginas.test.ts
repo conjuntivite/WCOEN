@@ -425,3 +425,37 @@ describe('layout fluido (largura total, sem centralizar)', () => {
     expect(telas.painel).toMatch(/--sombra2:/)
   })
 })
+
+describe('grades por tela', () => {
+  const ind = montarIndicadores([{ ano: 2026, mes: 9, receitas: 100000, despesas: 25000 }], { receitas: [], despesas: [{ conta: 'mercado', total: 25000 }] })
+  const vazio = montarIndicadores([{ ano: 2026, mes: 9, receitas: 0, despesas: 0 }], { receitas: [], despesas: [] })
+
+  it('dashboard: gráfico (7) ao lado das categorias (5)', () => {
+    const html = paginaDashboard('a@x.com', ind, false)
+    expect(html).toMatch(/class="grade duas"[\s\S]*class="cartao c7"[\s\S]*Últimos[\s\S]*class="cartao c5"[\s\S]*Despesas por categoria/)
+  })
+
+  it('dashboard vazio: estado vazio com ícone e o texto de antes', () => {
+    const html = paginaDashboard('a@x.com', vazio, false)
+    expect(html).toMatch(/class="vazio"[^>]*><svg[^>]*aria-hidden="true"/)
+    expect(html).toContain('Nenhum lançamento nos últimos 6 meses')
+  })
+
+  it('painel pronto: duas colunas, comandos antes no celular', () => {
+    const html = frag({ estado: 'conectado' }, comGrupo)
+    expect(html).toMatch(/class="pronto-grade"[\s\S]*class="pg-info"[\s\S]*class="pg-cmd"[\s\S]*\/d mercado 45,90/)
+    expect(frag({ estado: 'desconectado' })).not.toContain('pronto-grade')
+  })
+
+  it('perfil: identidade (6) e as demais seções (6)', () => {
+    const html = paginaPerfil(conta, 'usuario', 'desconectado')
+    expect(html).toMatch(/class="grade duas"[\s\S]*class="cartao c6"[\s\S]*Identidade[\s\S]*class="pilha c6"[\s\S]*Segurança/)
+  })
+
+  it('admin: novo convite (5) ao lado de convites e contas (7); formulários e textos de antes', () => {
+    const html = paginaAdmin('a@x.com', [])
+    expect(html).toMatch(/class="grade duas"[\s\S]*class="cartao c5"[\s\S]*Novo convite[\s\S]*class="pilha c7"[\s\S]*Convites[\s\S]*Contas/)
+    expect(html).toContain('Nenhum convite')
+    expect(html).toMatch(/<form[^>]*action="\/admin\/convites"/)
+  })
+})
