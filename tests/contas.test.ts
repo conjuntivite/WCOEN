@@ -240,3 +240,52 @@ describe('conta DEV e exclusão definitiva', () => {
     expect((await pool.query('SELECT 1 FROM contas WHERE id = $1', [conta.id])).rowCount).toBe(0)
   })
 })
+
+describe('perfil da conta', () => {
+  const nova = async (email = 'perfil@x.com') => ((await cadastrar(email)) as { ok: true; conta: { id: string } }).conta
+
+  it('conta nova vem sem personalização e com data de criação', async () => {
+    const c = await nova()
+    const lida = (await contas.porId(c.id))!
+    expect(lida.nome).toBeUndefined()
+    expect(lida.avatarCor).toBeUndefined()
+    expect(lida.criadaEm).toBeInstanceOf(Date)
+  })
+
+  it('definirPerfil guarda nome (aparado e com no máximo 40 caracteres), cor e ícone da lista', async () => {
+    const c = await nova()
+    await contas.definirPerfil(c.id, { nome: '  ' + 'A'.repeat(50) + '  ', cor: 'azul', icone: 'estrela' })
+    expect(await contas.porId(c.id)).toMatchObject({ nome: 'A'.repeat(40), avatarCor: 'azul', avatarIcone: 'estrela' })
+  })
+
+  it('cor e ícone fora da lista e nome vazio viram "sem valor"', async () => {
+    const c = await nova()
+    await contas.definirPerfil(c.id, { nome: 'Ana', cor: 'azul', icone: 'estrela' })
+    await contas.definirPerfil(c.id, { nome: '   ', cor: 'url(javascript:1)', icone: '<b>' })
+    const lida = (await contas.porId(c.id))!
+    expect(lida.nome).toBeUndefined()
+    expect(lida.avatarCor).toBeUndefined()
+    expect(lida.avatarIcone).toBeUndefined()
+  })
+
+  it('trocarSenha: senha atual errada e nova curta não mudam nada; a certa troca', async () => {
+    const c = await nova()
+    expect(await contas.trocarSenha(c.id, 'errada-123', 'outra-senha-1')).toBe('senha_atual')
+    expect(await contas.trocarSenha(c.id, 'senha-boa-123', '1234567')).toBe('senha_curta')
+    expect(await contas.verificar('perfil@x.com', 'senha-boa-123')).not.toBeNull()
+    expect(await contas.trocarSenha(c.id, 'senha-boa-123', 'outra-senha-1')).toBe('ok')
+    expect(await contas.verificar('perfil@x.com', 'senha-boa-123')).toBeNull()
+    expect(await contas.verificar('perfil@x.com', 'outra-senha-1')).not.toBeNull()
+  })
+
+  it('encerrarOutrosLogins derruba as outras sessões e mantém a informada', async () => {
+    const c = await nova()
+    const atual = await contas.criarLogin(c.id)
+    const outro = await contas.criarLogin(c.id)
+    const deOutraConta = await contas.criarLogin((await nova('outra@x.com')).id)
+    await contas.encerrarOutrosLogins(c.id, atual)
+    expect(await contas.contaDoLogin(atual)).not.toBeNull()
+    expect(await contas.contaDoLogin(outro)).toBeNull()
+    expect(await contas.contaDoLogin(deOutraConta)).not.toBeNull()
+  })
+})

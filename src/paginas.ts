@@ -1,4 +1,4 @@
-import type { Conta, ContaResumo } from './contas'
+import { AVATAR_CORES, AVATAR_ICONES, type Conta, type ContaResumo, type Perfil } from './contas'
 import type { Convite } from './convites'
 import type { Aviso, Visao } from './sessoes'
 import { rotuloMesCurto, svgTendencia, type Indicadores } from './dashboard'
@@ -115,6 +115,19 @@ html[data-menu=estreito] .item{justify-content:center;padding:8px}
 html[data-gaveta=aberta] .menu{transform:none;visibility:visible}
 html[data-gaveta=aberta] .veu{display:block;position:fixed;inset:0;z-index:25;background:rgba(0,0,0,.45)}
 }
+/* avatar e perfil */
+.av-vermelho{background:#d10f0f}.av-laranja{background:#c2410c}.av-amarelo{background:#a16207}.av-verde{background:#15803d}.av-azul{background:#1d4ed8}.av-roxo{background:#7e22ce}.av-rosa{background:#be185d}.av-cinza{background:#52525b}
+.avatar[class*=av-]{color:#fff}.avatar .ic{width:15px;height:15px}.avatar.neutro{background:var(--marca-suave);color:var(--texto)}
+.perfil-menu a.item{margin-top:10px;padding-left:0}
+.pilha{display:grid;gap:16px}
+.dados{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:12px 0 0}.dados dt{color:var(--suave)}.dados dd{margin:0;overflow-wrap:anywhere}
+fieldset.opcoes{border:0;padding:0;margin:14px 0}fieldset.opcoes legend{font-size:.9rem;font-weight:600;margin-bottom:6px;padding:0}
+.op{position:relative;display:inline-block;margin:0 6px 6px 0;cursor:pointer}
+.op input{position:absolute;opacity:0;width:1px;height:1px;min-height:0;padding:0;border:0}
+.op .avatar{width:40px;height:40px;font-size:1rem}.op .avatar .ic{width:20px;height:20px}
+.op input:checked+.avatar{outline:3px solid var(--foco);outline-offset:2px}.op input:focus-visible+.avatar{outline:3px dashed var(--texto);outline-offset:2px}
+.so-leitor{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.aviso.ok{background:var(--marca-suave);color:var(--receita)}
 /* admin */
 .convites{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
 .convite{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border:1px solid var(--borda);border-radius:12px}
@@ -162,6 +175,13 @@ const ICONES = {
   recolher: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>',
   lua: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
   sol: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+  pessoa: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  estrela: '<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>',
+  coracao: '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>',
+  raio: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
+  folha: '<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>',
+  chama: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
+  foguete: '<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>',
   troca: '<path d="M17 3l4 4-4 4"/><path d="M3 7h18"/><path d="M7 21l-4-4 4-4"/><path d="M21 17H3"/>',
 }
 const ic = (nome: keyof typeof ICONES, classe = '') =>
@@ -174,22 +194,30 @@ const marca = (href = '/', cheia = false) =>
 const layout = (titulo: string, corpo: string, script = '') =>
   `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><link rel="icon" type="image/svg+xml" href="/mascote.svg"><title>${esc(titulo)} · WCOEN</title><style>${ESTILO}</style><script src="/app.js"></script></head><body><a class="pular" href="#conteudo">Pular para o conteúdo</a>${corpo}${script}</body></html>`
 
-// menu lateral das telas logadas (painel, dashboard, admin)
-type Tela = 'painel' | 'dashboard' | 'admin'
-type Papel = 'usuario' | 'admin' | 'dev'
+// menu lateral das telas logadas (painel, dashboard, admin, perfil)
+type Tela = 'painel' | 'dashboard' | 'admin' | 'perfil'
+const NAV: Tela[] = ['painel', 'dashboard', 'admin']
+export type Papel = 'usuario' | 'admin' | 'dev'
 const PAPEIS: Record<Papel, string> = { usuario: 'Usuário', admin: 'Administrador', dev: 'Dev (acesso master)' }
-const TELAS: Record<Tela, [string, keyof typeof ICONES]> = { painel: ['Painel', 'casa'], dashboard: ['Dashboard', 'grafico'], admin: ['Administração', 'escudo'] }
+const TELAS: Record<Tela, [string, keyof typeof ICONES]> = { painel: ['Painel', 'casa'], dashboard: ['Dashboard', 'grafico'], admin: ['Administração', 'escudo'], perfil: ['Perfil', 'pessoa'] }
 
-const shell = (ativa: Tela, email: string, papel: Papel, principal: string, larga = false, script = '') => {
-  const itens = (Object.keys(TELAS) as Tela[])
+export const perfilDe = (c: Conta): Perfil => ({ nome: c.nome, cor: c.avatarCor, icone: c.avatarIcone })
+const corDe = (p?: Perfil) => ((AVATAR_CORES as readonly string[]).includes(p?.cor ?? '') ? p!.cor! : 'vermelho')
+const avatar = (email: string, p?: Perfil) => {
+  const icone = (AVATAR_ICONES as readonly string[]).includes(p?.icone ?? '') && p!.icone !== 'inicial' ? (p!.icone as keyof typeof ICONES) : null
+  return `<span class="avatar av-${corDe(p)}" aria-hidden="true">${icone ? ic(icone) : esc([...(p?.nome?.trim() || email)][0]?.toUpperCase() ?? '?')}</span>`
+}
+
+const shell = (ativa: Tela, email: string, papel: Papel, principal: string, larga = false, script = '', perfil?: Perfil) => {
+  const itens = NAV
     .filter((t) => (t !== 'admin' || papel !== 'usuario') && (t !== 'painel' || papel !== 'dev')) // o dev não tem painel de WhatsApp
     .map((t) => `<a class="item" href="/${t}"${t === ativa ? ' aria-current="page"' : ''}>${ic(TELAS[t][1])}<span class="rotulo">${TELAS[t][0]}</span></a>`)
     .join('')
   const inicio = papel === 'dev' ? '/dashboard' : '/painel'
-  const inicial = esc([...email][0]?.toUpperCase() ?? '?')
+  const nome = perfil?.nome?.trim()
   return layout(
     TELAS[ativa][0],
-    `<div class="app"><div class="barra-mobile"><button class="item" type="button" id="gaveta-abrir" aria-label="Abrir menu" aria-controls="menu" aria-expanded="false">${ic('menu')}</button>${marca(inicio)}</div><div class="veu" id="veu"></div><aside class="menu" id="menu"><div class="menu-topo">${marca(inicio)}<button class="icone" type="button" id="menu-alternar" aria-label="Recolher menu" aria-controls="menu" aria-expanded="true" title="Recolher menu">${ic('recolher')}</button></div><nav aria-label="Menu principal">${itens}</nav><div class="menu-base"><button class="item" type="button" id="tema-alternar" title="Alternar tema claro/escuro">${ic('lua', 'ic-lua')}${ic('sol', 'ic-sol')}<span class="rotulo">Tema</span></button><details class="perfil"><summary class="item" title="Perfil"><span class="avatar" aria-hidden="true">${inicial}</span><span class="rotulo">Perfil</span></summary><div class="perfil-menu"><p class="perfil-email">${esc(email)}</p><p class="sub">${PAPEIS[papel]}</p></div></details><form method="post" action="/sair"><button class="item" title="Sair">${ic('sair')}<span class="rotulo">Sair</span></button></form></div></aside><div class="conteudo"><div class="pagina${larga ? ' larga' : ''}">${principal}</div></div></div>`,
+    `<div class="app"><div class="barra-mobile"><button class="item" type="button" id="gaveta-abrir" aria-label="Abrir menu" aria-controls="menu" aria-expanded="false">${ic('menu')}</button>${marca(inicio)}</div><div class="veu" id="veu"></div><aside class="menu" id="menu"><div class="menu-topo">${marca(inicio)}<button class="icone" type="button" id="menu-alternar" aria-label="Recolher menu" aria-controls="menu" aria-expanded="true" title="Recolher menu">${ic('recolher')}</button></div><nav aria-label="Menu principal">${itens}</nav><div class="menu-base"><button class="item" type="button" id="tema-alternar" title="Alternar tema claro/escuro">${ic('lua', 'ic-lua')}${ic('sol', 'ic-sol')}<span class="rotulo">Tema</span></button><details class="perfil"><summary class="item" title="Perfil">${avatar(email, perfil)}<span class="rotulo">Perfil</span></summary><div class="perfil-menu"><p class="perfil-email">${esc(nome || email)}</p>${nome ? `<p class="sub">${esc(email)}</p>` : ''}<p class="sub">${PAPEIS[papel]}</p><a class="item" href="/perfil">Meu perfil</a></div></details><form method="post" action="/sair"><button class="item" title="Sair">${ic('sair')}<span class="rotulo">Sair</span></button></form></div></aside><div class="conteudo"><div class="pagina${larga ? ' larga' : ''}">${principal}</div></div></div>`,
     script,
   )
 }
@@ -243,7 +271,7 @@ type CampoDef = { nome: string; rotulo: string; tipo?: string; valor?: string; e
 const campo = ({ nome, rotulo, tipo = 'text', valor = '', extra = '', erro }: CampoDef) =>
   `<div class="campo"><label for="${nome}">${rotulo}</label><input id="${nome}" name="${nome}" type="${tipo}" required ${valor ? `value="${esc(valor)}" ` : ''}${erro ? `aria-invalid="true" aria-describedby="erro-${nome}" ` : ''}${extra}>${erro ? `<p class="erro-campo" id="erro-${nome}" role="alert">${ic('alerta')}<span>${esc(erro)}</span></p>` : ''}</div>`
 
-const aviso = (texto?: string, classe = '') => (texto ? `<div class="aviso ${classe}" role="alert">${ic('alerta')}<span>${esc(texto)}</span></div>` : '')
+const aviso = (texto?: string, classe = '') => (texto ? `<div class="aviso ${classe}" role="${classe === 'ok' ? 'status' : 'alert'}">${ic(classe === 'ok' ? 'check' : 'alerta')}<span>${esc(texto)}</span></div>` : '')
 
 export const paginaEntrar = (erro?: string, email = '') =>
   telaAuth(
@@ -299,8 +327,8 @@ new EventSource('/painel/eventos').onmessage = (e) => {
 }
 `
 
-export const paginaPainel = (email: string, fragmento: string, passo: string, erro?: string, admin = false) =>
-  shell('painel', email, admin ? 'admin' : 'usuario', `<main id="conteudo">${aviso(erro)}<div class="cartao" id="estado" data-passo="${esc(passo)}" aria-live="polite">${fragmento}</div></main>`, false, '<script src="/painel.js"></script>')
+export const paginaPainel = (email: string, fragmento: string, passo: string, erro?: string, admin = false, perfil?: Perfil) =>
+  shell('painel', email, admin ? 'admin' : 'usuario', `<main id="conteudo">${aviso(erro)}<div class="cartao" id="estado" data-passo="${esc(passo)}" aria-live="polite">${fragmento}</div></main>`, false, '<script src="/painel.js"></script>', perfil)
 
 // --- dashboard -----------------------------------------------------------
 
@@ -322,6 +350,7 @@ export const paginaDashboard = (
   ind: Indicadores,
   admin: boolean,
   dev?: { contas: { id: string; email: string }[]; selecionada: string | null },
+  perfil?: Perfil,
 ) => {
   const seletor = dev
     ? `<form class="filtro" method="get" action="/dashboard"><label for="conta">Conta</label><select id="conta" name="conta"><option value="">Todas as contas</option>${dev.contas.map((c) => `<option value="${esc(c.id)}"${c.id === dev.selecionada ? ' selected' : ''}>${esc(c.email)}</option>`).join('')}</select><button class="btn sec pequeno">Ver</button></form>`
@@ -332,7 +361,7 @@ export const paginaDashboard = (
 <section class="cartao"><h2>Últimos ${ind.serie.length} meses</h2>${svgTendencia(ind.serie)}<ul class="legenda"><li><i class="l-rec"></i>Receitas</li><li><i class="l-desp"></i>Despesas</li></ul>
 <details><summary>Ver dados em tabela</summary><table><thead><tr><th>Mês</th><th>Receitas</th><th>Despesas</th></tr></thead><tbody>${ind.serie.map((s) => `<tr><td>${rotuloMesCurto(s)}/${s.ano}</td><td>${formatBRL(s.receitas)}</td><td>${formatBRL(s.despesas)}</td></tr>`).join('')}</tbody></table></details></section>
 <section class="cartao"><h2>Despesas por categoria</h2>${ind.categorias.length ? `<ul class="cats">${ind.categorias.map((c) => `<li><span class="nome">${esc(c.conta)}</span><span class="valor">${formatBRL(c.total)}</span><div class="trilho" aria-hidden="true"><div style="width:${c.largura}%"></div></div></li>`).join('')}</ul>` : '<p class="sub">Sem despesas neste mês.</p>'}</section>`
-  return shell('dashboard', email, dev ? 'dev' : admin ? 'admin' : 'usuario', `<main id="conteudo" class="dash"><div><h1>Dashboard</h1><p class="sub">${nomeMes(ind.mes.ano, ind.mes.mes)}</p></div>${seletor}${corpo}</main>`, true)
+  return shell('dashboard', email, dev ? 'dev' : admin ? 'admin' : 'usuario', `<main id="conteudo" class="dash"><div><h1>Dashboard</h1><p class="sub">${nomeMes(ind.mes.ano, ind.mes.mes)}</p></div>${seletor}${corpo}</main>`, true, '', perfil)
 }
 
 // --- administração (convites) --------------------------------------------
@@ -360,8 +389,8 @@ const itemConta = (c: ContaResumo, souDev: boolean) => {
   return `<li class="convite"><div><code>${esc(c.email)}</code> <span class="sub">· ${dataHoraCurta(c.criadaEm)}</span>${conexao}</div>${status}${alternar}${redefinir}${excluir}</li>`
 }
 
-export const paginaAdmin = (email: string, convites: Convite[], contasAdmin: ContaResumo[] = [], souDev = false, mensagem?: string) =>
-  shell('admin', email, souDev ? 'dev' : 'admin', `<main id="conteudo">${aviso(mensagem)}<div class="cartao"><h2>Novo convite</h2><p class="sub">Gera um código de uso único para um cadastro.</p><form method="post" action="/admin/convites"><div class="campo"><label for="nota">Nota (opcional)</label><input id="nota" name="nota" type="text" maxlength="80" placeholder="Ex.: para o João"></div><button class="btn">Gerar convite</button></form></div><div class="cartao"><h2>Convites</h2>${convites.length ? `<ul class="convites">${convites.map(itemConvite).join('')}</ul>` : '<p class="sub">Nenhum convite ainda.</p>'}</div><div class="cartao"><h2>Contas</h2>${contasAdmin.length ? `<ul class="convites">${contasAdmin.map((c) => itemConta(c, souDev)).join('')}</ul>` : '<p class="sub">Nenhuma conta cadastrada ainda.</p>'}</div></main>`)
+export const paginaAdmin = (email: string, convites: Convite[], contasAdmin: ContaResumo[] = [], souDev = false, mensagem?: string, perfil?: Perfil) =>
+  shell('admin', email, souDev ? 'dev' : 'admin', `<main id="conteudo">${aviso(mensagem)}<div class="cartao"><h2>Novo convite</h2><p class="sub">Gera um código de uso único para um cadastro.</p><form method="post" action="/admin/convites"><div class="campo"><label for="nota">Nota (opcional)</label><input id="nota" name="nota" type="text" maxlength="80" placeholder="Ex.: para o João"></div><button class="btn">Gerar convite</button></form></div><div class="cartao"><h2>Convites</h2>${convites.length ? `<ul class="convites">${convites.map(itemConvite).join('')}</ul>` : '<p class="sub">Nenhum convite ainda.</p>'}</div><div class="cartao"><h2>Contas</h2>${contasAdmin.length ? `<ul class="convites">${contasAdmin.map((c) => itemConta(c, souDev)).join('')}</ul>` : '<p class="sub">Nenhuma conta cadastrada ainda.</p>'}</div></main>`, false, '', perfil)
 
 const AVISOS: Record<Aviso, string> = {
   qr_expirado: 'O QR expirou. Clique em Conectar para gerar outro.',
@@ -427,4 +456,40 @@ export function fragmentoPainel({ visao: v, conta, grupos, qrSvg }: DadosFragmen
     return `${passos(2)}${cabeca('Escolha o grupo')}<p class="sub">O bot vai ler e responder só nesse grupo.</p>${seletorGrupo(grupos)}${botao('/painel/desconectar', 'Desconectar', 'sec')}`
   }
   return `${passos(3)}<div class="cabeca"><h2 class="pronto">${ic('check')}Tudo pronto</h2>${chip(v.estado)}</div><p class="grupo">Grupo: <strong>${esc(conta.grupoNome ?? conta.grupoId)}</strong></p><p class="sub">Digite no grupo:</p><ul class="comandos">${COMANDOS.map(([rot, cmd]) => `<li><span class="rot">${rot}</span><code>${cmd}</code></li>`).join('')}</ul><details><summary>${ic('troca')}&nbsp;Trocar grupo</summary>${seletorGrupo(grupos, conta.grupoId)}</details>${botao('/painel/desconectar', 'Desconectar', 'sec')}`
+}
+
+// --- perfil ---------------------------------------------------------------
+
+export const ERROS_PERFIL: Record<string, string> = {
+  confirmacao: 'A confirmação não confere com a nova senha.',
+  senha_atual: 'Senha atual incorreta.',
+  senha_curta: 'A nova senha precisa ter ao menos 8 caracteres.',
+  limite: 'Muitas tentativas. Aguarde alguns minutos.',
+}
+export const AVISOS_PERFIL: Record<string, string> = {
+  salvo: 'Perfil salvo.',
+  senha: 'Senha alterada. Os outros aparelhos foram desconectados.',
+  aparelhos: 'Os outros aparelhos foram desconectados.',
+}
+
+const NOMES_COR: Record<(typeof AVATAR_CORES)[number], string> = { vermelho: 'Vermelho', laranja: 'Laranja', amarelo: 'Amarelo', verde: 'Verde', azul: 'Azul', roxo: 'Roxo', rosa: 'Rosa', cinza: 'Cinza' }
+const NOMES_ICONE: Record<(typeof AVATAR_ICONES)[number], string> = { inicial: 'Inicial', pessoa: 'Pessoa', estrela: 'Estrela', coracao: 'Coração', raio: 'Raio', folha: 'Folha', chama: 'Chama', foguete: 'Foguete' }
+
+const opcaoCor = (c: (typeof AVATAR_CORES)[number], atual: string) =>
+  `<label class="op"><input type="radio" name="cor" value="${c}"${c === atual ? ' checked' : ''}><span class="avatar av-${c}" aria-hidden="true"></span><span class="so-leitor">${NOMES_COR[c]}</span></label>`
+const opcaoIcone = (i: (typeof AVATAR_ICONES)[number], atual: string) =>
+  `<label class="op"><input type="radio" name="icone" value="${i}"${i === atual ? ' checked' : ''}><span class="avatar neutro" aria-hidden="true">${i === 'inicial' ? 'A' : ic(i)}</span><span class="so-leitor">${NOMES_ICONE[i]}</span></label>`
+
+export const paginaPerfil = (conta: Conta, papel: Papel, estado: Visao['estado'] | null, mensagem: { erro?: string; ok?: string } = {}) => {
+  const dados = `<dl class="dados"><dt>E-mail</dt><dd>${esc(conta.email)}</dd><dt>Papel</dt><dd>${PAPEIS[papel]}</dd>${conta.criadaEm ? `<dt>Membro desde</dt><dd>${dataHoraCurta(conta.criadaEm)}</dd>` : ''}</dl>`
+  const cabeca = `<div><h1>Perfil</h1></div>${aviso(mensagem.erro)}${aviso(mensagem.ok, 'ok')}`
+  if (papel === 'dev' || !estado) {
+    return shell('perfil', conta.email, papel, `<main id="conteudo" class="pilha">${cabeca}<section class="cartao"><h2>Acesso master</h2>${dados}<p class="sub" style="margin-top:12px">Este acesso existe só na configuração do servidor: não tem cadastro, avatar, WhatsApp nem senha editável aqui.</p></section></main>`, false, '', perfilDe(conta))
+  }
+  const corAtual = conta.avatarCor ?? 'vermelho'
+  const iconeAtual = conta.avatarIcone ?? 'inicial'
+  const identidade = `<section class="cartao"><h2>Identidade</h2><form method="post" action="/perfil"><div class="campo"><label for="nome">Nome de exibição</label><input id="nome" name="nome" type="text" maxlength="40" autocomplete="name" placeholder="Como você quer aparecer" value="${esc(conta.nome ?? '')}"></div><fieldset class="opcoes"><legend>Cor do avatar</legend>${AVATAR_CORES.map((c) => opcaoCor(c, corAtual)).join('')}</fieldset><fieldset class="opcoes"><legend>Ícone do avatar</legend>${AVATAR_ICONES.map((i) => opcaoIcone(i, iconeAtual)).join('')}</fieldset><button class="btn">Salvar perfil</button></form></section>`
+  const whatsapp = `<section class="cartao"><div class="cabeca"><h2>WhatsApp</h2>${chip(estado)}</div><p class="sub">${conta.grupoNome ? `Grupo: <strong>${esc(conta.grupoNome)}</strong>` : 'Nenhum grupo escolhido.'}</p><p><a href="/painel">Abrir o painel</a></p></section>`
+  const seguranca = `<section class="cartao"><h2>Segurança</h2><form method="post" action="/perfil/senha">${campo({ nome: 'atual', rotulo: 'Senha atual', tipo: 'password', extra: 'autocomplete="current-password"' })}${campo({ nome: 'nova', rotulo: 'Nova senha (mínimo 8 caracteres)', tipo: 'password', extra: 'minlength="8" autocomplete="new-password"' })}${campo({ nome: 'confirmacao', rotulo: 'Confirme a nova senha', tipo: 'password', extra: 'minlength="8" autocomplete="new-password"' })}<button class="btn">Trocar senha</button></form><hr style="border:0;border-top:1px solid var(--borda);margin:20px 0"><p class="sub">Encerra a sessão em todos os outros aparelhos e navegadores. Esta continua aberta.</p><form method="post" action="/perfil/sair-aparelhos"><button class="btn sec">Sair dos outros aparelhos</button></form></section>`
+  return shell('perfil', conta.email, papel, `<main id="conteudo" class="pilha">${cabeca}${identidade}<section class="cartao"><h2>Conta</h2>${dados}</section>${whatsapp}${seguranca}</main>`, false, '', perfilDe(conta))
 }
