@@ -396,3 +396,32 @@ describe('página de perfil', () => {
     expect(html).toContain('av-vermelho')
   })
 })
+
+describe('layout fluido (largura total, sem centralizar)', () => {
+  const ind = montarIndicadores([{ ano: 2026, mes: 9, receitas: 100000, despesas: 25000 }], { receitas: [], despesas: [{ conta: 'mercado', total: 25000 }] })
+  const telas = {
+    painel: paginaPainel('a@x.com', 'x', 'desconectado'),
+    dashboard: paginaDashboard('a@x.com', ind, false),
+    admin: paginaAdmin('a@x.com', []),
+    perfil: paginaPerfil(conta, 'usuario', 'desconectado'),
+  }
+
+  it('o conteúdo não é mais limitado a 560/880px nem centralizado', () => {
+    const css = telas.painel
+    expect(css).not.toContain('max-width:560px;margin:0 auto')
+    expect(css).not.toContain('.pagina.larga')
+    expect(css).toContain('max-width:1280px')
+  })
+
+  it('toda tela logada tem cabeçalho padrão com h1 e a viewport cobre a área segura', () => {
+    for (const html of Object.values(telas)) {
+      expect(html).toMatch(/<header class="topo-tela"><h1>[^<]+<\/h1>/)
+      expect(html).toContain('viewport-fit=cover')
+    }
+  })
+
+  it('tokens de espaçamento e sombras no :root', () => {
+    expect(telas.painel).toMatch(/--e4:16px/)
+    expect(telas.painel).toMatch(/--sombra2:/)
+  })
+})
