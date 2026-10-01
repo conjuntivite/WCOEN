@@ -341,6 +341,16 @@ describe('CSS compartilhado', () => {
   })
 })
 
+describe('áreas seguras laterais (notch na horizontal)', () => {
+  const html = paginaPainel('a@x.com', 'x', 'desconectado')
+  it('página, menu e barra mobile respeitam a área segura esquerda/direita', () => {
+    expect(html).toContain('env(safe-area-inset-left)')
+    expect(html).toContain('env(safe-area-inset-right)')
+    expect(html).toMatch(/\.menu\{[^}]*env\(safe-area-inset-left\)/)
+    expect(html).toMatch(/\.barra-mobile\{[^}]*env\(safe-area-inset-left\)/)
+  })
+})
+
 describe('página de perfil', () => {
   const ana: Conta = { id: 'c1', email: 'ana@x.com', nome: 'Ana <b>', avatarCor: 'azul', avatarIcone: 'estrela', criadaEm: new Date('2026-09-01T12:00:00Z') }
 

@@ -56,7 +56,7 @@ input[aria-invalid=true]{border-color:var(--erro)}
 .balao p{margin:0 0 8px}.balao hr{border:0;border-top:1px solid #d8e2dd;margin:8px 0}
 .legenda{color:#f0d4d4;font-size:.88rem;margin-top:10px}
 /* painel */
-.pagina{max-width:1280px;padding:var(--e4) var(--e4) calc(var(--e6) + env(safe-area-inset-bottom))}
+.pagina{max-width:1280px;padding:var(--e4) max(var(--e4),env(safe-area-inset-right)) calc(var(--e6) + env(safe-area-inset-bottom)) max(var(--e4),env(safe-area-inset-left))}
 .pagina>main{display:grid;gap:var(--e4);align-content:start}.pagina>main>.aviso{margin:0}
 .topo-tela h1{margin:0;font-size:clamp(1.5rem,1.2rem + 1vw,2rem)}.topo-tela .sub{margin:var(--e1) 0 0}
 .grade{display:grid;gap:var(--e4);align-items:start}
@@ -86,7 +86,7 @@ code{font:600 .92rem ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wra
 details{margin-top:14px}summary{cursor:pointer;color:var(--suave);font-weight:600;min-height:44px;display:flex;align-items:center}
 /* menu lateral */
 .app{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100vh;transition:grid-template-columns .2s}
-.menu{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:10px;padding:14px 12px;background:var(--cartao);border-right:1px solid var(--borda)}
+.menu{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:10px;padding:14px 12px 14px max(12px,env(safe-area-inset-left));background:var(--cartao);border-right:1px solid var(--borda)}
 .menu-topo{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px}
 .menu nav{display:flex;flex-direction:column;gap:4px;flex:1}
 .menu-base{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--borda);padding-top:10px}
@@ -111,9 +111,9 @@ html[data-menu=estreito] .item{justify-content:center;padding:8px}
 }
 @media (max-width:859px){
 .app{display:block}
-.barra-mobile{display:flex;align-items:center;gap:8px;position:sticky;top:0;z-index:10;padding:max(6px,env(safe-area-inset-top)) 10px 6px;background:var(--cartao);border-bottom:1px solid var(--borda)}
+.barra-mobile{display:flex;align-items:center;gap:8px;position:sticky;top:0;z-index:10;padding:max(6px,env(safe-area-inset-top)) 10px 6px max(10px,env(safe-area-inset-left));background:var(--cartao);border-bottom:1px solid var(--borda)}
 .barra-mobile .item{width:44px;padding:0;justify-content:center}
-.menu{position:fixed;left:0;top:0;bottom:0;width:264px;z-index:30;transform:translateX(-100%);visibility:hidden;transition:transform .2s ease-in,visibility .2s}
+.menu{position:fixed;left:0;top:0;bottom:0;width:264px;z-index:30;transform:translateX(-100%);visibility:hidden;padding-bottom:max(14px,env(safe-area-inset-bottom));transition:transform .2s ease-in,visibility .2s}
 #menu-alternar{display:none}
 html[data-gaveta=aberta] .menu{transform:none;visibility:visible;transition-duration:.28s;transition-timing-function:var(--ease)}
 .veu{display:block;position:fixed;inset:0;z-index:25;background:rgba(0,0,0,.45);opacity:0;visibility:hidden;transition:opacity .2s,visibility .2s}
@@ -160,7 +160,7 @@ fieldset.opcoes{border:0;padding:0;margin:14px 0}fieldset.opcoes legend{font-siz
 .trilho{grid-column:1/-1;height:8px;background:var(--borda);border-radius:99px;overflow:hidden}.trilho div{height:100%;background:var(--despesa);border-radius:99px}
 .dash details{margin-top:12px;font-size:.9rem}.dash summary{cursor:pointer;color:var(--suave)}.dash table{width:100%;border-collapse:collapse;margin-top:8px}.dash th,.dash td{text-align:right;padding:6px 8px;border-bottom:1px solid var(--borda)}.dash th:first-child,.dash td:first-child{text-align:left}
 .filtro{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-@media (min-width:860px){.pagina{padding:var(--e6) 40px 64px}}
+@media (min-width:860px){.pagina{padding:var(--e6) max(40px,env(safe-area-inset-right)) 64px max(40px,env(safe-area-inset-left))}}
 @media (min-width:1024px){.grade.duas{grid-template-columns:repeat(12,minmax(0,1fr))}.c5{grid-column:span 5}.c6{grid-column:span 6}.c7{grid-column:span 7}}
 #estado{max-width:640px}#estado[data-passo*=pronto]{max-width:none}
 .pronto-grade{display:grid;gap:var(--e5)}.pg-cmd{order:-1}
@@ -177,7 +177,7 @@ fieldset.opcoes{border:0;padding:0;margin:14px 0}fieldset.opcoes legend{font-siz
 ::view-transition-new(conteudo){animation:none}
 @keyframes entra{from{opacity:0;transform:translateY(8px)}}
 @keyframes sai{to{opacity:0}}
-.topo-tela,.cartao,.kpi,.lado-form>div{animation:entra .25s var(--ease) backwards}
+.topo-tela,.cartao,.kpi{animation:entra .25s var(--ease) backwards}
 :is(.kpis,.grade,.pilha,main)>:nth-child(2){animation-delay:40ms}
 :is(.kpis,.grade,.pilha,main)>:nth-child(3){animation-delay:80ms}
 :is(.kpis,.grade,.pilha,main)>:nth-child(n+4){animation-delay:120ms}
@@ -306,7 +306,7 @@ const campo = ({ nome, rotulo, tipo = 'text', valor = '', extra = '', erro }: Ca
 
 const aviso = (texto?: string, classe = '') => (texto ? `<div class="aviso ${classe}" role="${classe === 'ok' ? 'status' : 'alert'}">${ic(classe === 'ok' ? 'check' : 'alerta')}<span>${esc(texto)}</span></div>` : '')
 
-const vazio = (icone: keyof typeof ICONES, texto: string) => `<div class="vazio">${ic(icone)}<p>${texto}</p></div>`
+const vazio = (icone: keyof typeof ICONES, texto: string) => `<div class="vazio">${ic(icone)}<p>${esc(texto)}</p></div>`
 
 export const paginaEntrar = (erro?: string, email = '') =>
   telaAuth(
