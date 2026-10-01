@@ -459,3 +459,14 @@ describe('grades por tela', () => {
     expect(html).toMatch(/<form[^>]*action="\/admin\/convites"/)
   })
 })
+
+describe('celular', () => {
+  const html = paginaPainel('a@x.com', 'x', 'desconectado')
+  it('véu da gaveta esmaece (opacity/visibility) em vez de aparecer de repente', () => {
+    expect(html).toMatch(/\.veu\{display:block;[^}]*opacity:0;visibility:hidden/)
+    expect(html).toMatch(/data-gaveta=aberta\] \.veu\{opacity:1;visibility:visible\}/)
+  })
+  it('barra superior respeita a área segura do aparelho', () => {
+    expect(html).toContain('env(safe-area-inset-top)')
+  })
+})
