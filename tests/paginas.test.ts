@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { montarIndicadores } from '../src/dashboard'
 import type { MesSerie } from '../src/types'
-import { fragmentoPainel, paginaAdmin, paginaCadastro, paginaEsqueciSenha, paginaEntrar, paginaPainel, paginaRedefinirSenha, passoDe, paginaDashboard } from '../src/paginas'
+import { fragmentoPainel, paginaPerfil, paginaAdmin, paginaCadastro, paginaEsqueciSenha, paginaEntrar, paginaPainel, paginaRedefinirSenha, passoDe, paginaDashboard } from '../src/paginas'
 import type { Conta, ContaResumo } from '../src/contas'
 import type { Convite } from '../src/convites'
 import type { Visao } from '../src/sessoes'
@@ -319,5 +319,68 @@ describe('CSS compartilhado', () => {
   it('o estilo do dashboard não redefine .legenda da vitrine (regra solta só uma vez)', () => {
     const soltas = paginaEntrar().match(/(^|\n)\.legenda\{/g) ?? []
     expect(soltas).toHaveLength(1)
+  })
+})
+
+describe('página de perfil', () => {
+  const ana: Conta = { id: 'c1', email: 'ana@x.com', nome: 'Ana <b>', avatarCor: 'azul', avatarIcone: 'estrela', criadaEm: new Date('2026-09-01T12:00:00Z') }
+
+  it('formulário de identidade: nome escapado, 8 cores e 8 ícones, os atuais marcados', () => {
+    const html = paginaPerfil(ana, 'usuario', 'desconectado')
+    expect(html).toMatch(/<form[^>]*action="\/perfil"/)
+    expect(html).toContain('Ana &lt;b&gt;')
+    expect(html).not.toContain('Ana <b>')
+    expect(html.match(/name="cor"/g)).toHaveLength(8)
+    expect(html.match(/name="icone"/g)).toHaveLength(8)
+    expect(html).toMatch(/name="cor" value="azul" checked/)
+    expect(html).toMatch(/name="icone" value="estrela" checked/)
+  })
+
+  it('mostra e-mail, papel e membro desde só para leitura', () => {
+    const html = paginaPerfil(ana, 'admin', 'desconectado')
+    expect(html).toContain('ana@x.com')
+    expect(html).toContain('Administrador')
+    expect(html).toContain('01/09/2026')
+    expect(html).not.toMatch(/name="email"/)
+  })
+
+  it('cartão do WhatsApp: estado, grupo e link para o painel', () => {
+    const html = paginaPerfil({ ...ana, grupoNome: 'Casa <i>' }, 'usuario', 'conectado')
+    expect(html).toContain('Conectado')
+    expect(html).toContain('Casa &lt;i&gt;')
+    expect(html).toContain('href="/painel"')
+  })
+
+  it('segurança: troca de senha e sair dos outros aparelhos', () => {
+    const html = paginaPerfil(ana, 'usuario', 'desconectado')
+    expect(html).toMatch(/<form[^>]*action="\/perfil\/senha"/)
+    for (const n of ['atual', 'nova', 'confirmacao']) expect(html).toContain(`name="${n}"`)
+    expect(html).toMatch(/<form[^>]*action="\/perfil\/sair-aparelhos"/)
+  })
+
+  it('mensagem de erro e de sucesso', () => {
+    expect(paginaPerfil(ana, 'usuario', 'desconectado', { erro: 'Senha atual incorreta.' })).toContain('Senha atual incorreta.')
+    expect(paginaPerfil(ana, 'usuario', 'desconectado', { ok: 'Perfil salvo.' })).toMatch(/class="aviso ok"[^>]*>[\s\S]*Perfil salvo\./)
+  })
+
+  it('dev: só o cartão de acesso master, sem formulários', () => {
+    const html = paginaPerfil({ id: 'dev', email: 'dev@x.com' }, 'dev', null)
+    expect(html).toContain('Dev (acesso master)')
+    expect(html).not.toContain('<form method="post" action="/perfil')
+    expect(html).not.toContain('href="/painel"')
+  })
+
+  it('o menu de todas as telas usa o avatar e o nome escolhidos', () => {
+    const perfil = { nome: 'Ana <b>', cor: 'roxo', icone: 'chama' }
+    const telas = [paginaPainel('ana@x.com', 'x', 'desconectado', undefined, false, perfil), paginaPerfil(ana, 'usuario', 'desconectado')]
+    for (const html of telas) expect(html).toMatch(/class="avatar av-(roxo|azul)"/)
+    expect(telas[0]).toContain('Ana &lt;b&gt;')
+    expect(telas[0]).toContain('href="/perfil"')
+  })
+
+  it('cor fora da lista cai no padrão (nada vira classe CSS arbitrária)', () => {
+    const html = paginaPainel('ana@x.com', 'x', 'desconectado', undefined, false, { cor: 'x" onclick="1' })
+    expect(html).not.toContain('onclick')
+    expect(html).toContain('av-vermelho')
   })
 })

@@ -6,7 +6,7 @@ import type { Convites } from './convites'
 import { montarIndicadores } from './dashboard'
 import type { Mailer } from './mailer'
 import { intervaloDoMes, mesAtual } from './period'
-import { AVISOS_ADMIN, ERROS_ADMIN, ERROS_PAINEL, SCRIPT_APP, SCRIPT_PAINEL, fragmentoPainel, paginaAdmin, paginaCadastro, paginaDashboard, paginaEntrar, paginaEsqueciSenha, paginaPainel, paginaRedefinirSenha, passoDe, type CampoCadastro } from './paginas'
+import { AVISOS_ADMIN, ERROS_ADMIN, ERROS_PAINEL, AVISOS_PERFIL, ERROS_PERFIL, SCRIPT_APP, SCRIPT_PAINEL, fragmentoPainel, paginaAdmin, paginaCadastro, paginaDashboard, paginaEntrar, paginaEsqueciSenha, paginaPainel, paginaPerfil, paginaRedefinirSenha, passoDe, perfilDe, type CampoCadastro } from './paginas'
 import type { Repositorio } from './repo'
 import type { Sessoes } from './sessoes'
 
@@ -148,7 +148,7 @@ export function criarWeb(op: OpcoesWeb): Server {
         if (souDev(conta)) throw new HttpErro(403)
         const f = (await montarFragmento(conta.id))!
         const chave = url.searchParams.get('erro') ?? ''
-        return html(res, 200, paginaPainel(conta.email, f.html, f.passo, Object.hasOwn(ERROS_PAINEL, chave) ? ERROS_PAINEL[chave] : undefined, isAdmin(conta)))
+        return html(res, 200, paginaPainel(conta.email, f.html, f.passo, Object.hasOwn(ERROS_PAINEL, chave) ? ERROS_PAINEL[chave] : undefined, isAdmin(conta), perfilDe(conta)))
       }
       if (caminho === '/dashboard') {
         if (!conta) return ir(res, '/entrar')
@@ -165,7 +165,7 @@ export function criarWeb(op: OpcoesWeb): Server {
         const { ano, mes } = mesAtual(agora)
         const leitura = op.repo.leitura(alvo)
         const [serie, balancete] = await Promise.all([leitura.serieMensal(agora, 6), leitura.balancete(intervaloDoMes(ano, mes))])
-        return html(res, 200, paginaDashboard(conta.email, montarIndicadores(serie, balancete), isAdmin(conta), dev ? { contas: lista, selecionada: alvo } : undefined))
+        return html(res, 200, paginaDashboard(conta.email, montarIndicadores(serie, balancete), isAdmin(conta), dev ? { contas: lista, selecionada: alvo } : undefined, perfilDe(conta)))
       }
       if (caminho === '/admin') {
         if (!conta) return ir(res, '/entrar')
@@ -174,7 +174,14 @@ export function criarWeb(op: OpcoesWeb): Server {
         const chaveErro = url.searchParams.get('erro') ?? ''
         const chaveOk = url.searchParams.get('ok') ?? ''
         const mensagem = Object.hasOwn(ERROS_ADMIN, chaveErro) ? ERROS_ADMIN[chaveErro] : Object.hasOwn(AVISOS_ADMIN, chaveOk) ? AVISOS_ADMIN[chaveOk] : undefined
-        return html(res, 200, paginaAdmin(conta.email, await convites.listar(), contasAdmin, souDev(conta), mensagem))
+        return html(res, 200, paginaAdmin(conta.email, await convites.listar(), contasAdmin, souDev(conta), mensagem, perfilDe(conta)))
+      }
+      if (caminho === '/perfil') {
+        if (!conta) return ir(res, '/entrar')
+        const chaveErro = url.searchParams.get('erro') ?? ''
+        const chaveOk = url.searchParams.get('ok') ?? ''
+        const mensagem = { erro: Object.hasOwn(ERROS_PERFIL, chaveErro) ? ERROS_PERFIL[chaveErro] : undefined, ok: Object.hasOwn(AVISOS_PERFIL, chaveOk) ? AVISOS_PERFIL[chaveOk] : undefined }
+        return html(res, 200, paginaPerfil(conta, souDev(conta) ? 'dev' : isAdmin(conta) ? 'admin' : 'usuario', souDev(conta) ? null : sessoes.visao(conta.id).estado, mensagem))
       }
       if (caminho === '/painel/eventos') {
         if (!conta) throw new HttpErro(401)
@@ -268,7 +275,30 @@ export function criarWeb(op: OpcoesWeb): Server {
     }
 
     if (!conta) return ir(res, '/entrar')
-    if (caminho.startsWith('/painel/') && souDev(conta)) throw new HttpErro(403)
+    if ((caminho.startsWith('/painel/') || caminho.startsWith('/perfil')) && souDev(conta)) throw new HttpErro(403)
+
+    if (caminho === '/perfil') {
+      await contas.definirPerfil(conta.id, { nome: f.get('nome') ?? '', cor: f.get('cor') ?? '', icone: f.get('icone') ?? '' })
+      return ir(res, '/perfil?ok=salvo')
+    }
+    if (caminho === '/perfil/senha') {
+      const chave = `p:${conta.id}`
+      if (limitador.bloqueado(chave)) return ir(res, '/perfil?erro=limite')
+      const nova = f.get('nova') ?? ''
+      if (nova !== (f.get('confirmacao') ?? '')) return ir(res, '/perfil?erro=confirmacao')
+      const r = await contas.trocarSenha(conta.id, f.get('atual') ?? '', nova)
+      if (r !== 'ok') {
+        if (r === 'senha_atual') limitador.falhou(chave)
+        return ir(res, `/perfil?erro=${r}`)
+      }
+      limitador.limpar(chave)
+      await contas.encerrarOutrosLogins(conta.id, tokenDe(req)!)
+      return ir(res, '/perfil?ok=senha')
+    }
+    if (caminho === '/perfil/sair-aparelhos') {
+      await contas.encerrarOutrosLogins(conta.id, tokenDe(req)!)
+      return ir(res, '/perfil?ok=aparelhos')
+    }
 
     if (caminho === '/painel/conectar') {
       await sessoes.iniciar(conta.id)

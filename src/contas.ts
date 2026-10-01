@@ -8,7 +8,11 @@ const TRINTA_DIAS_MS = 30 * 24 * 3600_000
 const UMA_HORA_MS = 60 * 60_000
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 
-export type Conta = { id: string; email: string; grupoId?: string; grupoNome?: string }
+export const AVATAR_CORES = ['vermelho', 'laranja', 'amarelo', 'verde', 'azul', 'roxo', 'rosa', 'cinza'] as const
+export const AVATAR_ICONES = ['inicial', 'pessoa', 'estrela', 'coracao', 'raio', 'folha', 'chama', 'foguete'] as const
+export type Perfil = { nome?: string; cor?: string; icone?: string }
+
+export type Conta = { id: string; email: string; grupoId?: string; grupoNome?: string; nome?: string; avatarCor?: string; avatarIcone?: string; criadaEm?: Date }
 export type ErroCadastro = 'convite_invalido' | 'email_invalido' | 'senha_curta' | 'email_em_uso'
 export type ContaResumo = { id: string; email: string; criadaEm: Date; grupoNome?: string; conectada: boolean; ativa: boolean }
 type RowConta = {
@@ -20,10 +24,23 @@ type RowConta = {
   grupo_nome: string | null
   conectada: boolean | null
   ativa: boolean
+  nome: string | null
+  avatar_cor: string | null
+  avatar_icone: string | null
 }
 
 const normalizar = (email: string) => email.trim().toLowerCase()
-const paraConta = (d: RowConta): Conta => ({ id: d.id, email: d.email, grupoId: d.grupo_id ?? undefined, grupoNome: d.grupo_nome ?? undefined })
+const paraConta = (d: RowConta): Conta => ({
+  id: d.id,
+  email: d.email,
+  grupoId: d.grupo_id ?? undefined,
+  grupoNome: d.grupo_nome ?? undefined,
+  nome: d.nome ?? undefined,
+  avatarCor: d.avatar_cor ?? undefined,
+  avatarIcone: d.avatar_icone ?? undefined,
+  criadaEm: d.criada_em,
+})
+const daLista = (lista: readonly string[], v?: string) => (v && lista.includes(v) ? v : null)
 const sha256 = (s: string) => createHash('sha256').update(s).digest()
 const igual = (a: string, b: string) => timingSafeEqual(sha256(a), sha256(b))
 
@@ -55,6 +72,9 @@ export async function criarContas(pool: Pool, { convite, convites, dev }: { conv
       conectada BOOLEAN
     );
     ALTER TABLE contas ADD COLUMN IF NOT EXISTS ativa BOOLEAN NOT NULL DEFAULT true;
+    ALTER TABLE contas ADD COLUMN IF NOT EXISTS nome TEXT;
+    ALTER TABLE contas ADD COLUMN IF NOT EXISTS avatar_cor TEXT;
+    ALTER TABLE contas ADD COLUMN IF NOT EXISTS avatar_icone TEXT;
     -- ponytail: sem TTL automático (o Mongo tinha expireAfterSeconds); a validade já é checada em
     -- contaDoLogin, então linhas expiradas só ficam paradas na tabela. Nos pilotos (poucas contas) não
     -- importa; se crescer, apagar as expiradas de tempos em tempos (ex.: um DELETE agendado).
@@ -170,6 +190,27 @@ export async function criarContas(pool: Pool, { convite, convites, dev }: { conv
       const r = await pool.query<RowConta>('SELECT * FROM contas WHERE email = $1', [normalizar(email)])
       const d = r.rows[0]
       return d && d.ativa && d.email !== emailDev ? paraConta(d) : null
+    },
+
+    async definirPerfil(contaId: string, { nome, cor, icone }: Perfil): Promise<void> {
+      await pool.query('UPDATE contas SET nome = $2, avatar_cor = $3, avatar_icone = $4 WHERE id = $1', [
+        contaId,
+        nome?.trim().slice(0, 40) || null,
+        daLista(AVATAR_CORES, cor),
+        daLista(AVATAR_ICONES, icone),
+      ])
+    },
+
+    async trocarSenha(contaId: string, atual: string, nova: string): Promise<'ok' | 'senha_atual' | 'senha_curta'> {
+      const r = await pool.query<{ senha_hash: string }>('SELECT senha_hash FROM contas WHERE id = $1', [contaId])
+      if (!r.rows[0] || !(await senhaConfere(atual, r.rows[0].senha_hash))) return 'senha_atual'
+      if (nova.length < 8) return 'senha_curta'
+      await pool.query('UPDATE contas SET senha_hash = $2 WHERE id = $1', [contaId, await hashSenha(nova)])
+      return 'ok'
+    },
+
+    async encerrarOutrosLogins(contaId: string, tokenAtual: string): Promise<void> {
+      await pool.query('DELETE FROM logins WHERE conta_id = $1 AND id <> $2', [contaId, sha256(tokenAtual).toString('hex')])
     },
 
     async criarRedefinicao(contaId: string): Promise<string> {

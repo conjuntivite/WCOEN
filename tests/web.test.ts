@@ -706,3 +706,84 @@ describe('GET /dashboard', () => {
     expect(repoFalso.leitura).toHaveBeenLastCalledWith(null)
   })
 })
+
+describe('perfil', () => {
+  it('exige login', async () => {
+    expect((await get('/perfil')).headers.get('location')).toBe('/entrar')
+    expect((await post('/perfil', { nome: 'x' })).headers.get('location')).toBe('/entrar')
+  })
+
+  it('GET mostra a página com dados da conta e estado do WhatsApp', async () => {
+    const { cookie, conta } = await entrar()
+    sessoes.definir(conta.id, { estado: 'conectado' })
+    const r = await get('/perfil', cookie)
+    expect(r.status).toBe(200)
+    const html = await r.text()
+    expect(html).toContain(conta.email)
+    expect(html).toContain('Conectado')
+  })
+
+  it('POST /perfil salva nome, cor e ícone e o menu passa a mostrá-los', async () => {
+    const { cookie, conta } = await entrar()
+    const r = await post('/perfil', { nome: 'Ana Souza', cor: 'verde', icone: 'folha' }, { cookie })
+    expect(r.status).toBe(303)
+    expect(r.headers.get('location')).toBe('/perfil?ok=salvo')
+    expect(await contas.porId(conta.id)).toMatchObject({ nome: 'Ana Souza', avatarCor: 'verde', avatarIcone: 'folha' })
+    const html = await (await get('/dashboard', cookie)).text()
+    expect(html).toContain('Ana Souza')
+    expect(html).toContain('av-verde')
+    expect(await (await get('/perfil?ok=salvo', cookie)).text()).toContain('Perfil salvo.')
+  })
+
+  it('valores fora da lista não são gravados', async () => {
+    const { cookie, conta } = await entrar()
+    await post('/perfil', { nome: '', cor: 'azul"><script>', icone: 'nada' }, { cookie })
+    const lida = (await contas.porId(conta.id))!
+    expect(lida.avatarCor).toBeUndefined()
+    expect(lida.avatarIcone).toBeUndefined()
+  })
+
+  it('trocar senha: confirmação diferente, senha atual errada e nova curta dão erro sem trocar', async () => {
+    const { cookie, conta } = await entrar()
+    const tenta = async (d: Record<string, string>) => (await post('/perfil/senha', d, { cookie })).headers.get('location')
+    expect(await tenta({ atual: 'senha-boa-123', nova: 'nova-senha-1', confirmacao: 'diferente-1' })).toBe('/perfil?erro=confirmacao')
+    expect(await tenta({ atual: 'errada-123', nova: 'nova-senha-1', confirmacao: 'nova-senha-1' })).toBe('/perfil?erro=senha_atual')
+    expect(await tenta({ atual: 'senha-boa-123', nova: '1234567', confirmacao: '1234567' })).toBe('/perfil?erro=senha_curta')
+    expect(await contas.verificar(conta.email, 'senha-boa-123')).not.toBeNull()
+    expect(await (await get('/perfil?erro=senha_atual', cookie)).text()).toContain('Senha atual incorreta.')
+  })
+
+  it('trocar senha certa: vale a nova, derruba as outras sessões e mantém a atual', async () => {
+    const { cookie, conta } = await entrar()
+    const outroAparelho = await entrarComo(conta.email, 'senha-boa-123')
+    const r = await post('/perfil/senha', { atual: 'senha-boa-123', nova: 'nova-senha-1', confirmacao: 'nova-senha-1' }, { cookie })
+    expect(r.headers.get('location')).toBe('/perfil?ok=senha')
+    expect(await contas.verificar(conta.email, 'nova-senha-1')).not.toBeNull()
+    expect((await get('/perfil', cookie)).status).toBe(200)
+    expect((await get('/perfil', outroAparelho)).headers.get('location')).toBe('/entrar')
+  })
+
+  it('senha atual errada repetida bloqueia as tentativas da conta', async () => {
+    const { cookie } = await entrar()
+    const tenta = () => post('/perfil/senha', { atual: 'errada-123', nova: 'nova-senha-1', confirmacao: 'nova-senha-1' }, { cookie })
+    for (let i = 0; i < 5; i++) await tenta()
+    expect((await tenta()).headers.get('location')).toBe('/perfil?erro=limite')
+  })
+
+  it('sair dos outros aparelhos mantém só a sessão atual', async () => {
+    const { cookie, conta } = await entrar()
+    const outro = await entrarComo(conta.email, 'senha-boa-123')
+    const r = await post('/perfil/sair-aparelhos', {}, { cookie })
+    expect(r.headers.get('location')).toBe('/perfil?ok=aparelhos')
+    expect((await get('/perfil', cookie)).status).toBe(200)
+    expect((await get('/perfil', outro)).headers.get('location')).toBe('/entrar')
+  })
+
+  it('dev: vê o cartão de acesso master, mas não altera nada (403)', async () => {
+    const cookie = await entrarComo(EMAIL_DEV, 'senha-dev-123')
+    const r = await get('/perfil', cookie)
+    expect(r.status).toBe(200)
+    expect(await r.text()).toContain('Dev (acesso master)')
+    for (const c of ['/perfil', '/perfil/senha', '/perfil/sair-aparelhos']) expect((await post(c, {}, { cookie })).status).toBe(403)
+  })
+})
