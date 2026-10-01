@@ -42,7 +42,7 @@ describe('erros', () => {
 
 describe('mensagens do gerenciador de sessões', () => {
   it('boas-vindas', () => {
-    expect(BOAS_VINDAS).toBe('✅ *CONECTADO*\n\n_Digite *ajuda* para ver os comandos._')
+    expect(BOAS_VINDAS).toBe('✅ *CONECTADO*\n\n_Digite */ajuda* para ver os comandos._')
   })
   it('recuperados: singular e plural', () => {
     expect(recuperados(1)).toBe('📥 *LANÇAMENTOS RECUPERADOS*\n\n_1 lançamento feito enquanto eu estava offline._')

@@ -70,7 +70,7 @@ export function extrato(pagina: number, total: number, itens: Lancamento[], gera
   const linhas = itens
     .map((l) => `📅 ${bold(`${rotuloDia(l.data)} · ${rotuloHora(l.enviadoEm)}`)}\n${icone(l.tipo)} ${italic(limpar(l.conta))}\n${sinal(l.tipo, l.valor)}`)
     .join('\n\n')
-  const rodape = pagina < total ? `➡️ ${italic(`Digite ${bold(`extrato ${pagina + 1}`)} para continuar.`)}` : total > 1 ? `✅ ${italic('Fim do extrato.')}` : ''
+  const rodape = pagina < total ? `➡️ ${italic(`Digite ${bold(`/extrato ${pagina + 1}`)} para continuar.`)}` : total > 1 ? `✅ ${italic('Fim do extrato.')}` : ''
   return secoes(
     cabecalho('📒', 'EXTRATO', `Página ${pagina} de ${total}`),
     ...(geral ? [totais(geral.receitas, geral.despesas)] : []),
@@ -82,7 +82,7 @@ export function extrato(pagina: number, total: number, itens: Lancamento[], gera
 export const extratoVazio = () => `${cabecalho('📒', 'EXTRATO')}\n\n${italic('Nenhum lançamento encontrado.')}`
 
 export const paginaInexistente = (total: number) =>
-  erro('📒', 'PÁGINA INEXISTENTE', `O extrato tem só ${total} ${total === 1 ? 'página' : 'páginas'}.`) + `\n\n➡️ ${italic(`Digite ${bold('extrato')} para começar.`)}`
+  erro('📒', 'PÁGINA INEXISTENTE', `O extrato tem só ${total} ${total === 1 ? 'página' : 'páginas'}.`) + `\n\n➡️ ${italic(`Digite ${bold('/extrato')} para começar.`)}`
 
 // --- auditoria -----------------------------------------------------------
 
@@ -134,32 +134,33 @@ export const AJUDA = [
   cabecalho('🤖', 'WCOEN', 'Seu controle financeiro pelo WhatsApp'),
   [
     `💸 ${bold('LANÇAMENTOS')}`,
-    `🔴 Despesa\n${cmd('mercado 45,90')}`,
-    `🟢 Receita\n${cmd('+ 70 plantão')}`,
-    `🟢 Receita automática\n${cmd('salário 3000')}\n${italic('salário, plantão, venda, freela…')}`,
-    `📅 Data opcional\n${cmd('mercado 45 ontem')}\n${cmd('mercado 45 15/09')}`,
+    `🔴 Despesa\n${cmd('/d mercado 45,90')}`,
+    `🟢 Receita\n${cmd('/r plantão 70')}`,
+    `📅 Data opcional\n${cmd('/d mercado 45 ontem')}\n${cmd('/d mercado 45 15/09')}`,
   ].join('\n\n'),
   [
     `📊 ${bold('RELATÓRIOS')}`,
-    `${cmd('balancete')}\n${italic('movimentações de hoje')}`,
-    `${cmd('balancete mensal')}\n${italic('resumo dos últimos meses')}`,
-    `${cmd('balancete semanal')}\n${cmd('balancete anual')}`,
+    `${cmd('/balancete')}\n${italic('movimentações de hoje')}`,
+    `${cmd('/balancete mensal')}\n${italic('resumo dos últimos meses')}`,
+    `${cmd('/balancete semanal')}\n${cmd('/balancete anual')}`,
   ].join('\n\n'),
-  [`🔎 ${bold('AUDITORIA')}`, `${cmd('auditoria mensal')}\n${cmd('auditoria semanal')}\n${cmd('auditoria anual')}\n${italic('ranking e análise da IA')}`].join('\n\n'),
-  [`📒 ${bold('EXTRATO')}`, `${cmd('extrato')}\n${italic('do mais recente ao mais antigo')}\n\n${cmd('extrato 2')}\n${italic('próxima página')}`].join('\n\n'),
-  [`↩️ ${bold('CORREÇÃO')}`, `${cmd('desfazer')}\n${italic('desfaz o último lançamento')}`].join('\n\n'),
+  [`🔎 ${bold('AUDITORIA')}`, `${cmd('/auditoria mensal')}\n${cmd('/auditoria semanal')}\n${cmd('/auditoria anual')}\n${italic('ranking e análise da IA')}`].join('\n\n'),
+  [`📒 ${bold('EXTRATO')}`, `${cmd('/extrato')}\n${italic('do mais recente ao mais antigo')}\n\n${cmd('/extrato 2')}\n${italic('próxima página')}`].join('\n\n'),
+  [`↩️ ${bold('CORREÇÃO')}`, `${cmd('/desfazer')}\n${italic('desfaz o último lançamento')}`].join('\n\n'),
 ].join(`\n\n${SEP}\n\n`)
 
-export const BOAS_VINDAS = `${cabecalho('✅', 'CONECTADO')}\n\n${italic(`Digite ${bold('ajuda')} para ver os comandos.`)}`
+export const BOAS_VINDAS = `${cabecalho('✅', 'CONECTADO')}\n\n${italic(`Digite ${bold('/ajuda')} para ver os comandos.`)}`
 
 export const recuperados = (n: number) =>
   `${cabecalho('📥', 'LANÇAMENTOS RECUPERADOS')}\n\n${italic(`${n} lançamento${n > 1 ? 's' : ''} feito${n > 1 ? 's' : ''} enquanto eu estava offline.`)}`
 
 const uso = (...comandos: string[]) => `${erro('⚠️', 'COMANDO INCOMPLETO', 'Use um destes:')}\n\n${comandos.map((c) => `👉 ${cmd(c)}`).join('\n')}`
 export const USO = {
-  balancete: uso('balancete', 'balancete mensal', 'balancete semanal', 'balancete anual'),
-  auditoria: uso('auditoria mensal', 'auditoria semanal', 'auditoria anual'),
-  extrato: uso('extrato', 'extrato 2'),
+  balancete: uso('/balancete', '/balancete mensal', '/balancete semanal', '/balancete anual'),
+  auditoria: uso('/auditoria mensal', '/auditoria semanal', '/auditoria anual'),
+  extrato: uso('/extrato', '/extrato 2'),
+  despesa: uso('/d mercado 45,90', '/d mercado 45,90 ontem', '/d mercado 45,90 15/09'),
+  receita: uso('/r plantão 70', '/r plantão 70 ontem', '/r plantão 70 15/09'),
 }
 
 export const ERRO_GENERICO = erro('⚠️', 'NÃO FOI POSSÍVEL CONCLUIR', 'Tente novamente em alguns instantes.')

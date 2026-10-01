@@ -82,7 +82,7 @@ describe('painel: indicador de passos e status', () => {
   it('pronto: comandos em cartões e o grupo escapado', () => {
     const html = frag({ estado: 'conectado' }, { ...comGrupo, grupoNome: '<i>Casa</i>' })
     expect(html).toContain('&lt;i&gt;Casa&lt;/i&gt;')
-    for (const c of ['mercado 45,90', '+ 70 plantão', 'balancete', 'extrato', 'desfazer', 'ajuda']) expect(html).toContain(c)
+    for (const c of ['/d mercado 45,90', '/r plantão 70', '/balancete', '/extrato', '/desfazer', '/ajuda']) expect(html).toContain(c)
   })
 
   it('área que o SSE atualiza é região viva (aria-live) e o painel traz o e-mail escapado', () => {
