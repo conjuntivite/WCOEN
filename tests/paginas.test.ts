@@ -10,7 +10,8 @@ const conta: Conta = { id: 'c1', email: 'ana@x.com' }
 const comGrupo: Conta = { ...conta, grupoId: 'g1@g.us', grupoNome: 'Casa' }
 const grupos = [{ id: 'g1@g.us', nome: 'Casa' }]
 const frag = (visao: Visao, c: Conta = conta) => fragmentoPainel({ visao, conta: c, grupos, qrSvg: '<svg></svg>' })
-const passoAtual = (html: string) => /<li[^>]*aria-current="step"[^>]*>([\s\S]*?)<\/li>/.exec(html)?.[1] ?? ''
+const cards = (html: string) => html.split('<section class="cartao passo').slice(1)
+const situacao = (card: string) => (card.startsWith(' atual') ? 'atual' : card.startsWith(' feito') ? 'feito' : card.startsWith(' travado') ? 'travado' : '?')
 
 describe('marca e prévia do bot nas telas de entrada', () => {
   it.each([
@@ -51,18 +52,40 @@ describe('formulários acessíveis', () => {
   })
 })
 
-describe('painel: indicador de passos e status', () => {
+describe('painel: três cards e status', () => {
   it.each([
-    ['desconectado', { estado: 'desconectado' }, conta, 'Conectar'],
-    ['conectando', { estado: 'conectando' }, conta, 'Conectar'],
-    ['aguardando_qr', { estado: 'aguardando_qr', qr: 'QR' }, conta, 'Conectar'],
-    ['conectado sem grupo', { estado: 'conectado' }, conta, 'Grupo'],
-    ['conectado com grupo', { estado: 'conectado' }, comGrupo, 'Pronto'],
-  ] as [string, Visao, Conta, string][])('%s: passo atual = %s', (_n, visao, c, esperado) => {
+    ['desconectado', { estado: 'desconectado' }, conta, ['atual', 'travado', 'travado']],
+    ['conectando', { estado: 'conectando' }, conta, ['atual', 'travado', 'travado']],
+    ['aguardando_qr', { estado: 'aguardando_qr', qr: 'QR' }, conta, ['atual', 'travado', 'travado']],
+    ['conectado sem grupo', { estado: 'conectado' }, conta, ['feito', 'atual', 'travado']],
+    ['conectado com grupo', { estado: 'conectado' }, comGrupo, ['feito', 'feito', 'atual']],
+  ] as [string, Visao, Conta, string[]][])('%s: situação dos cards = %j', (_n, visao, c, esperado) => {
     const html = frag(visao, c)
-    expect(html).toMatch(/<ol[^>]*aria-label="Progresso/)
-    expect(passoAtual(html)).toContain(esperado)
+    const cs = cards(html)
+    expect(cs).toHaveLength(3)
+    expect(cs.map(situacao)).toEqual(esperado)
+    for (const [i, t] of ['Conectar', 'Grupo', 'Pronto'].entries()) expect(cs[i]).toContain(`</span>${t}</h2>`)
+    cs.forEach((x, i) => {
+      expect(x.includes('aria-current="step"')).toBe(esperado[i] === 'atual')
+      expect(x.includes('aria-disabled="true"')).toBe(esperado[i] === 'travado')
+    })
     expect((html.match(/aria-current="step"/g) ?? []).length).toBe(1)
+    expect(html).not.toContain('class="passos"')
+    expect(html).not.toContain('Progresso da configuração')
+  })
+
+  it('número vira check no card feito', () => {
+    const cs = cards(frag({ estado: 'conectado' }, comGrupo))
+    expect(cs[0]).toMatch(/<span class="num"><svg/)
+    expect(cs[1]).toMatch(/<span class="num"><svg/)
+    expect(cards(frag({ estado: 'desconectado' }))[0]).toMatch(/<span class="num">1<\/span>/)
+  })
+
+  it('comandos só no estado pronto; textos dos cards travados', () => {
+    expect(frag({ estado: 'conectado' }, conta)).not.toContain('/d mercado')
+    expect(frag({ estado: 'desconectado' })).not.toContain('/d mercado')
+    expect(cards(frag({ estado: 'desconectado' }))[1]).toContain('Conecte o WhatsApp primeiro.')
+    expect(cards(frag({ estado: 'conectado' }, conta))[2]).toContain('Escolha um grupo para liberar.')
   })
 
   it.each([
@@ -79,15 +102,18 @@ describe('painel: indicador de passos e status', () => {
     expect(passoDe({ estado: 'aguardando_qr', codigo: 'ABCD1234' }, conta)).toBe('aguardando_qr:codigo')
   })
 
-  it('pronto: comandos em cartões e o grupo escapado', () => {
+  it('pronto: comandos no card 3 e o grupo escapado no card 2', () => {
     const html = frag({ estado: 'conectado' }, { ...comGrupo, grupoNome: '<i>Casa</i>' })
-    expect(html).toContain('&lt;i&gt;Casa&lt;/i&gt;')
+    expect(cards(html)[1]).toContain('&lt;i&gt;Casa&lt;/i&gt;')
+    expect(html).not.toContain('<i>Casa</i>')
     for (const c of ['/d mercado 45,90', '/r plantão 70', '/balancete', '/extrato', '/desfazer', '/ajuda']) expect(html).toContain(c)
   })
 
   it('área que o SSE atualiza é região viva (aria-live) e o painel traz o e-mail escapado', () => {
     const html = paginaPainel('<b>@x.com', frag({ estado: 'desconectado' }), 'desconectado')
-    expect(html).toMatch(/id="estado"[^>]*aria-live="polite"|aria-live="polite"[^>]*id="estado"/)
+    expect(html).toMatch(/<div id="estado" class="painel-passos" data-passo="desconectado" aria-live="polite">/)
+    expect(html).toContain('.painel-passos')
+    expect(html).toContain('min-width:1180px')
     expect(html).toContain('&lt;b&gt;@x.com')
     expect(html).not.toContain('<b>@x.com')
   })
@@ -449,12 +475,6 @@ describe('grades por tela', () => {
     const html = paginaDashboard('a@x.com', vazio, false)
     expect(html).toMatch(/class="vazio"[^>]*><svg[^>]*aria-hidden="true"/)
     expect(html).toContain('Nenhum lançamento nos últimos 6 meses')
-  })
-
-  it('painel pronto: duas colunas, comandos antes no celular', () => {
-    const html = frag({ estado: 'conectado' }, comGrupo)
-    expect(html).toMatch(/class="pronto-grade"[\s\S]*class="pg-info"[\s\S]*class="pg-cmd"[\s\S]*\/d mercado 45,90/)
-    expect(frag({ estado: 'desconectado' })).not.toContain('pronto-grade')
   })
 
   it('perfil: identidade (6) e as demais seções (6)', () => {
