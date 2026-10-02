@@ -3,6 +3,7 @@ import { apagarAuth, criarAuthState, garantirTabelaAuth } from './authstate'
 import { criarSocketBaileys } from './baileys'
 import { loadConfig } from './config'
 import { criarContas, criarLimitador } from './contas'
+import { criarContasCorrentes } from './contasCorrentes'
 import { criarConvites } from './convites'
 import { conectarPostgres } from './db'
 import { criarMailer, criarMailerResend } from './mailer'
@@ -24,6 +25,7 @@ try {
 const convites = await criarConvites(banco.pool)
 const contas = await criarContas(banco.pool, { convite: config.convite, convites })
 const repo = await criarRepo(banco.pool)
+const contasCorrentes = await criarContasCorrentes(banco.pool) // depois de criarRepo: a migração lê `lancamentos`
 await garantirTabelaAuth(banco.pool)
 
 const mailer = config.resend ? criarMailerResend(config.resend) : config.smtp ? criarMailer(config.smtp) : undefined
@@ -35,7 +37,7 @@ const sessoes = criarSessoes({
   criarAuth: (id) => criarAuthState(banco.pool, id, config.chaveCripto),
   apagarAuth: (id) => apagarAuth(banco.pool, id),
   criarSocket: criarSocketBaileys,
-  criarService: (id) => new Service(repo.repoDe(id), undefined, auditor),
+  criarService: (id) => new Service(repo.repoDe(id), contasCorrentes.doCliente(id), undefined, auditor),
   grupoDa: async (id) => (await contas.porId(id))?.grupoId,
   salvarGrupo: (id, grupoId, nome) => contas.definirGrupo(id, grupoId, nome),
   marcarConectada: (id, conectada) => contas.marcarConectada(id, conectada),
@@ -47,6 +49,7 @@ const web = criarWeb({
   sessoes,
   convites,
   repo,
+  contasCorrentes,
   mailer,
   adminEmails: config.adminEmails,
   limitador: criarLimitador(5, 15 * 60_000),

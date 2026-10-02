@@ -10,6 +10,7 @@ const novo = (o: Partial<NovoLancamento> = {}): NovoLancamento => ({
   msgId: `m${++n}`,
   data: new Date('2026-09-10T12:00:00Z'),
   enviadoEm: new Date('2026-09-10T12:00:00Z'),
+  contaCorrenteId: 'cc1',
   ...o,
 })
 
@@ -151,5 +152,24 @@ export function repoContract(nome: string, criar: () => Promise<Repo>, criarPar?
         expect(await b.extrato({ de: new Date(0), ate: new Date('2100-01-01') })).toHaveLength(2) // b intacta
       })
     }
+    it('filtra por conta corrente em extrato, balancete e serieMensal; sem filtro soma todas', async () => {
+      const repo = await criar()
+      await repo.add(novo({ conta: 'mercado', valor: 1000, contaCorrenteId: 'cc1' }))
+      await repo.add(novo({ conta: 'luz', valor: 300, contaCorrenteId: 'cc2' }))
+      const mes = { de: new Date('2026-09-01T03:00:00Z'), ate: new Date('2026-10-01T03:00:00Z') }
+      expect((await repo.extrato(mes, 'cc2')).map((l) => l.conta)).toEqual(['luz'])
+      expect((await repo.extrato(mes)).map((l) => l.conta)).toEqual(['mercado', 'luz'])
+      expect((await repo.balancete(null, 'cc1')).despesas).toEqual([{ conta: 'mercado', total: 1000 }])
+      expect((await repo.balancete(null)).despesas).toHaveLength(2)
+      expect(await repo.serieMensal(new Date('2026-09-30T12:00:00Z'), 1, 'cc2')).toEqual([{ ano: 2026, mes: 9, receitas: 0, despesas: 300 }])
+      expect(await repo.serieMensal(new Date('2026-09-30T12:00:00Z'), 1)).toEqual([{ ano: 2026, mes: 9, receitas: 0, despesas: 1300 }])
+    })
+
+    it('o lançamento guarda a conta corrente', async () => {
+      const repo = await criar()
+      await repo.add(novo({ contaCorrenteId: 'cc9' }))
+      const [l] = await repo.extrato({ de: new Date('2026-09-01T03:00:00Z'), ate: new Date('2026-10-01T03:00:00Z') })
+      expect(l.contaCorrenteId).toBe('cc9')
+    })
   })
 }

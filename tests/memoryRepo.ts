@@ -23,29 +23,30 @@ export class MemoryRepo implements Repo {
     return { ...alvo }
   }
 
-  async extrato(intervalo: { de: Date; ate: Date }) {
+  async extrato(intervalo: { de: Date; ate: Date }, contaCorrenteId?: string) {
     return this.itens
       .map((item, ordem) => ({ item, ordem }))
-      .filter((x) => !x.item.desfeitoEm && x.item.data.getTime() >= intervalo.de.getTime() && x.item.data.getTime() < intervalo.ate.getTime())
+      .filter((x) => !x.item.desfeitoEm && x.item.data.getTime() >= intervalo.de.getTime() && x.item.data.getTime() < intervalo.ate.getTime() && (!contaCorrenteId || x.item.contaCorrenteId === contaCorrenteId))
       .sort((a, b) => a.item.data.getTime() - b.item.data.getTime() || a.item.enviadoEm.getTime() - b.item.enviadoEm.getTime() || a.ordem - b.ordem)
       .map((x) => ({ ...x.item }))
   }
 
-  async serieMensal(ate: Date, meses: number): Promise<MesSerie[]> {
+  async serieMensal(ate: Date, meses: number, contaCorrenteId?: string): Promise<MesSerie[]> {
     return mesesTerminandoEm(ate, meses).map(({ ano, mes }) => {
       const { de, ate: fim } = intervaloDoMes(ano, mes)
       const soma = (t: Natureza) =>
         this.itens
-          .filter((i) => !i.desfeitoEm && i.tipo === t && i.data.getTime() >= de.getTime() && i.data.getTime() < fim.getTime())
+          .filter((i) => !i.desfeitoEm && i.tipo === t && i.data.getTime() >= de.getTime() && i.data.getTime() < fim.getTime() && (!contaCorrenteId || i.contaCorrenteId === contaCorrenteId))
           .reduce((s, i) => s + i.valor, 0)
       return { ano, mes, receitas: soma('receita'), despesas: soma('despesa') }
     })
   }
 
-  async balancete(intervalo: Intervalo): Promise<Balancete> {
+  async balancete(intervalo: Intervalo, contaCorrenteId?: string): Promise<Balancete> {
     const somas = { receita: new Map<string, number>(), despesa: new Map<string, number>() }
     for (const i of this.itens) {
       if (i.desfeitoEm) continue
+      if (contaCorrenteId && i.contaCorrenteId !== contaCorrenteId) continue
       if (intervalo && (i.data.getTime() < intervalo.de.getTime() || i.data.getTime() >= intervalo.ate.getTime())) continue
       const m = somas[i.tipo]
       m.set(i.conta, (m.get(i.conta) ?? 0) + i.valor)
