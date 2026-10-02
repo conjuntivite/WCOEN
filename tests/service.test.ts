@@ -3,6 +3,7 @@ import { Service, POR_PAGINA, type Mensagem } from '../src/service'
 import { ERRO_SALVAR, ERRO_GENERICO, ERRO_DATA, IA_DESLIGADA } from '../src/presentation'
 import type { Auditor, DadosAuditoria } from '../src/auditar'
 import { MemoryRepo } from './memoryRepo'
+import { contasEmMemoria } from './memoryContasCorrentes'
 import type { Repo } from '../src/types'
 
 let n = 0
@@ -15,7 +16,7 @@ const msg = (texto: string, enviadoEm = '2026-09-10T12:00:00Z', msgId = `m${++n}
 const SEP = '──────────────'
 const secoes = (...b: string[]) => b.join(`\n\n${SEP}\n\n`)
 const agora = () => new Date('2026-09-15T12:00:00Z')
-const novoService = () => new Service(new MemoryRepo(), agora)
+const novoService = () => new Service(new MemoryRepo(), contasEmMemoria(), agora)
 
 describe('Service: lançamentos', () => {
   it('registra despesa e confirma', async () => {
@@ -44,6 +45,13 @@ describe('Service: lançamentos', () => {
     expect(await s.handle(msg('/d mercado'))).toEqual({ texto: USO('/d mercado 45,90', '/d mercado 45,90 ontem', '/d mercado 45,90 15/09'), lancou: false })
     expect((await s.handle(msg('/r salário')))?.texto).toBe(USO('/r plantão 70', '/r plantão 70 ontem', '/r plantão 70 15/09'))
     expect((await s.handle(msg('/extrato')))?.texto).toContain('Nenhum lançamento')
+  })
+
+  it('grava o lançamento na conta corrente favorita', async () => {
+    const repo = new MemoryRepo()
+    await new Service(repo, contasEmMemoria(), agora).handle(msg('/d mercado 45,90'))
+    const [l] = await repo.extrato({ de: new Date('2026-09-01T03:00:00Z'), ate: new Date('2026-10-01T03:00:00Z') })
+    expect(l.contaCorrenteId).toBe('cc1')
   })
 
   it('mesmo msgId não lança duas vezes', async () => {
@@ -123,7 +131,7 @@ describe('Service: balancete mensal (só resumo)', () => {
   })
 
   it('atravessa a virada de ano', async () => {
-    const s = new Service(new MemoryRepo(), () => new Date('2026-01-10T12:00:00Z'))
+    const s = new Service(new MemoryRepo(), contasEmMemoria(), () => new Date('2026-01-10T12:00:00Z'))
     await s.handle(msg('/d mercado 10', '2025-12-20T12:00:00Z'))
     await s.handle(msg('/d luz 5', '2026-01-05T12:00:00Z'))
     expect((await s.handle(msg('/balancete mensal')))?.texto).toBe(
@@ -198,10 +206,10 @@ describe('Service: balancete do dia', () => {
   })
 
   it('virada do dia local: 02:59Z ainda é o dia anterior', async () => {
-    const antes = new Service(new MemoryRepo(), () => new Date('2026-09-15T02:59:00Z'))
+    const antes = new Service(new MemoryRepo(), contasEmMemoria(), () => new Date('2026-09-15T02:59:00Z'))
     await antes.handle(msg('/d mercado 10', '2026-09-14T15:00:00Z'))
     expect((await antes.handle(msg('/balancete')))?.texto).toContain('_14/09/2026_')
-    const depois = new Service(new MemoryRepo(), () => new Date('2026-09-15T03:00:00Z'))
+    const depois = new Service(new MemoryRepo(), contasEmMemoria(), () => new Date('2026-09-15T03:00:00Z'))
     await depois.handle(msg('/d mercado 10', '2026-09-14T15:00:00Z'))
     expect((await depois.handle(msg('/balancete')))?.texto).toBe('📊 *BALANCETE DO DIA*\n_15/09/2026_\n\n_Nenhum lançamento registrado hoje._')
   })
@@ -280,7 +288,7 @@ describe('Service: auditoria', () => {
       return r
     }),
   })
-  const novo = (auditor?: Auditor) => new Service(new MemoryRepo(), agora, auditor)
+  const novo = (auditor?: Auditor) => new Service(new MemoryRepo(), contasEmMemoria(), agora, auditor)
   async function comDados(s: Service) {
     await s.handle(msg('/r salário 3000', '2026-09-05T12:00:00Z'))
     await s.handle(msg('/d mercado 345,90', '2026-09-10T15:30:00Z'))
@@ -441,7 +449,7 @@ describe('Service: auditoria', () => {
 
   it('descrições e texto da IA com * _ ~ ` não quebram a formatação; o banco guarda o original', async () => {
     const repo = new MemoryRepo()
-    const s = new Service(repo, agora, auditorFalso(['Corte *tudo* _já_ ~agora~ `ok`']))
+    const s = new Service(repo, contasEmMemoria(), agora, auditorFalso(['Corte *tudo* _já_ ~agora~ `ok`']))
     await s.handle(msg('/d mercado_*teste* 10', '2026-09-10T12:00:00Z'))
     const t = (await s.handle(msg('/auditoria')))!.texto
     expect(t).toContain('🥇 mercado＿∗teste∗')
@@ -611,7 +619,7 @@ describe('Service: falhas', () => {
 
   it('não confirma com ✅ quando a gravação falha', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
-    const s = new Service(quebrado, agora)
+    const s = new Service(quebrado, contasEmMemoria(), agora)
     expect(await s.handle(msg('/d mercado 10'))).toEqual({ texto: ERRO_SALVAR, lancou: false })
     expect((await s.handle(msg('/desfazer')))?.texto).toBe(ERRO_SALVAR)
     expect((await s.handle(msg('/balancete')))?.texto).toBe(ERRO_GENERICO)
@@ -620,7 +628,7 @@ describe('Service: falhas', () => {
   it('mensagem que falhou pode ser tentada de novo com o mesmo msgId', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     const add = vi.fn().mockRejectedValueOnce(new Error('x')).mockResolvedValueOnce('ok')
-    const s = new Service({ ...quebrado, add }, agora)
+    const s = new Service({ ...quebrado, add }, contasEmMemoria(), agora)
     expect((await s.handle(msg('/d mercado 10', undefined, 'r1')))?.texto).toBe(ERRO_SALVAR)
     expect((await s.handle(msg('/d mercado 10', undefined, 'r1')))?.lancou).toBe(true)
   })

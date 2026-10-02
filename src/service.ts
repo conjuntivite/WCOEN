@@ -3,7 +3,7 @@ import { formatBRL } from './money'
 import * as ui from './presentation'
 import type { Auditor, DadosAuditoria } from './auditar'
 import { intervaloDaSemanaDomingo, intervaloDoAno, intervaloDoDia, intervaloDoMes, mesAtual, resolverData, rotuloDia, rotuloHora, rotuloMes } from './period'
-import type { Lancamento, LinhaConta, Natureza, Repo } from './types'
+import type { ContasDoCliente, Lancamento, LinhaConta, Natureza, Repo } from './types'
 
 export type Mensagem = { msgId: string; remetente: string; texto: string; enviadoEm: Date }
 export type Resposta = { texto: string; lancou: boolean }
@@ -19,6 +19,7 @@ export class Service {
 
   constructor(
     private repo: Repo,
+    private contasCC: ContasDoCliente,
     private agora: () => Date = () => new Date(),
     private auditor?: Auditor,
   ) {}
@@ -45,6 +46,7 @@ export class Service {
         // sem data informada pelo usuário, vale a data de envio da mensagem
         const data = cmd.data ? resolverData(cmd.data, msg.enviadoEm) : msg.enviadoEm
         if (!data) return { texto: ui.ERRO_DATA, lancou: false }
+        const contaCorrente = await this.contasCC.favorita()
         const r = await this.repo.add({
           tipo: cmd.natureza,
           conta: cmd.conta,
@@ -53,6 +55,7 @@ export class Service {
           msgId: msg.msgId,
           data,
           enviadoEm: msg.enviadoEm,
+          contaCorrenteId: contaCorrente.id,
         })
         if (r === 'duplicado') return null
         return { texto: ui.lancamentoRegistrado({ natureza: cmd.natureza, conta: cmd.conta, valor: cmd.valor, dia: cmd.data ? data : undefined }), lancou: true }
