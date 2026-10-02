@@ -742,3 +742,101 @@ describe('Service: transferências fora da auditoria', () => {
     expect(auditor.sugerir).not.toHaveBeenCalled()
   })
 })
+
+describe('Service: transferência entre contas', () => {
+  const hoje = '2026-09-15T12:00:00Z' // o `agora` do Service: o /b do dia só mostra lançamentos de hoje
+  const ZERADOS = '🟢 Receitas\n*R$ 0,00*'
+
+  it('com dois @, o primeiro é a origem e o segundo o destino; grava uma linha só', async () => {
+    const repo = new MemoryRepo()
+    const r = await comDuasContas(repo).handle(msg('/t 500 @nubank @principal'))
+    expect(r).toEqual({ texto: '🔁 *TRANSFERÊNCIA REGISTRADA*\n\n🏦 _Nubank → Principal_\n💰 *R$ 500,00*', lancou: true })
+    const itens = await repo.extrato(mes)
+    expect(itens).toHaveLength(1)
+    expect(itens[0]).toMatchObject({ tipo: 'transferencia', conta: 'transferência', valor: 50000, contaCorrenteId: 'cc2', contaDestinoId: 'cc1' })
+  })
+
+  it('com um @ só, sai da favorita; com data, a confirmação mostra o dia', async () => {
+    const repo = new MemoryRepo()
+    const s = comDuasContas(repo)
+    expect((await s.handle(msg('/t 500 @nubank')))?.texto).toBe('🔁 *TRANSFERÊNCIA REGISTRADA*\n\n🏦 _Principal → Nubank_\n💰 *R$ 500,00*')
+    expect((await s.handle(msg('/t 70 @nubank ontem')))?.texto).toContain('📅')
+    expect((await repo.extrato(mes))[0]).toMatchObject({ contaCorrenteId: 'cc1', contaDestinoId: 'cc2' })
+  })
+
+  it('mesma conta (explícita ou favorita igual ao destino): nada é gravado', async () => {
+    const repo = new MemoryRepo()
+    const s = comDuasContas(repo)
+    for (const texto of ['/t 500 @nubank @nubank', '/t 500 @principal']) {
+      const r = await s.handle(msg(texto))
+      expect(r?.lancou).toBe(false)
+      expect(r?.texto).toContain('MESMA CONTA')
+    }
+    expect(await repo.extrato(mes)).toEqual([])
+  })
+
+  it('origem ou destino inexistente ou desativado: nada é gravado e lista as contas ativas', async () => {
+    const repo = new MemoryRepo()
+    const s = comDuasContas(repo)
+    for (const texto of ['/t 500 @nada', '/t 500 @nada @nubank', '/t 500 @nubank @nada', '/t 500 @antiga', '/t 500 @antiga @nubank']) {
+      const r = await s.handle(msg(texto))
+      expect(r?.lancou).toBe(false)
+      expect(r?.texto).toContain('CONTA NÃO ENCONTRADA')
+      expect(r?.texto).toContain('@nubank')
+    }
+    expect(await repo.extrato(mes)).toEqual([])
+  })
+
+  it('uso incorreto devolve a dica, sem gravar', async () => {
+    const repo = new MemoryRepo()
+    const dica = USO('/t 500 @nubank @itau', '/t 500 @itau', '/t 500 @nubank @itau ontem')
+    expect((await comDuasContas(repo).handle(msg('/t 500')))?.texto).toBe(dica)
+    expect((await comDuasContas(repo).handle(msg('/t 500 @a @b @c')))?.texto).toBe(dica)
+    expect(await repo.extrato(mes)).toEqual([])
+  })
+
+  it('o extrato e o balancete do dia mostram a linha, sem entrar nos totais', async () => {
+    const s = comDuasContas()
+    await s.handle(msg('/t 500 @nubank @principal', hoje))
+    for (const texto of ['/e', '/b']) {
+      const t = (await s.handle(msg(texto)))?.texto ?? ''
+      expect(t).toContain(texto === '/e' ? '🔁 _Nubank → Principal_' : '🔁 Nubank → Principal') // no extrato a descrição é em itálico; no balancete do dia não
+      expect(t).toContain(ZERADOS)
+      expect(t).toContain('🔴 Despesas\n*R$ 0,00*')
+    }
+  })
+
+  it('/e @conta mostra a transferência na origem e no destino; conta sem movimento não', async () => {
+    const s = comDuasContas()
+    await s.handle(msg('/t 500 @nubank @principal', hoje))
+    expect((await s.handle(msg('/e @nubank')))?.texto).toContain('🔁')
+    expect((await s.handle(msg('/e @principal')))?.texto).toContain('🔁')
+    expect((await s.handle(msg('/e @antiga')))?.texto).toContain('Nenhum lançamento')
+  })
+
+  it('balancete mensal ignora transferências', async () => {
+    const s = comDuasContas()
+    await s.handle(msg('/t 500 @nubank @principal', hoje))
+    expect((await s.handle(msg('/b mensal')))?.texto).toContain('Nenhum lançamento no período')
+  })
+
+  it('/desfazer desfaz a transferência, diz origem e destino e a tira do extrato', async () => {
+    const s = comDuasContas()
+    await s.handle(msg('/t 500 @nubank @principal'))
+    expect((await s.handle(msg('/desfazer')))?.texto).toBe('↩️ *TRANSFERÊNCIA DESFEITA*\n\n🏦 _Nubank → Principal_\n💰 *R$ 500,00*')
+    expect((await s.handle(msg('/e')))?.texto).toContain('Nenhum lançamento')
+  })
+
+  it('falha ao gravar responde ERRO_SALVAR e o mesmo msgId pode ser tentado de novo', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const repo = new MemoryRepo()
+    vi.spyOn(repo, 'add').mockRejectedValueOnce(new Error('x'))
+    const s = comDuasContas(repo)
+    expect((await s.handle(msg('/t 5 @nubank', undefined, 'r9')))?.texto).toBe(ERRO_SALVAR)
+    expect((await s.handle(msg('/t 5 @nubank', undefined, 'r9')))?.lancou).toBe(true)
+  })
+
+  it('/ajuda cita a transferência', async () => {
+    expect((await novoService().handle(msg('/ajuda')))?.texto).toContain('/t 500')
+  })
+})
