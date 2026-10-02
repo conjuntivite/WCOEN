@@ -15,3 +15,11 @@ export interface Repo {
   serieMensal(ate: Date, meses: number): Promise<MesSerie[]> // `meses` meses consecutivos terminando no mês local de `ate`, do mais antigo ao mais novo; meses sem lançamento vêm com 0; ignora desfeitos
 }
 export type Leitura = Pick<Repo, 'balancete' | 'serieMensal'> // o que o dashboard lê; sem escrita
+export type ContaCorrente = { id: string; apelido: string; nome: string; saldoInicial: number; favorita: boolean; ativa: boolean }
+export type ContaCorrenteComSaldo = ContaCorrente & { saldo: number }
+// as contas correntes de UM cliente, como o Service as enxerga
+export interface ContasDoCliente {
+  favorita(): Promise<ContaCorrente> // cria a "Principal" se o cliente ainda não tem nenhuma
+  porApelido(apelido: string): Promise<ContaCorrente | null> // ativa ou não: quem chama decide se ativa basta
+  ativas(): Promise<ContaCorrenteComSaldo[]> // favorita primeiro
+}

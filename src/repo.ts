@@ -115,6 +115,8 @@ export async function criarRepo(pool: Pool) {
     );
     CREATE UNIQUE INDEX IF NOT EXISTS lancamentos_conta_msg ON lancamentos (conta_id, msg_id);
     CREATE INDEX IF NOT EXISTS lancamentos_conta_data ON lancamentos (conta_id, data);
+    ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS conta_corrente_id TEXT;
+    CREATE INDEX IF NOT EXISTS lancamentos_cc ON lancamentos (conta_corrente_id);
   `)
   return {
     repoDe: (contaId: string) => new PgRepo(pool, contaId) as Repo,
