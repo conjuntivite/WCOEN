@@ -384,15 +384,22 @@ const variacao = (v: number | null, altaEhBoa: boolean) => {
 const kpi = (rotulo: string, valor: number, v: number | null, altaEhBoa: boolean) =>
   `<div class="kpi"><div class="rot">${rotulo}</div><div class="num">${formatBRL(valor)}</div>${variacao(v, altaEhBoa)}</div>`
 
+// filtro por conta corrente (formulário GET, sem JS: a CSP não permite script inline); só aparece com 2+ contas
+const seletorConta = (contas: { apelido: string; nome: string }[], selecionada: string) =>
+  contas.length < 2
+    ? ''
+    : `<form method="get" action="/dashboard" class="filtro-conta"><label for="cc">Conta</label> <select id="cc" name="cc"><option value="">Todas as contas</option>${contas.map((c) => `<option value="${esc(c.apelido)}"${c.apelido === selecionada ? ' selected' : ''}>${esc(c.nome)}</option>`).join('')}</select> <button class="btn sec pequeno">Aplicar</button></form>`
+
 // o dashboard é sempre da própria conta: nem o admin enxerga os valores de outras
-export const paginaDashboard = (email: string, ind: Indicadores, admin: boolean, perfil?: Perfil) => {
+export const paginaDashboard = (email: string, ind: Indicadores, admin: boolean, perfil?: Perfil, contas: { apelido: string; nome: string }[] = [], selecionada = '') => {
   const corpo = ind.vazio
     ? `<div class="cartao">${vazio('grafico', 'Nenhum lançamento nos últimos 6 meses. Registre uma despesa ou receita no grupo do WhatsApp e ela aparece aqui.')}</div>`
     : `<div class="kpis">${kpi('Saldo do mês', ind.saldo, ind.variacao.saldo, true)}${kpi('Receitas', ind.mes.receitas, ind.variacao.receitas, true)}${kpi('Despesas', ind.mes.despesas, ind.variacao.despesas, false)}</div><div class="grade duas">
 <section class="cartao c7"><h2>Últimos ${ind.serie.length} meses</h2>${svgTendencia(ind.serie)}<ul class="legenda"><li><i class="l-rec"></i>Receitas</li><li><i class="l-desp"></i>Despesas</li></ul>
 <details><summary>Ver dados em tabela</summary><table><thead><tr><th>Mês</th><th>Receitas</th><th>Despesas</th></tr></thead><tbody>${ind.serie.map((s) => `<tr><td>${rotuloMesCurto(s)}/${s.ano}</td><td>${formatBRL(s.receitas)}</td><td>${formatBRL(s.despesas)}</td></tr>`).join('')}</tbody></table></details></section>
 <section class="cartao c5"><h2>Despesas por categoria</h2>${ind.categorias.length ? `<ul class="cats">${ind.categorias.map((c) => `<li><span class="nome">${esc(c.conta)}</span><span class="valor">${formatBRL(c.total)}</span><div class="trilho" aria-hidden="true"><div style="width:${c.largura}%"></div></div></li>`).join('')}</ul>` : vazio('grafico', 'Sem despesas neste mês.')}</section></div>`
-  return shell('dashboard', email, admin ? 'admin' : 'usuario', `<main id="conteudo" class="dash">${topo('Dashboard', nomeMes(ind.mes.ano, ind.mes.mes))}${corpo}</main>`, '', perfil)
+  const nomeSel = contas.find((c) => c.apelido === selecionada)?.nome
+  return shell('dashboard', email, admin ? 'admin' : 'usuario', `<main id="conteudo" class="dash">${topo('Dashboard', `${nomeMes(ind.mes.ano, ind.mes.mes)}${nomeSel ? ` · ${nomeSel}` : ''}`)}${seletorConta(contas, selecionada)}${corpo}</main>`, '', perfil)
 }
 
 // --- contas correntes ------------------------------------------------------

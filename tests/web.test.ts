@@ -42,6 +42,10 @@ let contasCorrentes: ContasCorrentes
 let convites: Convites
 let sessoes: ReturnType<typeof sessoesFalsas>
 let mailer: ReturnType<typeof mailerFalso>
+const spies = {
+  serie: vi.fn(async (..._a: unknown[]) => [{ ano: 2026, mes: 9, receitas: 123400, despesas: 5600 }]),
+  balancete: vi.fn(async (..._a: unknown[]) => ({ receitas: [], despesas: [{ conta: 'mercado-teste', total: 5600 }] })),
+}
 let repoFalso: { repoDe: ReturnType<typeof vi.fn>; leitura: ReturnType<typeof vi.fn> }
 let cookieAdmin: string
 let server: Server
@@ -59,10 +63,7 @@ beforeAll(async () => {
   contasCorrentes = await criarContasCorrentes(pool)
   repoFalso = {
     repoDe: vi.fn(),
-    leitura: vi.fn((_id: string) => ({
-      serieMensal: async () => [{ ano: 2026, mes: 9, receitas: 123400, despesas: 5600 }],
-      balancete: async () => ({ receitas: [], despesas: [{ conta: 'mercado-teste', total: 5600 }] }),
-    })),
+    leitura: vi.fn((_id: string) => ({ serieMensal: spies.serie, balancete: spies.balancete })),
   }
   sessoes = sessoesFalsas()
   mailer = mailerFalso()
@@ -781,6 +782,29 @@ describe('contas correntes', () => {
     const { cookie } = await entrar()
     const r = await post('/contas-correntes', { apelido: 'x', nome: 'X' }, { cookie, Origin: 'http://evil.example' })
     expect(r.status).toBe(403)
+  })
+})
+
+describe('dashboard por conta corrente', () => {
+  it('com 2+ contas mostra o seletor; ?cc= filtra a leitura pela conta; apelido inexistente cai em "todas"', async () => {
+    const { cookie, conta } = await entrar()
+    await post('/contas-correntes', { apelido: 'nubank', nome: 'Nubank' }, { cookie })
+    const nu = (await contasCorrentes.doCliente(conta.id).porApelido('nubank'))!
+    const html = await (await get('/dashboard?cc=nubank', cookie)).text()
+    expect(html).toContain('<select')
+    expect(html).toContain('<option value="nubank" selected>Nubank</option>')
+    expect(repoFalso.leitura).toHaveBeenLastCalledWith(conta.id)
+    expect(spies.serie).toHaveBeenLastCalledWith(expect.any(Date), 6, nu.id)
+    await get('/dashboard?cc=nao-existe', cookie)
+    expect(spies.serie).toHaveBeenLastCalledWith(expect.any(Date), 6, undefined)
+  })
+
+  it('?cc= de apelido de outro cliente é ignorado', async () => {
+    const a = await entrar()
+    const b = await entrar()
+    await post('/contas-correntes', { apelido: 'segredo', nome: 'Segredo' }, { cookie: a.cookie })
+    await get('/dashboard?cc=segredo', b.cookie)
+    expect(spies.serie).toHaveBeenLastCalledWith(expect.any(Date), 6, undefined)
   })
 })
 

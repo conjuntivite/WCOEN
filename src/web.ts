@@ -155,8 +155,15 @@ export function criarWeb(op: OpcoesWeb): Server {
         const agora = new Date()
         const { ano, mes } = mesAtual(agora)
         const leitura = op.repo.leitura(conta.id) // sempre a própria conta; ?conta= é ignorado, até para admin
-        const [serie, balancete] = await Promise.all([leitura.serieMensal(agora, 6), leitura.balancete(intervaloDoMes(ano, mes))])
-        return html(res, 200, paginaDashboard(conta.email, montarIndicadores(serie, balancete), isAdmin(conta), perfilDe(conta)))
+        // ?cc=apelido filtra por conta corrente; porApelido já é por cliente, então apelido alheio ou inexistente cai em "todas"
+        const apelido = url.searchParams.get('cc') ?? ''
+        const selecionada = apelido ? await contasCorrentes.doCliente(conta.id).porApelido(apelido) : null
+        const [serie, balancete, todas] = await Promise.all([
+          leitura.serieMensal(agora, 6, selecionada?.id),
+          leitura.balancete(intervaloDoMes(ano, mes), selecionada?.id),
+          contasCorrentes.listar(conta.id),
+        ])
+        return html(res, 200, paginaDashboard(conta.email, montarIndicadores(serie, balancete), isAdmin(conta), perfilDe(conta), todas.map((c) => ({ apelido: c.apelido, nome: c.nome })), selecionada?.apelido ?? ''))
       }
       if (caminho === '/contas-correntes') {
         if (!conta) return ir(res, '/entrar')

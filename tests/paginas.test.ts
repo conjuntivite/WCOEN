@@ -556,3 +556,19 @@ describe('página de contas correntes', () => {
     expect(paginaContasCorrentes('a@x.com', false, lista, { ok: 'Conta criada.' })).toContain('Conta criada.')
   })
 })
+
+describe('dashboard: seletor de conta', () => {
+  const ind = montarIndicadores([{ ano: 2026, mes: 9, receitas: 100000, despesas: 25000 }], { receitas: [], despesas: [{ conta: 'mercado', total: 25000 }] })
+  const contasSel = [{ apelido: 'principal', nome: 'Principal' }, { apelido: 'nubank', nome: 'Nubank' }]
+  it('com 2+ contas mostra o seletor (formulário GET), com "Todas" e a selecionada marcada', () => {
+    const html = paginaDashboard('a@x.com', ind, false, undefined, contasSel, 'nubank')
+    expect(html).toContain('<form method="get" action="/dashboard"')
+    expect(html).toContain('<option value="">Todas as contas</option>')
+    expect(html).toContain('<option value="nubank" selected>Nubank</option>')
+    expect(html).toContain('· Nubank') // e o nome aparece no subtítulo
+  })
+  it('com uma conta só, nada de seletor', () => {
+    expect(paginaDashboard('a@x.com', ind, false, undefined, [contasSel[0]])).not.toContain('<select')
+    expect(paginaDashboard('a@x.com', ind, false)).not.toContain('<select')
+  })
+})
