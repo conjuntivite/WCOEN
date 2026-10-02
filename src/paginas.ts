@@ -3,6 +3,7 @@ import type { Convite } from './convites'
 import type { Aviso, Visao } from './sessoes'
 import { rotuloMesCurto, svgTendencia, type Indicadores } from './dashboard'
 import { formatBRL } from './money'
+import type { ContaCorrenteComSaldo } from './types'
 
 const ENTIDADES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
 export const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ENTIDADES[c])
@@ -213,6 +214,7 @@ const ICONES = {
   folha: '<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>',
   chama: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
   foguete: '<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>',
+  banco: '<line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="11"/><line x1="10" x2="10" y1="18" y2="11"/><line x1="14" x2="14" y1="18" y2="11"/><line x1="18" x2="18" y1="18" y2="11"/><polygon points="12 2 20 7 4 7"/>',
   troca: '<path d="M17 3l4 4-4 4"/><path d="M3 7h18"/><path d="M7 21l-4-4 4-4"/><path d="M21 17H3"/>',
 }
 const ic = (nome: keyof typeof ICONES, classe = '') =>
@@ -228,10 +230,10 @@ const layout = (titulo: string, corpo: string, script = '') =>
 const topo = (titulo: string, sub = '') => `<header class="topo-tela"><h1>${esc(titulo)}</h1>${sub ? `<p class="sub">${esc(sub)}</p>` : ''}</header>`
 
 // menu lateral das telas logadas (painel, dashboard, admin, perfil)
-type Tela = 'painel' | 'dashboard' | 'admin' | 'perfil'
-const NAV: Tela[] = ['painel', 'dashboard', 'admin']
+type Tela = 'painel' | 'dashboard' | 'contas-correntes' | 'admin' | 'perfil'
+const NAV: Tela[] = ['painel', 'dashboard', 'contas-correntes', 'admin']
 const PAPEIS: Record<Papel, string> = { usuario: 'Usuário', admin: 'Administrador' }
-const TELAS: Record<Tela, [string, keyof typeof ICONES]> = { painel: ['Painel', 'casa'], dashboard: ['Dashboard', 'grafico'], admin: ['Administração', 'escudo'], perfil: ['Perfil', 'pessoa'] }
+const TELAS: Record<Tela, [string, keyof typeof ICONES]> = { painel: ['Painel', 'casa'], dashboard: ['Dashboard', 'grafico'], 'contas-correntes': ['Contas correntes', 'banco'], admin: ['Administração', 'escudo'], perfil: ['Perfil', 'pessoa'] }
 
 export const perfilDe = (c: Conta): Perfil => ({ nome: c.nome, cor: c.avatarCor, icone: c.avatarIcone })
 const corDe = (p?: Perfil) => ((AVATAR_CORES as readonly string[]).includes(p?.cor ?? '') ? p!.cor! : 'vermelho')
@@ -392,6 +394,48 @@ export const paginaDashboard = (email: string, ind: Indicadores, admin: boolean,
 <section class="cartao c5"><h2>Despesas por categoria</h2>${ind.categorias.length ? `<ul class="cats">${ind.categorias.map((c) => `<li><span class="nome">${esc(c.conta)}</span><span class="valor">${formatBRL(c.total)}</span><div class="trilho" aria-hidden="true"><div style="width:${c.largura}%"></div></div></li>`).join('')}</ul>` : vazio('grafico', 'Sem despesas neste mês.')}</section></div>`
   return shell('dashboard', email, admin ? 'admin' : 'usuario', `<main id="conteudo" class="dash">${topo('Dashboard', nomeMes(ind.mes.ano, ind.mes.mes))}${corpo}</main>`, '', perfil)
 }
+
+// --- contas correntes ------------------------------------------------------
+
+export const ERROS_CC: Record<string, string> = {
+  apelido_invalido: 'Apelido inválido. Use de 1 a 20 letras minúsculas sem acento, números, "-" ou "_", sem espaço.',
+  apelido_em_uso: 'Você já tem uma conta com esse apelido.',
+  nome_invalido: 'Informe um nome de até 40 caracteres.',
+  saldo_invalido: 'Saldo inicial inválido. Use, por exemplo, 1500, 1.234,56 ou -50.',
+  favorita: 'A conta favorita não pode ser desativada. Escolha outra como favorita antes.',
+  inativa: 'Reative a conta antes de torná-la favorita.',
+  nao_encontrada: 'Conta não encontrada.',
+}
+export const AVISOS_CC: Record<string, string> = {
+  criada: 'Conta criada.',
+  salva: 'Conta atualizada.',
+  favorita: 'Conta favorita atualizada.',
+  desativada: 'Conta desativada.',
+  reativada: 'Conta reativada.',
+}
+
+// valor do campo "saldo" ao editar: 1.234,56 | -50,00 | 0,00 (formatBRL devolve "-R$ 50,00")
+const saldoCampo = (c: ContaCorrenteComSaldo) => formatBRL(c.saldoInicial).replace('R$ ', '')
+
+const itemContaCorrente = (c: ContaCorrenteComSaldo) => {
+  const oculto = `<input type="hidden" name="id" value="${esc(c.id)}">`
+  const acao = (rota: string, rotulo: string) => `<form method="post" action="/contas-correntes/${rota}">${oculto}<button class="btn sec pequeno">${rotulo}</button></form>`
+  const status = [c.favorita ? '<span class="chip chip-ok">Favorita</span>' : '', !c.ativa ? '<span class="chip">Desativada</span>' : ''].join('')
+  const favoritar = c.ativa && !c.favorita ? acao('favoritar', 'Tornar favorita') : ''
+  const alternar = c.favorita ? '' : c.ativa ? acao('desativar', 'Desativar') : acao('reativar', 'Reativar')
+  const editar = `<form method="post" action="/contas-correntes/editar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${oculto}<input name="nome" type="text" maxlength="40" required value="${esc(c.nome)}" aria-label="Nome de @${esc(c.apelido)}"><input name="saldo" type="text" inputmode="decimal" value="${esc(saldoCampo(c))}" aria-label="Saldo inicial de @${esc(c.apelido)}"><button class="btn sec pequeno">Salvar</button></form>`
+  return `<li class="convite"><div><strong>${esc(c.nome)}</strong> <code>@${esc(c.apelido)}</code><div class="sub">Saldo atual: ${formatBRL(c.saldo)}</div></div>${status}${editar}${favoritar}${alternar}</li>`
+}
+
+export const paginaContasCorrentes = (email: string, admin: boolean, contas: ContaCorrenteComSaldo[], mensagem: { erro?: string; ok?: string } = {}, perfil?: Perfil) =>
+  shell(
+    'contas-correntes',
+    email,
+    admin ? 'admin' : 'usuario',
+    `<main id="conteudo">${topo('Contas correntes', 'Os lançamentos vão para a conta favorita, ou para a que você indicar com @apelido')}${aviso(mensagem.erro)}${aviso(mensagem.ok, 'ok')}<div class="grade duas"><div class="cartao c5"><h2>Nova conta</h2><form method="post" action="/contas-correntes">${campo({ nome: 'apelido', rotulo: 'Apelido (usado no WhatsApp, ex.: @nubank)', extra: 'maxlength="20" pattern="[a-z0-9_-]{1,20}" autocapitalize="none"' })}${campo({ nome: 'nome', rotulo: 'Nome', extra: 'maxlength="40"' })}<div class="campo"><label for="saldo">Saldo inicial (opcional)</label><input id="saldo" name="saldo" type="text" inputmode="decimal" placeholder="0,00"></div><button class="btn">Adicionar conta</button></form></div><div class="cartao c7"><h2>Suas contas</h2>${contas.length ? `<ul class="convites">${contas.map(itemContaCorrente).join('')}</ul>` : vazio('banco', 'Nenhuma conta ainda.')}</div></div></main>`,
+    '',
+    perfil,
+  )
 
 // --- administração (convites) --------------------------------------------
 

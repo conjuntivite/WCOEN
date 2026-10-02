@@ -2,11 +2,13 @@ import { readFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import QRCode from 'qrcode'
 import { criarLimitador, type Conta, type Contas, type ErroCadastro } from './contas'
+import type { ContasCorrentes } from './contasCorrentes'
 import type { Convites } from './convites'
 import { montarIndicadores } from './dashboard'
 import type { Mailer } from './mailer'
+import { parseSaldo } from './money'
 import { intervaloDoMes, mesAtual } from './period'
-import { AVISOS_ADMIN, ERROS_ADMIN, ERROS_PAINEL, AVISOS_PERFIL, ERROS_PERFIL, SCRIPT_APP, SCRIPT_PAINEL, fragmentoPainel, paginaAdmin, paginaCadastro, paginaDashboard, paginaEntrar, paginaEsqueciSenha, paginaPainel, paginaPerfil, paginaRedefinirSenha, passoDe, perfilDe, type CampoCadastro } from './paginas'
+import { AVISOS_ADMIN, AVISOS_CC, ERROS_ADMIN, ERROS_CC, ERROS_PAINEL, AVISOS_PERFIL, ERROS_PERFIL, SCRIPT_APP, SCRIPT_PAINEL, fragmentoPainel, paginaAdmin, paginaCadastro, paginaContasCorrentes, paginaDashboard, paginaEntrar, paginaEsqueciSenha, paginaPainel, paginaPerfil, paginaRedefinirSenha, passoDe, perfilDe, type CampoCadastro } from './paginas'
 import type { Repositorio } from './repo'
 import type { Sessoes } from './sessoes'
 
@@ -15,6 +17,7 @@ export type OpcoesWeb = {
   sessoes: Sessoes
   convites: Convites
   repo: Repositorio // leituras do dashboard (sempre da própria conta)
+  contasCorrentes: ContasCorrentes
   mailer?: Mailer
   adminEmails?: string[] // admins fixos (ADMIN_EMAILS): veem /admin e não são rebaixados pelo menu; os demais admins vêm do papel gravado na conta
   limitador?: ReturnType<typeof criarLimitador>
@@ -72,7 +75,7 @@ function origemOk(req: IncomingMessage): boolean {
 }
 
 export function criarWeb(op: OpcoesWeb): Server {
-  const { contas, sessoes, convites } = op
+  const { contas, sessoes, convites, contasCorrentes } = op
   const limitador = op.limitador ?? criarLimitador(5, 15 * 60_000)
   const fixos = op.adminEmails ?? []
   const isAdmin = (c: Conta) => fixos.includes(c.email) || c.papel === 'admin'
@@ -154,6 +157,13 @@ export function criarWeb(op: OpcoesWeb): Server {
         const leitura = op.repo.leitura(conta.id) // sempre a própria conta; ?conta= é ignorado, até para admin
         const [serie, balancete] = await Promise.all([leitura.serieMensal(agora, 6), leitura.balancete(intervaloDoMes(ano, mes))])
         return html(res, 200, paginaDashboard(conta.email, montarIndicadores(serie, balancete), isAdmin(conta), perfilDe(conta)))
+      }
+      if (caminho === '/contas-correntes') {
+        if (!conta) return ir(res, '/entrar')
+        const chaveErro = url.searchParams.get('erro') ?? ''
+        const chaveOk = url.searchParams.get('ok') ?? ''
+        const mensagem = { erro: Object.hasOwn(ERROS_CC, chaveErro) ? ERROS_CC[chaveErro] : undefined, ok: Object.hasOwn(AVISOS_CC, chaveOk) ? AVISOS_CC[chaveOk] : undefined }
+        return html(res, 200, paginaContasCorrentes(conta.email, isAdmin(conta), await contasCorrentes.listar(conta.id), mensagem, perfilDe(conta)))
       }
       if (caminho === '/admin') {
         if (!conta) return ir(res, '/entrar')
@@ -285,6 +295,28 @@ export function criarWeb(op: OpcoesWeb): Server {
     if (caminho === '/perfil/sair-aparelhos') {
       await contas.encerrarOutrosLogins(conta.id, tokenDe(req)!)
       return ir(res, '/perfil?ok=aparelhos')
+    }
+
+    if (caminho === '/contas-correntes') {
+      const saldo = parseSaldo(f.get('saldo') ?? '')
+      if (saldo === null) return ir(res, '/contas-correntes?erro=saldo_invalido')
+      const r = await contasCorrentes.criar(conta.id, { apelido: f.get('apelido') ?? '', nome: f.get('nome') ?? '', saldoInicial: saldo })
+      return ir(res, r.ok ? '/contas-correntes?ok=criada' : `/contas-correntes?erro=${r.erro}`)
+    }
+    if (caminho === '/contas-correntes/editar') {
+      const saldo = parseSaldo(f.get('saldo') ?? '')
+      if (saldo === null) return ir(res, '/contas-correntes?erro=saldo_invalido')
+      const r = await contasCorrentes.editar(conta.id, f.get('id') ?? '', { nome: f.get('nome') ?? '', saldoInicial: saldo })
+      return ir(res, r === 'ok' ? '/contas-correntes?ok=salva' : `/contas-correntes?erro=${r}`)
+    }
+    if (caminho === '/contas-correntes/favoritar') {
+      const r = await contasCorrentes.favoritar(conta.id, f.get('id') ?? '')
+      return ir(res, r === 'ok' ? '/contas-correntes?ok=favorita' : `/contas-correntes?erro=${r}`)
+    }
+    if (caminho === '/contas-correntes/desativar' || caminho === '/contas-correntes/reativar') {
+      const ativar = caminho.endsWith('/reativar')
+      const r = await contasCorrentes.definirAtiva(conta.id, f.get('id') ?? '', ativar)
+      return ir(res, r === 'ok' ? `/contas-correntes?ok=${ativar ? 'reativada' : 'desativada'}` : `/contas-correntes?erro=${r}`)
     }
 
     if (caminho === '/painel/conectar') {

@@ -49,6 +49,7 @@ const web = criarWeb({
   sessoes,
   convites,
   repo,
+  contasCorrentes,
   mailer,
   adminEmails: config.adminEmails,
   limitador: criarLimitador(5, 15 * 60_000),

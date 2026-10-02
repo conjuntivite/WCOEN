@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { montarIndicadores } from '../src/dashboard'
-import type { MesSerie } from '../src/types'
-import { fragmentoPainel, paginaPerfil, paginaAdmin, paginaCadastro, paginaEsqueciSenha, paginaEntrar, paginaPainel, paginaRedefinirSenha, passoDe, paginaDashboard } from '../src/paginas'
+import type { ContaCorrenteComSaldo, MesSerie } from '../src/types'
+import { fragmentoPainel, paginaPerfil, paginaAdmin, paginaCadastro, paginaEsqueciSenha, paginaEntrar, paginaPainel, paginaRedefinirSenha, passoDe, paginaDashboard, paginaContasCorrentes } from '../src/paginas'
 import type { Conta, ContaResumo } from '../src/contas'
 import type { Convite } from '../src/convites'
 import type { Visao } from '../src/sessoes'
@@ -516,5 +516,43 @@ describe('movimento e acabamento', () => {
   })
   it('item ativo do menu tem barra de destaque', () => {
     expect(html).toContain('.item[aria-current=page]::before')
+  })
+})
+
+describe('página de contas correntes', () => {
+  const lista: ContaCorrenteComSaldo[] = [
+    { id: 'a', apelido: 'principal', nome: 'Principal', saldoInicial: 0, saldo: 1500, favorita: true, ativa: true },
+    { id: 'b', apelido: 'nubank', nome: '<b>Nubank</b>', saldoInicial: 0, saldo: -300, favorita: false, ativa: true },
+    { id: 'c', apelido: 'antiga', nome: 'Antiga', saldoInicial: 0, saldo: 0, favorita: false, ativa: false },
+  ]
+  const html = paginaContasCorrentes('a@x.com', false, lista, {})
+
+  it('lista contas com apelido, saldo, favorita e desativada; nome escapado', () => {
+    expect(html).toContain('@principal')
+    expect(html).toContain('R$ 15,00')
+    expect(html).toContain('-R$ 3,00')
+    expect(html).toContain('Favorita')
+    expect(html).toContain('Desativada')
+    expect(html).toContain('&lt;b&gt;Nubank&lt;/b&gt;')
+    expect(html).not.toContain('<b>Nubank</b>')
+  })
+
+  it('a favorita não tem botão de desativar; as outras têm; desativada tem reativar', () => {
+    expect(html.match(/action="\/contas-correntes\/desativar"/g)).toHaveLength(1)
+    expect(html.match(/action="\/contas-correntes\/reativar"/g)).toHaveLength(1)
+    expect(html.match(/action="\/contas-correntes\/favoritar"/g)).toHaveLength(1) // só a ativa que não é favorita
+  })
+
+  it('formulário de criar com rótulos; menu marca a página atual', () => {
+    expect(html).toMatch(/<label[^>]*for="apelido"/)
+    expect(html).toMatch(/<label[^>]*for="nome"/)
+    expect(html).toMatch(/<label[^>]*for="saldo"/)
+    expect(html).toContain('action="/contas-correntes"')
+    expect(html).toMatch(/href="\/contas-correntes" aria-current="page"/)
+  })
+
+  it('mostra erro e aviso', () => {
+    expect(paginaContasCorrentes('a@x.com', false, lista, { erro: 'Apelido inválido.' })).toContain('Apelido inválido.')
+    expect(paginaContasCorrentes('a@x.com', false, lista, { ok: 'Conta criada.' })).toContain('Conta criada.')
   })
 })

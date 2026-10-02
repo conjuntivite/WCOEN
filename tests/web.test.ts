@@ -7,7 +7,8 @@ import { criarConvites, type Convites } from '../src/convites'
 import { criarWeb } from '../src/web'
 import type { Sessoes, Visao } from '../src/sessoes'
 import type { Mailer } from '../src/mailer'
-import type { Repositorio } from '../src/repo'
+import { criarRepo, type Repositorio } from '../src/repo'
+import { criarContasCorrentes, type ContasCorrentes } from '../src/contasCorrentes'
 
 // nome DB_URL (não URL): o global URL é usado nos testes de esqueci-senha pra extrair o token do link
 const DB_URL = process.env.TEST_DATABASE_URL ?? 'postgres://postgres:wcoen@localhost:5432/wcoen_test'
@@ -37,6 +38,7 @@ function mailerFalso() {
 
 const EMAIL_ADMIN = 'admin@x.com'
 let contas: Contas
+let contasCorrentes: ContasCorrentes
 let convites: Convites
 let sessoes: ReturnType<typeof sessoesFalsas>
 let mailer: ReturnType<typeof mailerFalso>
@@ -52,6 +54,9 @@ beforeAll(async () => {
   await pool.query('DROP TABLE IF EXISTS convites')
   convites = await criarConvites(pool)
   contas = await criarContas(pool, { convite: 'segredo', convites })
+  await pool.query('DROP TABLE IF EXISTS contas_correntes')
+  await criarRepo(pool) // cria `lancamentos` (a migração das contas correntes lê essa tabela)
+  contasCorrentes = await criarContasCorrentes(pool)
   repoFalso = {
     repoDe: vi.fn(),
     leitura: vi.fn((_id: string) => ({
@@ -71,6 +76,7 @@ beforeAll(async () => {
     cookieSeguro: true,
     confiarProxy: true,
     repo: repoFalso as unknown as Repositorio,
+    contasCorrentes,
   })
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
@@ -473,6 +479,7 @@ describe('esqueci a senha', () => {
   it('sem mailer configurado, ainda funciona: loga o link no console em vez de falhar', async () => {
     const semMailer = criarWeb({
       contas,
+      contasCorrentes,
       sessoes: sessoes as unknown as Sessoes,
       convites,
       adminEmails: [EMAIL_ADMIN],
@@ -503,6 +510,7 @@ describe('esqueci a senha', () => {
     const mailerDominio = mailerFalso()
     const comDominio = criarWeb({
       contas,
+      contasCorrentes,
       sessoes: sessoes as unknown as Sessoes,
       convites,
       mailer: mailerDominio,
@@ -698,6 +706,81 @@ describe('GET /dashboard', () => {
     expect(html).not.toContain(outra.conta.email)
     expect(repoFalso.leitura).toHaveBeenCalledTimes(1)
     expect(repoFalso.leitura).toHaveBeenCalledWith(eu.id)
+  })
+})
+
+describe('contas correntes', () => {
+  it('exige login', async () => {
+    expect((await get('/contas-correntes')).headers.get('location')).toBe('/entrar')
+    expect((await post('/contas-correntes', { apelido: 'x', nome: 'X' })).headers.get('location')).toBe('/entrar')
+    expect((await post('/contas-correntes/favoritar', { id: 'x' })).headers.get('location')).toBe('/entrar')
+  })
+
+  it('GET mostra a Principal criada sozinha', async () => {
+    const { cookie } = await entrar()
+    const r = await get('/contas-correntes', cookie)
+    expect(r.status).toBe(200)
+    const html = await r.text()
+    expect(html).toContain('@principal')
+    expect(html).toContain('Favorita')
+  })
+
+  it('cria conta com saldo, mostra aviso e recusa dados inválidos com a chave de erro', async () => {
+    const { cookie, conta } = await entrar()
+    const ok = await post('/contas-correntes', { apelido: 'Nubank', nome: 'Nubank', saldo: '1.500,50' }, { cookie })
+    expect(ok.headers.get('location')).toBe('/contas-correntes?ok=criada')
+    expect(await contasCorrentes.doCliente(conta.id).porApelido('nubank')).toMatchObject({ nome: 'Nubank', saldoInicial: 150050 })
+    expect((await post('/contas-correntes', { apelido: 'nubank', nome: 'Outra' }, { cookie })).headers.get('location')).toBe('/contas-correntes?erro=apelido_em_uso')
+    expect((await post('/contas-correntes', { apelido: 'com espaço', nome: 'X' }, { cookie })).headers.get('location')).toBe('/contas-correntes?erro=apelido_invalido')
+    expect((await post('/contas-correntes', { apelido: 'x1', nome: '  ' }, { cookie })).headers.get('location')).toBe('/contas-correntes?erro=nome_invalido')
+    expect((await post('/contas-correntes', { apelido: 'x2', nome: 'X', saldo: 'abc' }, { cookie })).headers.get('location')).toBe('/contas-correntes?erro=saldo_invalido')
+    expect(await (await get('/contas-correntes?ok=criada', cookie)).text()).toContain('Conta criada.')
+    expect(await (await get('/contas-correntes?erro=apelido_em_uso', cookie)).text()).toContain('já tem uma conta com esse apelido')
+    expect(await (await get('/contas-correntes?erro=<script>', cookie)).text()).not.toContain('<script>')
+  })
+
+  it('saldo inicial negativo e vazio', async () => {
+    const { cookie, conta } = await entrar()
+    await post('/contas-correntes', { apelido: 'neg', nome: 'Neg', saldo: '-50' }, { cookie })
+    await post('/contas-correntes', { apelido: 'zero', nome: 'Zero', saldo: '' }, { cookie })
+    expect((await contasCorrentes.doCliente(conta.id).porApelido('neg'))!.saldoInicial).toBe(-5000)
+    expect((await contasCorrentes.doCliente(conta.id).porApelido('zero'))!.saldoInicial).toBe(0)
+  })
+
+  it('editar, favoritar, desativar e reativar', async () => {
+    const { cookie, conta } = await entrar()
+    await post('/contas-correntes', { apelido: 'nubank', nome: 'Nubank' }, { cookie })
+    const nu = (await contasCorrentes.doCliente(conta.id).porApelido('nubank'))!
+    expect((await post('/contas-correntes/editar', { id: nu.id, nome: 'Nu Conta', saldo: '10' }, { cookie })).headers.get('location')).toBe('/contas-correntes?ok=salva')
+    expect(await contasCorrentes.doCliente(conta.id).porApelido('nubank')).toMatchObject({ nome: 'Nu Conta', saldoInicial: 1000 })
+    expect((await post('/contas-correntes/editar', { id: nu.id, nome: ' ', saldo: '10' }, { cookie })).headers.get('location')).toBe('/contas-correntes?erro=nome_invalido')
+    expect((await post('/contas-correntes/editar', { id: nu.id, nome: 'X', saldo: 'abc' }, { cookie })).headers.get('location')).toBe('/contas-correntes?erro=saldo_invalido')
+    expect((await post('/contas-correntes/desativar', { id: nu.id }, { cookie })).headers.get('location')).toBe('/contas-correntes?ok=desativada')
+    expect((await post('/contas-correntes/favoritar', { id: nu.id }, { cookie })).headers.get('location')).toBe('/contas-correntes?erro=inativa')
+    expect((await post('/contas-correntes/reativar', { id: nu.id }, { cookie })).headers.get('location')).toBe('/contas-correntes?ok=reativada')
+    expect((await post('/contas-correntes/favoritar', { id: nu.id }, { cookie })).headers.get('location')).toBe('/contas-correntes?ok=favorita')
+    expect((await contasCorrentes.doCliente(conta.id).favorita()).id).toBe(nu.id)
+    const principal = (await contasCorrentes.doCliente(conta.id).porApelido('principal'))!
+    expect((await post('/contas-correntes/desativar', { id: nu.id }, { cookie })).headers.get('location')).toBe('/contas-correntes?erro=favorita')
+    expect((await post('/contas-correntes/desativar', { id: principal.id }, { cookie })).headers.get('location')).toBe('/contas-correntes?ok=desativada')
+  })
+
+  it('não mexe na conta de outro cliente', async () => {
+    const a = await entrar()
+    const b = await entrar()
+    await post('/contas-correntes', { apelido: 'nubank', nome: 'Nubank' }, { cookie: a.cookie })
+    const alvo = (await contasCorrentes.doCliente(a.conta.id).porApelido('nubank'))!
+    for (const rota of ['editar', 'favoritar', 'desativar', 'reativar']) {
+      const r = await post(`/contas-correntes/${rota}`, { id: alvo.id, nome: 'Invasor', saldo: '1' }, { cookie: b.cookie })
+      expect(r.headers.get('location')).toBe('/contas-correntes?erro=nao_encontrada')
+    }
+    expect(await contasCorrentes.doCliente(a.conta.id).porApelido('nubank')).toMatchObject({ nome: 'Nubank', ativa: true, favorita: false })
+  })
+
+  it('POST de outra origem é recusado', async () => {
+    const { cookie } = await entrar()
+    const r = await post('/contas-correntes', { apelido: 'x', nome: 'X' }, { cookie, Origin: 'http://evil.example' })
+    expect(r.status).toBe(403)
   })
 })
 

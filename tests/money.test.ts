@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseValor, formatValor, formatBRL } from '../src/money'
+import { parseValor, parseSaldo, formatValor, formatBRL } from '../src/money'
 
 describe('parseValor', () => {
   it.each([
@@ -36,5 +36,18 @@ describe('formatação', () => {
   it('formatBRL', () => {
     expect(formatBRL(4590)).toBe('R$ 45,90')
     expect(formatBRL(-1000)).toBe('-R$ 10,00')
+  })
+})
+
+describe('parseSaldo', () => {
+  it.each([
+    ['', 0], ['  ', 0], ['0', 0], ['0,00', 0], ['-0', 0],
+    ['1500', 150000], ['1.234,56', 123456], ['12,5', 1250], ['R$ 10', 1000],
+    ['-50', -5000], ['- 50,25', -5025], ['-1.000', -100000],
+  ])('%j -> %j', (entrada, esperado) => {
+    expect(parseSaldo(entrada)).toBe(esperado)
+  })
+  it.each([['abc'], ['1,234'], ['--5'], ['5-'], ['1e3']])('%j -> null', (entrada) => {
+    expect(parseSaldo(entrada)).toBeNull()
   })
 })

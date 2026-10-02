@@ -22,3 +22,13 @@ export function formatValor(centavos: number): string {
 export function formatBRL(centavos: number): string {
   return `${centavos < 0 ? '-' : ''}R$ ${formatValor(centavos)}`
 }
+
+// saldo inicial digitado no portal: vazio = 0; aceita sinal "-" (parseValor só aceita positivos)
+export function parseSaldo(s: string): number | null {
+  const t = s.trim()
+  if (t === '') return 0
+  const negativo = t.startsWith('-')
+  const v = parseValor(negativo ? t.slice(1).trim() : t)
+  if (v !== null) return negativo ? -v : v
+  return /^-?\s*0+([.,]0{1,2})?$/.test(t) ? 0 : null
+}
