@@ -152,3 +152,39 @@ describe('favoritar e desativar', () => {
     expect(await cc.definirAtiva('c2', id, false)).toBe('nao_encontrada')
   })
 })
+
+describe('consultas leves (fix pass da revisão)', () => {
+  it('quantasAtivas conta só as ativas do próprio cliente, sem calcular saldo', async () => {
+    await cc.criar('c1', { apelido: 'a', nome: 'A', saldoInicial: 0 })
+    await cc.criar('c1', { apelido: 'b', nome: 'B', saldoInicial: 0 })
+    await cc.criar('c2', { apelido: 'x', nome: 'X', saldoInicial: 0 })
+    expect(await cc.doCliente('c1').quantasAtivas()).toBe(3) // Principal + a + b
+    const b = (await cc.doCliente('c1').porApelido('b'))!
+    await cc.definirAtiva('c1', b.id, false)
+    expect(await cc.doCliente('c1').quantasAtivas()).toBe(2)
+    expect(await cc.doCliente('c2').quantasAtivas()).toBe(2)
+    expect(await cc.doCliente('novo').quantasAtivas()).toBe(1) // cria a Principal
+  })
+
+  it('porId acha a conta (ativa ou não) só do próprio cliente', async () => {
+    const r = await cc.criar('c1', { apelido: 'nubank', nome: 'Nubank', saldoInicial: 0 })
+    const id = r.ok ? r.conta.id : ''
+    await cc.definirAtiva('c1', id, false)
+    expect(await cc.doCliente('c1').porId(id)).toMatchObject({ apelido: 'nubank', ativa: false })
+    expect(await cc.doCliente('c2').porId(id)).toBeNull()
+    expect(await cc.doCliente('c1').porId('nao-existe')).toBeNull()
+  })
+
+  it('favoritar contas diferentes ao mesmo tempo não estoura erro e deixa uma só favorita', async () => {
+    const ids: string[] = []
+    for (const ap of ['b', 'c', 'd', 'e']) {
+      const r = await cc.criar('c1', { apelido: ap, nome: ap.toUpperCase(), saldoInicial: 0 })
+      ids.push(r.ok ? r.conta.id : '')
+    }
+    for (let rodada = 0; rodada < 10; rodada++) {
+      const resultados = await Promise.all(ids.map((id) => cc.favoritar('c1', id)))
+      expect(resultados).toEqual(['ok', 'ok', 'ok', 'ok'])
+      expect((await cc.listar('c1')).filter((x) => x.favorita)).toHaveLength(1)
+    }
+  })
+})

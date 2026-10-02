@@ -83,6 +83,15 @@ export async function criarContasCorrentes(pool: Pool) {
     async ativas() {
       return (await listar(contaId)).filter((c) => c.ativa)
     },
+    async quantasAtivas() {
+      await garantirPadrao(contaId)
+      const r = await pool.query<{ n: number }>('SELECT count(*)::int AS n FROM contas_correntes WHERE conta_id = $1 AND ativa', [contaId])
+      return r.rows[0].n
+    },
+    async porId(id) {
+      const r = await pool.query<Row>('SELECT * FROM contas_correntes WHERE conta_id = $1 AND id = $2', [contaId, id])
+      return r.rows[0] ? paraConta(r.rows[0]) : null
+    },
   })
 
   return {
@@ -114,11 +123,12 @@ export async function criarContasCorrentes(pool: Pool) {
       return r.rowCount ? 'ok' : 'nao_encontrada'
     },
 
-    // ponytail: troca a favorita numa transação (o índice parcial único não deixa duas ao mesmo tempo); sem retry em caso de corrida
+    // troca a favorita numa transação; o lock por cliente serializa favoritar simultâneos (o índice parcial único não deixa duas ao mesmo tempo)
     async favoritar(contaId: string, id: string): Promise<'ok' | 'nao_encontrada' | 'inativa'> {
       const c = await pool.connect()
       try {
         await c.query('BEGIN')
+        await c.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`favorita:${contaId}`])
         const alvo = await c.query<{ ativa: boolean }>('SELECT ativa FROM contas_correntes WHERE id = $1 AND conta_id = $2 FOR UPDATE', [id, contaId])
         if (!alvo.rows[0]) {
           await c.query('ROLLBACK')

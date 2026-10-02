@@ -678,6 +678,15 @@ describe('Service: contas correntes', () => {
     expect(await repo.extrato(mes)).toEqual([])
   })
 
+  it('/desfazer diz de qual conta saiu o lançamento quando há 2+ contas ativas; com uma só, fica como antes', async () => {
+    const s = comDuasContas()
+    await s.handle(msg('/d farmácia 20 @nubank'))
+    expect((await s.handle(msg('/desfazer')))?.texto).toBe('↩️ *LANÇAMENTO DESFEITO*\n\n📝 _farmácia_\n💰 *R$ 20,00*\n🏦 _Nubank_')
+    const um = novoService()
+    await um.handle(msg('/d mercado 45,90'))
+    expect((await um.handle(msg('/desfazer')))?.texto).toBe('↩️ *LANÇAMENTO DESFEITO*\n\n📝 _mercado_\n💰 *R$ 45,90*')
+  })
+
   it('/contas lista as ativas com saldo e marca a favorita', async () => {
     const r = await comDuasContas().handle(msg('/contas'))
     expect(r).toEqual({

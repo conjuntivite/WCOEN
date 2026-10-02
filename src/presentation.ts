@@ -44,9 +44,9 @@ export function lancamentoRegistrado(l: { natureza: Natureza; conta: string; val
   return `${cabecalho(icone(l.natureza), l.natureza === 'receita' ? 'RECEITA REGISTRADA' : 'DESPESA REGISTRADA')}\n\n${linhas.join('\n')}`
 }
 
-export function desfeito(l: { conta: string; valor: number } | null): string {
+export function desfeito(l: { conta: string; valor: number } | null, contaCorrente?: string): string {
   if (!l) return erro('↩️', 'NADA PARA DESFAZER', 'Não há lançamentos para desfazer.')
-  return `${cabecalho('↩️', 'LANÇAMENTO DESFEITO')}\n\n📝 ${italic(limpar(l.conta))}\n💰 ${bold(formatBRL(l.valor))}`
+  return `${cabecalho('↩️', 'LANÇAMENTO DESFEITO')}\n\n📝 ${italic(limpar(l.conta))}\n💰 ${bold(formatBRL(l.valor))}${contaCorrente ? `\n🏦 ${italic(limpar(contaCorrente))}` : ''}`
 }
 
 // --- relatórios ----------------------------------------------------------

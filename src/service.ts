@@ -59,12 +59,14 @@ export class Service {
           contaCorrenteId: contaCorrente.id,
         })
         if (r === 'duplicado') return null
-        const varias = (await this.contasCC.ativas()).length >= 2 // com uma conta só, a confirmação fica como sempre foi
+        const varias = (await this.contasCC.quantasAtivas()) >= 2 // com uma conta só, a confirmação fica como sempre foi
         return { texto: ui.lancamentoRegistrado({ natureza: cmd.natureza, conta: cmd.conta, valor: cmd.valor, dia: cmd.data ? data : undefined, contaCorrente: varias ? contaCorrente.nome : undefined }), lancou: true }
       }
       case 'desfazer': {
         const l = await this.repo.desfazerUltimo()
-        return { texto: ui.desfeito(l), lancou: false }
+        // o último lançamento pode ser de qualquer conta: com 2+ contas ativas, diz de qual
+        const conta = l && (await this.contasCC.quantasAtivas()) >= 2 ? await this.contasCC.porId(l.contaCorrenteId) : null
+        return { texto: ui.desfeito(l, conta?.nome), lancou: false }
       }
       case 'contas':
         return { texto: ui.contas(await this.contasCC.ativas()), lancou: false }

@@ -22,5 +22,7 @@ export type ContaCorrenteComSaldo = ContaCorrente & { saldo: number }
 export interface ContasDoCliente {
   favorita(): Promise<ContaCorrente> // cria a "Principal" se o cliente ainda não tem nenhuma
   porApelido(apelido: string): Promise<ContaCorrente | null> // ativa ou não: quem chama decide se ativa basta
-  ativas(): Promise<ContaCorrenteComSaldo[]> // favorita primeiro
+  ativas(): Promise<ContaCorrenteComSaldo[]> // favorita primeiro, com saldo (mais caro: soma os lançamentos)
+  quantasAtivas(): Promise<number> // só a contagem, barata: roda a cada lançamento
+  porId(id: string): Promise<ContaCorrente | null> // ativa ou não
 }
