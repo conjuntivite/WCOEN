@@ -22,6 +22,13 @@ const lancar = (contaId: string, contaCorrenteId: string | null, tipo: 'receita'
     [contaId, tipo, valor, desfeito ? new Date() : null, contaCorrenteId],
   )
 
+const transferir = (contaId: string, origemId: string, destinoId: string, valor: number, desfeito = false) =>
+  pool.query(
+    `INSERT INTO lancamentos (conta_id, tipo, conta, valor, remetente, msg_id, data, enviado_em, desfeito_em, conta_corrente_id, conta_destino_id)
+     VALUES ($1,'transferencia','transferência',$2,'u',gen_random_uuid()::text,now(),now(),$3,$4,$5)`,
+    [contaId, valor, desfeito ? new Date() : null, origemId, destinoId],
+  )
+
 describe('conta padrão', () => {
   it('o primeiro uso cria a "Principal" favorita; chamar de novo não duplica', async () => {
     const a = await cc.doCliente('c1').favorita()
@@ -186,5 +193,30 @@ describe('consultas leves (fix pass da revisão)', () => {
       expect(resultados).toEqual(['ok', 'ok', 'ok', 'ok'])
       expect((await cc.listar('c1')).filter((x) => x.favorita)).toHaveLength(1)
     }
+  })
+})
+
+describe('transferências no saldo e nomes', () => {
+  it('a transferência tira da origem e põe no destino; a desfeita não conta; o saldo pode ficar negativo', async () => {
+    const principal = await cc.doCliente('c1').favorita()
+    const r = await cc.criar('c1', { apelido: 'nubank', nome: 'Nubank', saldoInicial: 10000 })
+    const nubank = r.ok ? r.conta : null
+    await transferir('c1', nubank!.id, principal.id, 3000)
+    await transferir('c1', principal.id, nubank!.id, 500)
+    await transferir('c1', nubank!.id, principal.id, 999, true) // desfeita: não conta
+    await transferir('c1', principal.id, nubank!.id, 100000) // deixa a Principal negativa: sem bloqueio
+    await lancar('c1', principal.id, 'receita', 200)
+    const lista = await cc.listar('c1')
+    expect(lista.find((c) => c.apelido === 'nubank')!.saldo).toBe(10000 - 3000 + 500 + 100000)
+    expect(lista.find((c) => c.apelido === 'principal')!.saldo).toBe(3000 - 500 - 100000 + 200)
+  })
+
+  it('nomes devolve id → nome de todas as contas do cliente, inclusive desativadas, e só dele', async () => {
+    const principal = await cc.doCliente('c1').favorita()
+    const r = await cc.criar('c1', { apelido: 'nubank', nome: 'Nubank', saldoInicial: 0 })
+    const nubank = r.ok ? r.conta : null
+    await cc.definirAtiva('c1', nubank!.id, false)
+    await cc.criar('c2', { apelido: 'x', nome: 'Outra', saldoInicial: 0 })
+    expect(await cc.doCliente('c1').nomes()).toEqual({ [principal.id]: 'Principal', [nubank!.id]: 'Nubank' })
   })
 })

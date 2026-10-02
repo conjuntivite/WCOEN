@@ -2,7 +2,7 @@
 // Sintaxe nativa: *negrito*, _itálico_, `código`. Padrão: emoji + TÍTULO em negrito, período em itálico, valores em negrito.
 import { formatBRL } from './money'
 import { rotuloDia, rotuloHora, rotuloMes } from './period'
-import type { ContaCorrenteComSaldo, Lancamento, Natureza } from './types'
+import type { ContaCorrenteComSaldo, Lancamento, Natureza, TipoLancamento } from './types'
 
 // --- helpers -------------------------------------------------------------
 
@@ -34,8 +34,8 @@ const totais = (receitas: number, despesas: number) =>
     linhaValor(saldoEmoji(receitas - despesas), bold('SALDO'), formatBRL(receitas - despesas)),
   ].join('\n\n')
 
-const sinal = (t: Natureza, valor: number) => bold(`${t === 'receita' ? '+' : '−'} ${formatBRL(valor)}`)
-const icone = (t: Natureza) => (t === 'receita' ? '🟢' : '🔴')
+const sinal = (t: TipoLancamento, valor: number) => bold(t === 'transferencia' ? formatBRL(valor) : `${t === 'receita' ? '+' : '−'} ${formatBRL(valor)}`)
+const icone = (t: TipoLancamento) => (t === 'receita' ? '🟢' : t === 'despesa' ? '🔴' : '🔁')
 
 // --- lançamentos ---------------------------------------------------------
 

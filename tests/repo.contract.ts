@@ -171,5 +171,25 @@ export function repoContract(nome: string, criar: () => Promise<Repo>, criarPar?
       const [l] = await repo.extrato({ de: new Date('2026-09-01T03:00:00Z'), ate: new Date('2026-10-01T03:00:00Z') })
       expect(l.contaCorrenteId).toBe('cc9')
     })
+    it('transferência: guarda origem e destino, fica fora de balancete e série, e o extrato filtra por origem ou destino', async () => {
+      const repo = await criar()
+      await repo.add(novo({ conta: 'mercado', valor: 1000, contaCorrenteId: 'cc1' }))
+      await repo.add(novo({ tipo: 'transferencia', conta: 'transferência', valor: 500, contaCorrenteId: 'cc1', contaDestinoId: 'cc2' }))
+      const mes = { de: new Date('2026-09-01T03:00:00Z'), ate: new Date('2026-10-01T03:00:00Z') }
+      expect((await repo.balancete(null)).despesas).toEqual([{ conta: 'mercado', total: 1000 }])
+      expect((await repo.balancete(null)).receitas).toEqual([])
+      expect((await repo.balancete(null, 'cc2')).despesas).toEqual([])
+      expect(await repo.serieMensal(new Date('2026-09-30T12:00:00Z'), 1)).toEqual([{ ano: 2026, mes: 9, receitas: 0, despesas: 1000 }])
+      expect((await repo.extrato(mes, 'cc2')).map((l) => [l.tipo, l.contaCorrenteId, l.contaDestinoId])).toEqual([['transferencia', 'cc1', 'cc2']])
+      expect((await repo.extrato(mes, 'cc1')).map((l) => l.tipo)).toEqual(['despesa', 'transferencia'])
+      expect((await repo.extrato(mes)).map((l) => l.tipo)).toEqual(['despesa', 'transferencia'])
+    })
+
+    it('desfazer uma transferência devolve a linha com origem e destino e a tira do extrato', async () => {
+      const repo = await criar()
+      await repo.add(novo({ tipo: 'transferencia', conta: 'transferência', valor: 500, contaCorrenteId: 'cc1', contaDestinoId: 'cc2' }))
+      expect(await repo.desfazerUltimo()).toMatchObject({ tipo: 'transferencia', contaCorrenteId: 'cc1', contaDestinoId: 'cc2', valor: 500 })
+      expect(await repo.extrato({ de: new Date('2026-09-01T03:00:00Z'), ate: new Date('2026-10-01T03:00:00Z') })).toEqual([])
+    })
   })
 }

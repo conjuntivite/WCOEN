@@ -10,6 +10,8 @@ export type Resposta = { texto: string; lancou: boolean }
 
 export const POR_PAGINA = 20 // lançamentos por página do extrato
 
+// transferência não é receita nem despesa: fica fora de totais e da auditoria
+const soReceitaDespesa = (ls: Lancamento[]) => ls.filter((l): l is Lancamento & { tipo: Natureza } => l.tipo !== 'transferencia')
 const somaTipo = (ls: Lancamento[], t: Natureza) => ls.filter((l) => l.tipo === t).reduce((s, l) => s + l.valor, 0)
 const soma = (linhas: LinhaConta[]) => linhas.reduce((s, l) => s + l.total, 0)
 
@@ -156,7 +158,7 @@ export class Service {
 
   private async auditoria(rel: Relatorio): Promise<string> {
     const { titulo, atual, janela } = this.periodos(rel)
-    const extrato = await this.repo.extrato(atual)
+    const extrato = soReceitaDespesa(await this.repo.extrato(atual))
     if (!extrato.length) return ui.auditoriaVazia(rel, titulo)
     if (!this.auditor) return ui.auditoriaSemIA(rel, titulo)
 

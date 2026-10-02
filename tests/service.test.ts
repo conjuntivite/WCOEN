@@ -731,3 +731,14 @@ describe('Service: contas correntes', () => {
     expect(t).toContain('/contas')
   })
 })
+
+describe('Service: transferências fora da auditoria', () => {
+  it('só com transferências no período, a auditoria diz que não há lançamentos e não chama a IA', async () => {
+    const repo = new MemoryRepo()
+    await repo.add({ tipo: 'transferencia', conta: 'transferência', valor: 500, remetente: 'u', msgId: 't1', data: new Date('2026-09-10T12:00:00Z'), enviadoEm: new Date('2026-09-10T12:00:00Z'), contaCorrenteId: 'cc1', contaDestinoId: 'cc2' })
+    const auditor: Auditor = { sugerir: vi.fn(async () => ['dica']) }
+    const r = await new Service(repo, contasEmMemoria(), agora, auditor).handle(msg('/auditoria'))
+    expect(r?.texto).toContain('Nenhum lançamento no período')
+    expect(auditor.sugerir).not.toHaveBeenCalled()
+  })
+})
