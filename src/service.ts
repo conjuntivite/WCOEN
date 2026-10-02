@@ -64,6 +64,8 @@ export class Service {
         const l = await this.repo.desfazerUltimo()
         return { texto: ui.desfeito(l), lancou: false }
       }
+      case 'contas': // provisório: implementado na Task 4
+        return null
       case 'ajuda':
         return { texto: ui.AJUDA, lancou: false }
       case 'uso':
