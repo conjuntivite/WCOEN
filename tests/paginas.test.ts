@@ -543,6 +543,17 @@ describe('página de contas correntes', () => {
     expect(html.match(/action="\/contas-correntes\/favoritar"/g)).toHaveLength(1) // só a ativa que não é favorita
   })
 
+  it('desativadas ficam fora da lista, num bloco recolhido; sem desativadas o bloco não existe', () => {
+    const [ativas, desativadas] = html.split('<details class="desativadas">')
+    expect(ativas).toContain('@nubank')
+    expect(ativas).not.toContain('@antiga')
+    expect(desativadas).toContain('Mostrar contas desativadas (1)')
+    expect(desativadas).toContain('@antiga')
+    expect(desativadas).toContain('action="/contas-correntes/reativar"')
+    expect(html).not.toMatch(/<details class="desativadas"[^>]*open/)
+    expect(paginaContasCorrentes('a@x.com', false, lista.slice(0, 2), {})).not.toContain('<details class="desativadas">')
+  })
+
   it('formulário de criar com rótulos; menu marca a página atual', () => {
     expect(html).toMatch(/<label[^>]*for="apelido"/)
     expect(html).toMatch(/<label[^>]*for="nome"/)
