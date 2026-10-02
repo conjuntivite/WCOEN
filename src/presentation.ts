@@ -2,7 +2,7 @@
 // Sintaxe nativa: *negrito*, _itálico_, `código`. Padrão: emoji + TÍTULO em negrito, período em itálico, valores em negrito.
 import { formatBRL } from './money'
 import { rotuloDia, rotuloHora, rotuloMes } from './period'
-import type { ContaCorrenteComSaldo, Lancamento, Natureza } from './types'
+import type { ContaCorrenteComSaldo, Lancamento, Natureza, TipoLancamento } from './types'
 
 // --- helpers -------------------------------------------------------------
 
@@ -34,8 +34,12 @@ const totais = (receitas: number, despesas: number) =>
     linhaValor(saldoEmoji(receitas - despesas), bold('SALDO'), formatBRL(receitas - despesas)),
   ].join('\n\n')
 
-const sinal = (t: Natureza, valor: number) => bold(`${t === 'receita' ? '+' : '−'} ${formatBRL(valor)}`)
-const icone = (t: Natureza) => (t === 'receita' ? '🟢' : '🔴')
+const sinal = (t: TipoLancamento, valor: number) => bold(t === 'transferencia' ? formatBRL(valor) : `${t === 'receita' ? '+' : '−'} ${formatBRL(valor)}`)
+const icone = (t: TipoLancamento) => (t === 'receita' ? '🟢' : t === 'despesa' ? '🔴' : '🔁')
+
+// descrição da linha do extrato: a do lançamento ou, na transferência, "origem → destino" (nomes por id; desativadas incluídas)
+const descricaoDe = (l: Lancamento, nomes: Record<string, string>) =>
+  l.tipo === 'transferencia' ? `${limpar(nomes[l.contaCorrenteId] ?? '?')} → ${limpar(nomes[l.contaDestinoId ?? ''] ?? '?')}` : limpar(l.conta)
 
 // --- lançamentos ---------------------------------------------------------
 
@@ -43,6 +47,16 @@ export function lancamentoRegistrado(l: { natureza: Natureza; conta: string; val
   const linhas = [`📝 ${italic(limpar(l.conta))}`, `💰 ${bold(formatBRL(l.valor))}`, ...(l.dia ? [`📅 ${italic(rotuloDia(l.dia))}`] : []), ...(l.contaCorrente ? [`🏦 ${italic(limpar(l.contaCorrente))}`] : [])]
   return `${cabecalho(icone(l.natureza), l.natureza === 'receita' ? 'RECEITA REGISTRADA' : 'DESPESA REGISTRADA')}\n\n${linhas.join('\n')}`
 }
+
+export function transferenciaRegistrada(t: { origem: string; destino: string; valor: number; dia?: Date }): string {
+  const linhas = [`🏦 ${italic(`${limpar(t.origem)} → ${limpar(t.destino)}`)}`, `💰 ${bold(formatBRL(t.valor))}`, ...(t.dia ? [`📅 ${italic(rotuloDia(t.dia))}`] : [])]
+  return `${cabecalho('🔁', 'TRANSFERÊNCIA REGISTRADA')}\n\n${linhas.join('\n')}`
+}
+
+export const transferenciaDesfeita = (t: { origem: string; destino: string; valor: number }) =>
+  `${cabecalho('↩️', 'TRANSFERÊNCIA DESFEITA')}\n\n🏦 ${italic(`${limpar(t.origem)} → ${limpar(t.destino)}`)}\n💰 ${bold(formatBRL(t.valor))}`
+
+export const TRANSFERENCIA_MESMA_CONTA = erro('🔁', 'MESMA CONTA', 'Origem e destino são a mesma conta.', 'Nenhuma transferência foi registrada.')
 
 export function desfeito(l: { conta: string; valor: number } | null, contaCorrente?: string): string {
   if (!l) return erro('↩️', 'NADA PARA DESFAZER', 'Não há lançamentos para desfazer.')
@@ -54,10 +68,10 @@ export function desfeito(l: { conta: string; valor: number } | null, contaCorren
 // relatório filtrado por conta corrente: o nome da conta vai no subtítulo
 const comFiltro = (sub: string | undefined, filtro?: string) => (filtro ? [sub, limpar(filtro)].filter(Boolean).join(' · ') : sub)
 
-export function balanceteDoDia(agora: Date, itens: Lancamento[], receitas: number, despesas: number, filtro?: string): string {
+export function balanceteDoDia(agora: Date, itens: Lancamento[], receitas: number, despesas: number, filtro?: string, nomes: Record<string, string> = {}): string {
   const cab = cabecalho('📊', 'BALANCETE DO DIA', comFiltro(dataCompleta(agora), filtro))
   if (!itens.length) return `${cab}\n\n${italic('Nenhum lançamento registrado hoje.')}`
-  const linhas = itens.map((l) => `🕐 ${bold(rotuloHora(l.enviadoEm))}\n${icone(l.tipo)} ${limpar(l.conta)}\n${sinal(l.tipo, l.valor)}`)
+  const linhas = itens.map((l) => `🕐 ${bold(rotuloHora(l.enviadoEm))}\n${icone(l.tipo)} ${descricaoDe(l, nomes)}\n${sinal(l.tipo, l.valor)}`)
   return secoes(cab, linhas.join('\n\n'), totais(receitas, despesas))
 }
 
@@ -69,9 +83,9 @@ export function resumoPeriodos(rel: string, blocos: BlocoPeriodo[], filtro?: str
   return secoes(cab, ...blocos.map((b) => `📅 ${bold(rotuloBonito(b.rotulo))}\n\n${totais(b.receitas, b.despesas)}`))
 }
 
-export function extrato(pagina: number, total: number, itens: Lancamento[], geral: { receitas: number; despesas: number } | null, filtro?: string): string {
+export function extrato(pagina: number, total: number, itens: Lancamento[], geral: { receitas: number; despesas: number } | null, filtro?: string, nomes: Record<string, string> = {}): string {
   const linhas = itens
-    .map((l) => `📅 ${bold(`${rotuloDia(l.data)} · ${rotuloHora(l.enviadoEm)}`)}\n${icone(l.tipo)} ${italic(limpar(l.conta))}\n${sinal(l.tipo, l.valor)}`)
+    .map((l) => `📅 ${bold(`${rotuloDia(l.data)} · ${rotuloHora(l.enviadoEm)}`)}\n${icone(l.tipo)} ${italic(descricaoDe(l, nomes))}\n${sinal(l.tipo, l.valor)}`)
     .join('\n\n')
   const rodape = pagina < total ? `➡️ ${italic(`Digite ${bold(`/extrato ${pagina + 1}`)} para continuar.`)}` : total > 1 ? `✅ ${italic('Fim do extrato.')}` : ''
   return secoes(
@@ -150,7 +164,7 @@ export const AJUDA = [
   ].join('\n\n'),
   [`🔎 ${bold('AUDITORIA')}`, `${cmd('/auditoria mensal')}\n${cmd('/auditoria semanal')}\n${cmd('/auditoria anual')}\n${italic('ranking e análise da IA')}`].join('\n\n'),
   [`📒 ${bold('EXTRATO')}`, `${cmd('/extrato')}\n${italic('do mais recente ao mais antigo')}\n\n${cmd('/extrato 2')}\n${italic('próxima página')}`].join('\n\n'),
-  [`🏦 ${bold('CONTAS')}`, `${cmd('/contas')}\n${italic('contas e saldos')}\n\n${cmd('/balancete @conta')}\n${cmd('/extrato @conta')}\n${italic('relatório de uma conta só')}`].join('\n\n'),
+  [`🏦 ${bold('CONTAS')}`, `${cmd('/contas')}\n${italic('contas e saldos')}\n\n${cmd('/balancete @conta')}\n${cmd('/extrato @conta')}\n${italic('relatório de uma conta só')}`, `🔁 Transferência entre contas\n${cmd('/t 500 @nubank @itau')}\n${italic('sai do primeiro, vai para o segundo')}\n${cmd('/t 500 @itau')}\n${italic('sai da conta favorita')}`].join('\n\n'),
   [`↩️ ${bold('CORREÇÃO')}`, `${cmd('/desfazer')}\n${italic('desfaz o último lançamento')}`].join('\n\n'),
 ].join(`\n\n${SEP}\n\n`)
 
@@ -166,6 +180,7 @@ export const USO = {
   extrato: uso('/extrato', '/extrato 2', '/extrato @conta'),
   despesa: uso('/d mercado 45,90', '/d mercado 45,90 ontem', '/d mercado 45,90 15/09', '/d mercado 45,90 @conta'),
   receita: uso('/r plantão 70', '/r plantão 70 ontem', '/r plantão 70 15/09', '/r plantão 70 @conta'),
+  transferencia: uso('/t 500 @nubank @itau', '/t 500 @itau', '/t 500 @nubank @itau ontem'),
 }
 
 // `gravando`: o comando era um lançamento (nada foi gravado) ou só o filtro de um relatório

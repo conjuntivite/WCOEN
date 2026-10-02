@@ -26,7 +26,7 @@ export class MemoryRepo implements Repo {
   async extrato(intervalo: { de: Date; ate: Date }, contaCorrenteId?: string) {
     return this.itens
       .map((item, ordem) => ({ item, ordem }))
-      .filter((x) => !x.item.desfeitoEm && x.item.data.getTime() >= intervalo.de.getTime() && x.item.data.getTime() < intervalo.ate.getTime() && (!contaCorrenteId || x.item.contaCorrenteId === contaCorrenteId))
+      .filter((x) => !x.item.desfeitoEm && x.item.data.getTime() >= intervalo.de.getTime() && x.item.data.getTime() < intervalo.ate.getTime() && (!contaCorrenteId || x.item.contaCorrenteId === contaCorrenteId || x.item.contaDestinoId === contaCorrenteId))
       .sort((a, b) => a.item.data.getTime() - b.item.data.getTime() || a.item.enviadoEm.getTime() - b.item.enviadoEm.getTime() || a.ordem - b.ordem)
       .map((x) => ({ ...x.item }))
   }
@@ -46,6 +46,7 @@ export class MemoryRepo implements Repo {
     const somas = { receita: new Map<string, number>(), despesa: new Map<string, number>() }
     for (const i of this.itens) {
       if (i.desfeitoEm) continue
+      if (i.tipo === 'transferencia') continue // não é receita nem despesa
       if (contaCorrenteId && i.contaCorrenteId !== contaCorrenteId) continue
       if (intervalo && (i.data.getTime() < intervalo.de.getTime() || i.data.getTime() >= intervalo.ate.getTime())) continue
       const m = somas[i.tipo]

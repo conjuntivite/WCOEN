@@ -434,15 +434,19 @@ const itemContaCorrente = (c: ContaCorrenteComSaldo) => {
   return `<li class="convite"><div><strong>${esc(c.nome)}</strong> <code>@${esc(c.apelido)}</code><div class="sub">Saldo atual: ${formatBRL(c.saldo)}</div></div>${status}${editar}${favoritar}${alternar}</li>`
 }
 
-export const paginaContasCorrentes = (email: string, admin: boolean, contas: ContaCorrenteComSaldo[], mensagem: { erro?: string; ok?: string } = {}, perfil?: Perfil) =>
-  shell(
+export const paginaContasCorrentes = (email: string, admin: boolean, contas: ContaCorrenteComSaldo[], mensagem: { erro?: string; ok?: string } = {}, perfil?: Perfil) => {
+  // desativadas ficam recolhidas (<details> nativo: a CSP não permite script inline); a favorita é sempre ativa
+  const ativas = contas.filter((c) => c.ativa)
+  const desativadas = contas.filter((c) => !c.ativa)
+  return shell(
     'contas-correntes',
     email,
     admin ? 'admin' : 'usuario',
-    `<main id="conteudo">${topo('Contas correntes', 'Os lançamentos vão para a conta favorita, ou para a que você indicar com @apelido')}${aviso(mensagem.erro)}${aviso(mensagem.ok, 'ok')}<div class="grade duas"><div class="cartao c5"><h2>Nova conta</h2><form method="post" action="/contas-correntes">${campo({ nome: 'apelido', rotulo: 'Apelido (usado no WhatsApp, ex.: @nubank)', extra: 'maxlength="20" pattern="[a-z0-9_-]{1,20}" autocapitalize="none"' })}${campo({ nome: 'nome', rotulo: 'Nome', extra: 'maxlength="40"' })}<div class="campo"><label for="saldo">Saldo inicial (opcional)</label><input id="saldo" name="saldo" type="text" inputmode="decimal" placeholder="0,00"></div><button class="btn">Adicionar conta</button></form></div><div class="cartao c7"><h2>Suas contas</h2>${contas.length ? `<ul class="convites">${contas.map(itemContaCorrente).join('')}</ul>` : vazio('banco', 'Nenhuma conta ainda.')}</div></div></main>`,
+    `<main id="conteudo">${topo('Contas correntes', 'Os lançamentos vão para a conta favorita, ou para a que você indicar com @apelido')}${aviso(mensagem.erro)}${aviso(mensagem.ok, 'ok')}<div class="grade duas"><div class="cartao c5"><h2>Nova conta</h2><form method="post" action="/contas-correntes">${campo({ nome: 'apelido', rotulo: 'Apelido (usado no WhatsApp, ex.: @nubank)', extra: 'maxlength="20" pattern="[a-z0-9_-]{1,20}" autocapitalize="none"' })}${campo({ nome: 'nome', rotulo: 'Nome', extra: 'maxlength="40"' })}<div class="campo"><label for="saldo">Saldo inicial (opcional)</label><input id="saldo" name="saldo" type="text" inputmode="decimal" placeholder="0,00"></div><button class="btn">Adicionar conta</button></form></div><div class="cartao c7"><h2>Suas contas</h2>${ativas.length ? `<ul class="convites">${ativas.map(itemContaCorrente).join('')}</ul>` : vazio('banco', 'Nenhuma conta ainda.')}${desativadas.length ? `<details class="desativadas"><summary>Mostrar contas desativadas (${desativadas.length})</summary><ul class="convites">${desativadas.map(itemContaCorrente).join('')}</ul></details>` : ''}</div></div></main>`,
     '',
     perfil,
   )
+}
 
 // --- administração (convites) --------------------------------------------
 

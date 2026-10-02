@@ -54,9 +54,14 @@ export async function criarContasCorrentes(pool: Pool) {
     await garantirPadrao(contaId)
     const r = await pool.query<Row>(
       `SELECT c.id, c.apelido, c.nome, c.saldo_inicial, c.favorita, c.ativa,
-              COALESCE(SUM(CASE WHEN l.tipo = 'receita' THEN l.valor ELSE -l.valor END), 0)::bigint AS movimento
+              COALESCE(SUM(CASE
+                WHEN l.tipo = 'receita' THEN l.valor
+                WHEN l.tipo = 'despesa' THEN -l.valor
+                WHEN l.conta_destino_id = c.id THEN l.valor
+                ELSE -l.valor
+              END), 0)::bigint AS movimento
        FROM contas_correntes c
-       LEFT JOIN lancamentos l ON l.conta_corrente_id = c.id AND l.desfeito_em IS NULL
+       LEFT JOIN lancamentos l ON (l.conta_corrente_id = c.id OR l.conta_destino_id = c.id) AND l.desfeito_em IS NULL
        WHERE c.conta_id = $1
        GROUP BY c.id
        ORDER BY c.favorita DESC, c.ativa DESC, c.criada_em ASC, c.apelido ASC`,
@@ -87,6 +92,10 @@ export async function criarContasCorrentes(pool: Pool) {
       await garantirPadrao(contaId)
       const r = await pool.query<{ n: number }>('SELECT count(*)::int AS n FROM contas_correntes WHERE conta_id = $1 AND ativa', [contaId])
       return r.rows[0].n
+    },
+    async nomes() {
+      const r = await pool.query<{ id: string; nome: string }>('SELECT id, nome FROM contas_correntes WHERE conta_id = $1', [contaId])
+      return Object.fromEntries(r.rows.map((x) => [x.id, x.nome]))
     },
     async porId(id) {
       const r = await pool.query<Row>('SELECT * FROM contas_correntes WHERE conta_id = $1 AND id = $2', [contaId, id])

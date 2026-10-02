@@ -10,6 +10,8 @@ export type Resposta = { texto: string; lancou: boolean }
 
 export const POR_PAGINA = 20 // lançamentos por página do extrato
 
+// transferência não é receita nem despesa: fica fora de totais e da auditoria
+const soReceitaDespesa = (ls: Lancamento[]) => ls.filter((l): l is Lancamento & { tipo: Natureza } => l.tipo !== 'transferencia')
 const somaTipo = (ls: Lancamento[], t: Natureza) => ls.filter((l) => l.tipo === t).reduce((s, l) => s + l.valor, 0)
 const soma = (linhas: LinhaConta[]) => linhas.reduce((s, l) => s + l.total, 0)
 
@@ -35,7 +37,7 @@ export class Service {
       return r
     } catch (err) {
       console.error('erro ao processar mensagem', msg.msgId, err)
-      const gravando = cmd.tipo === 'lancamento' || cmd.tipo === 'desfazer'
+      const gravando = cmd.tipo === 'lancamento' || cmd.tipo === 'transferencia' || cmd.tipo === 'desfazer'
       return { texto: gravando ? ui.ERRO_SALVAR : ui.ERRO_GENERICO, lancou: false }
     }
   }
@@ -64,12 +66,39 @@ export class Service {
       }
       case 'desfazer': {
         const l = await this.repo.desfazerUltimo()
+        if (l?.tipo === 'transferencia') {
+          const nomes = await this.contasCC.nomes()
+          return { texto: ui.transferenciaDesfeita({ origem: nomes[l.contaCorrenteId] ?? '?', destino: nomes[l.contaDestinoId ?? ''] ?? '?', valor: l.valor }), lancou: false }
+        }
         // o último lançamento pode ser de qualquer conta: com 2+ contas ativas, diz de qual
         const conta = l && (await this.contasCC.quantasAtivas()) >= 2 ? await this.contasCC.porId(l.contaCorrenteId) : null
         return { texto: ui.desfeito(l, conta?.nome), lancou: false }
       }
       case 'contas':
         return { texto: ui.contas(await this.contasCC.ativas()), lancou: false }
+      case 'transferencia': {
+        const origem = cmd.origem ? await this.contasCC.porApelido(cmd.origem) : await this.contasCC.favorita()
+        if (!origem || !origem.ativa) return { texto: ui.contaNaoEncontrada(cmd.origem ?? '', await this.contasCC.ativas(), true), lancou: false }
+        const destino = await this.contasCC.porApelido(cmd.destino)
+        if (!destino || !destino.ativa) return { texto: ui.contaNaoEncontrada(cmd.destino, await this.contasCC.ativas(), true), lancou: false }
+        if (origem.id === destino.id) return { texto: ui.TRANSFERENCIA_MESMA_CONTA, lancou: false }
+        // sem data informada pelo usuário, vale a data de envio da mensagem
+        const data = cmd.data ? resolverData(cmd.data, msg.enviadoEm) : msg.enviadoEm
+        if (!data) return { texto: ui.ERRO_DATA, lancou: false }
+        const r = await this.repo.add({
+          tipo: 'transferencia',
+          conta: 'transferência',
+          valor: cmd.valor,
+          remetente: msg.remetente,
+          msgId: msg.msgId,
+          data,
+          enviadoEm: msg.enviadoEm,
+          contaCorrenteId: origem.id,
+          contaDestinoId: destino.id,
+        })
+        if (r === 'duplicado') return null
+        return { texto: ui.transferenciaRegistrada({ origem: origem.nome, destino: destino.nome, valor: cmd.valor, dia: cmd.data ? data : undefined }), lancou: true }
+      }
       case 'ajuda':
         return { texto: ui.AJUDA, lancou: false }
       case 'uso':
@@ -113,6 +142,11 @@ export class Service {
     return { titulo, atual, janela }
   }
 
+  // nomes das contas (id → nome) só quando há transferência na lista: evita a consulta nos relatórios sem elas
+  private async nomesSeHouverTransferencia(ls: Lancamento[]): Promise<Record<string, string>> {
+    return ls.some((l) => l.tipo === 'transferencia') ? this.contasCC.nomes() : {}
+  }
+
   // `@apelido` de um relatório: o id/nome da conta, ou o texto de "não encontrada". Sem `@`, sem filtro. Desativadas ainda filtram.
   private async filtro(apelido?: string): Promise<{ id?: string; nome?: string } | { erro: string }> {
     if (!apelido) return {}
@@ -139,7 +173,7 @@ export class Service {
 
   private async balanceteDoDia(agora: Date, f: { id?: string; nome?: string }): Promise<string> {
     const extrato = await this.repo.extrato(intervaloDoDia(agora), f.id)
-    return ui.balanceteDoDia(agora, extrato, somaTipo(extrato, 'receita'), somaTipo(extrato, 'despesa'), f.nome)
+    return ui.balanceteDoDia(agora, extrato, somaTipo(extrato, 'receita'), somaTipo(extrato, 'despesa'), f.nome, await this.nomesSeHouverTransferencia(extrato))
   }
 
   // extrato completo, do mais recente ao mais antigo, POR_PAGINA lançamentos por página; os totais gerais só na página 1
@@ -151,12 +185,13 @@ export class Service {
     const total = Math.ceil(todos.length / POR_PAGINA)
     if (pagina > total) return ui.paginaInexistente(total)
     const itens = todos.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
-    return ui.extrato(pagina, total, itens, pagina === 1 ? { receitas: somaTipo(todos, 'receita'), despesas: somaTipo(todos, 'despesa') } : null, f.nome)
+    const nomes = await this.nomesSeHouverTransferencia(itens)
+    return ui.extrato(pagina, total, itens, pagina === 1 ? { receitas: somaTipo(todos, 'receita'), despesas: somaTipo(todos, 'despesa') } : null, f.nome, nomes)
   }
 
   private async auditoria(rel: Relatorio): Promise<string> {
     const { titulo, atual, janela } = this.periodos(rel)
-    const extrato = await this.repo.extrato(atual)
+    const extrato = soReceitaDespesa(await this.repo.extrato(atual))
     if (!extrato.length) return ui.auditoriaVazia(rel, titulo)
     if (!this.auditor) return ui.auditoriaSemIA(rel, titulo)
 

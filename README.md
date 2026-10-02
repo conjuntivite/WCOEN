@@ -33,6 +33,7 @@ Requer Node >= 20.6 (o `npm start` usa `--env-file`).
 | `/r plantão 450 ontem`, `/d mercado 45 15/09` | data opcional no fim: `hoje`, `ontem`, `anteontem`, `dd/mm`, `dd/mm/aaaa`. Sem data, vale o dia do envio da mensagem |
 | `/d mercado 45,90 @nubank`, `/r plantão 70 @itau` | lança em outra conta corrente: `@apelido` em qualquer posição. Sem `@`, vale a conta **favorita** |
 | `/contas` (`/c`) | contas correntes ativas com apelido e saldo atual |
+| `/t 500 @nubank @itau` | transfere R$ 500 da conta `@nubank` para a `@itau` (o primeiro `@` é a origem). Com um `@` só (`/t 500 @itau`), sai da **favorita**. Data opcional no fim (`/t 500 @itau ontem`). Não é receita nem despesa: fica fora do balancete, da auditoria e do dashboard; aparece no extrato e muda o saldo das duas contas |
 | `/balancete @nubank`, `/extrato 2 @nubank` | o mesmo relatório, só dessa conta (sem `@`, somam todas). `/auditoria` é sempre consolidada |
 | `/desfazer` | desfaz o último lançamento |
 | `/ajuda` (`/h`) | lista os comandos |
@@ -76,7 +77,7 @@ O bot roda como serviço: cada cliente se cadastra no portal, conecta o próprio
 
 ### Contas correntes
 
-Em `/contas-correntes` o cliente cadastra uma ou mais contas (apelido, nome e saldo inicial opcional) e escolhe a **favorita**. Todo lançamento do WhatsApp vai para a favorita; para outra conta, termine o comando com `@apelido`. O apelido é fixo depois de criado (minúsculas sem acento, números, `-` e `_`, até 20 caracteres); o nome e o saldo inicial podem ser editados. Contas não são excluídas, só desativadas (a favorita não pode ser desativada sem eleger outra), e o histórico das desativadas continua nos relatórios. O saldo atual de cada conta é o saldo inicial mais receitas menos despesas dos lançamentos dela. O dashboard ganha um seletor de conta quando há duas ou mais. Quem já usava o bot ganha uma conta "Principal" (`@principal`) com todos os lançamentos antigos, criada automaticamente na primeira subida.
+Em `/contas-correntes` o cliente cadastra uma ou mais contas (apelido, nome e saldo inicial opcional) e escolhe a **favorita**. Todo lançamento do WhatsApp vai para a favorita; para outra conta, termine o comando com `@apelido`. O apelido é fixo depois de criado (minúsculas sem acento, números, `-` e `_`, até 20 caracteres); o nome e o saldo inicial podem ser editados. Contas não são excluídas, só desativadas (a favorita não pode ser desativada sem eleger outra), e o histórico das desativadas continua nos relatórios. O saldo atual de cada conta é o saldo inicial mais receitas menos despesas dos lançamentos dela. O dashboard ganha um seletor de conta quando há duas ou mais. Quem já usava o bot ganha uma conta "Principal" (`@principal`) com todos os lançamentos antigos, criada automaticamente na primeira subida. A transferência entre contas também pode ser desfeita com `/desfazer`; o saldo das duas contas volta.
 
 ### Administração
 

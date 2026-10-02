@@ -1,7 +1,9 @@
 export type Natureza = 'despesa' | 'receita'
+// 'transferencia' não é receita nem despesa: move dinheiro entre duas contas correntes do cliente (origem = contaCorrenteId, destino = contaDestinoId)
+export type TipoLancamento = Natureza | 'transferencia'
 export type DataLanc = { tipo: 'relativa'; diasAtras: number } | { tipo: 'dia'; dia: number; mes: number; ano?: number }
 // data = dia do lançamento (o balancete filtra por ela): a informada pelo usuário ou, sem ela, enviadoEm; enviadoEm = quando a mensagem foi enviada (ordena o desfazer)
-export type NovoLancamento = { tipo: Natureza; conta: string; valor: number; remetente: string; msgId: string; data: Date; enviadoEm: Date; contaCorrenteId: string }
+export type NovoLancamento = { tipo: TipoLancamento; conta: string; valor: number; remetente: string; msgId: string; data: Date; enviadoEm: Date; contaCorrenteId: string; contaDestinoId?: string }
 export type Lancamento = NovoLancamento & { desfeitoEm: Date | null }
 export type Intervalo = { de: Date; ate: Date } | null   // null = tudo; `ate` é exclusivo
 export type LinhaConta = { conta: string; total: number }
@@ -25,4 +27,5 @@ export interface ContasDoCliente {
   ativas(): Promise<ContaCorrenteComSaldo[]> // favorita primeiro, com saldo (mais caro: soma os lançamentos)
   quantasAtivas(): Promise<number> // só a contagem, barata: roda a cada lançamento
   porId(id: string): Promise<ContaCorrente | null> // ativa ou não
+  nomes(): Promise<Record<string, string>> // id → nome de todas as contas do cliente, ativas ou não (para rotular transferências antigas)
 }
