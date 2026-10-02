@@ -3,8 +3,8 @@ import { Service, POR_PAGINA, type Mensagem } from '../src/service'
 import { ERRO_SALVAR, ERRO_GENERICO, ERRO_DATA, IA_DESLIGADA } from '../src/presentation'
 import type { Auditor, DadosAuditoria } from '../src/auditar'
 import { MemoryRepo } from './memoryRepo'
-import { contasEmMemoria } from './memoryContasCorrentes'
-import type { Repo } from '../src/types'
+import { contasEmMemoria, PRINCIPAL } from './memoryContasCorrentes'
+import type { ContaCorrenteComSaldo, Repo } from '../src/types'
 
 let n = 0
 const msg = (texto: string, enviadoEm = '2026-09-10T12:00:00Z', msgId = `m${++n}`): Mensagem => ({
@@ -42,8 +42,8 @@ describe('Service: lançamentos', () => {
 
   it('lançamento incompleto responde a dica de uso, sem gravar', async () => {
     const s = novoService()
-    expect(await s.handle(msg('/d mercado'))).toEqual({ texto: USO('/d mercado 45,90', '/d mercado 45,90 ontem', '/d mercado 45,90 15/09'), lancou: false })
-    expect((await s.handle(msg('/r salário')))?.texto).toBe(USO('/r plantão 70', '/r plantão 70 ontem', '/r plantão 70 15/09'))
+    expect(await s.handle(msg('/d mercado'))).toEqual({ texto: USO('/d mercado 45,90', '/d mercado 45,90 ontem', '/d mercado 45,90 15/09', '/d mercado 45,90 @conta'), lancou: false })
+    expect((await s.handle(msg('/r salário')))?.texto).toBe(USO('/r plantão 70', '/r plantão 70 ontem', '/r plantão 70 15/09', '/r plantão 70 @conta'))
     expect((await s.handle(msg('/extrato')))?.texto).toContain('Nenhum lançamento')
   })
 
@@ -82,8 +82,8 @@ describe('Service: desfazer', () => {
 
 const USO = (...c: string[]) => `⚠️ *COMANDO INCOMPLETO*\n\n_Use um destes:_\n\n${c.map((x) => `👉 \`${x}\``).join('\n')}`
 const USO_AUDITORIA = USO('/auditoria mensal', '/auditoria semanal', '/auditoria anual')
-const USO_BALANCETE = USO('/balancete', '/balancete mensal', '/balancete semanal', '/balancete anual')
-const USO_EXTRATO = USO('/extrato', '/extrato 2')
+const USO_BALANCETE = USO('/balancete', '/balancete mensal', '/balancete semanal', '/balancete anual', '/balancete @conta')
+const USO_EXTRATO = USO('/extrato', '/extrato 2', '/extrato @conta')
 
 // bloco de totais no novo formato
 const tot = (r: string, d: string, saldo: string, emoji = '💚') => `🟢 Receitas\n*${r}*\n\n🔴 Despesas\n*${d}*\n\n${emoji} *SALDO*\n*${saldo}*`
@@ -631,5 +631,94 @@ describe('Service: falhas', () => {
     const s = new Service({ ...quebrado, add }, contasEmMemoria(), agora)
     expect((await s.handle(msg('/d mercado 10', undefined, 'r1')))?.texto).toBe(ERRO_SALVAR)
     expect((await s.handle(msg('/d mercado 10', undefined, 'r1')))?.lancou).toBe(true)
+  })
+})
+
+const NUBANK: ContaCorrenteComSaldo = { id: 'cc2', apelido: 'nubank', nome: 'Nubank', saldoInicial: 0, saldo: 150000, favorita: false, ativa: true }
+const ANTIGA: ContaCorrenteComSaldo = { id: 'cc3', apelido: 'antiga', nome: 'Antiga', saldoInicial: 0, saldo: 0, favorita: false, ativa: false }
+const comDuasContas = (repo = new MemoryRepo()) => new Service(repo, contasEmMemoria([PRINCIPAL, NUBANK, ANTIGA]), agora)
+const mes = { de: new Date('2026-09-01T03:00:00Z'), ate: new Date('2026-10-01T03:00:00Z') }
+
+describe('Service: contas correntes', () => {
+  it('sem @ vai para a favorita; com @ vai para a outra', async () => {
+    const repo = new MemoryRepo()
+    const s = comDuasContas(repo)
+    await s.handle(msg('/d mercado 10'))
+    await s.handle(msg('/d farmácia 20 @nubank'))
+    const itens = await repo.extrato(mes)
+    expect(itens.map((l) => [l.conta, l.contaCorrenteId])).toEqual([['mercado', 'cc1'], ['farmácia', 'cc2']])
+  })
+
+  it('a confirmação mostra o nome da conta só com 2+ contas ativas', async () => {
+    const r2 = await comDuasContas().handle(msg('/d farmácia 20 @nubank'))
+    expect(r2?.texto).toBe('🔴 *DESPESA REGISTRADA*\n\n📝 _farmácia_\n💰 *R$ 20,00*\n🏦 _Nubank_')
+    const r1 = await novoService().handle(msg('/d mercado 45,90'))
+    expect(r1?.texto).toBe('🔴 *DESPESA REGISTRADA*\n\n📝 _mercado_\n💰 *R$ 45,90*')
+  })
+
+  it('@ desconhecido ou desativada: não grava e lista as contas ativas', async () => {
+    const repo = new MemoryRepo()
+    const s = comDuasContas(repo)
+    for (const texto of ['/d mercado 10 @nada', '/d mercado 10 @antiga']) {
+      const r = await s.handle(msg(texto))
+      expect(r?.lancou).toBe(false)
+      expect(r?.texto).toContain('CONTA NÃO ENCONTRADA')
+      expect(r?.texto).toContain('Nenhum lançamento foi registrado')
+      expect(r?.texto).toContain('@principal')
+      expect(r?.texto).toContain('@nubank')
+      expect(r?.texto).not.toContain('@antiga ·')
+    }
+    expect(await repo.extrato(mes)).toEqual([])
+  })
+
+  it('descrição com @ no meio vira conta: se não existir, nada é gravado', async () => {
+    const repo = new MemoryRepo()
+    const r = await comDuasContas(repo).handle(msg('/d pix @joao 50'))
+    expect(r?.lancou).toBe(false)
+    expect(await repo.extrato(mes)).toEqual([])
+  })
+
+  it('/contas lista as ativas com saldo e marca a favorita', async () => {
+    const r = await comDuasContas().handle(msg('/contas'))
+    expect(r).toEqual({
+      lancou: false,
+      texto: secoes('🏦 *CONTAS CORRENTES*', '⭐ *Principal*\n`@principal`\n💰 *R$ 0,00*', '*Nubank*\n`@nubank`\n💰 *R$ 1.500,00*'),
+    })
+  })
+
+  it('/b e /e com @ filtram pela conta e dizem qual; sem @ somam todas', async () => {
+    const s = comDuasContas()
+    const hoje = '2026-09-15T12:00:00Z' // o `agora` do Service: o /b do dia só mostra lançamentos de hoje
+    await s.handle(msg('/d mercado 10', hoje))
+    await s.handle(msg('/d farmácia 20 @nubank', hoje))
+    const nu = (await s.handle(msg('/b @nubank')))?.texto ?? ''
+    expect(nu).toContain('farmácia')
+    expect(nu).not.toContain('mercado')
+    expect(nu).toContain('Nubank')
+    const ex = (await s.handle(msg('/e @nubank')))?.texto ?? ''
+    expect(ex).toContain('farmácia')
+    expect(ex).not.toContain('mercado')
+    const todos = (await s.handle(msg('/b')))?.texto ?? ''
+    expect(todos).toContain('farmácia')
+    expect(todos).toContain('mercado')
+    expect((await s.handle(msg('/b mensal @nubank')))?.texto).toContain('R$ 20,00')
+  })
+
+  it('filtro por @ inexistente responde conta não encontrada; desativada ainda filtra', async () => {
+    const s = comDuasContas()
+    expect((await s.handle(msg('/b @nada')))?.texto).toContain('CONTA NÃO ENCONTRADA')
+    expect((await s.handle(msg('/b @nada')))?.texto).not.toContain('Nenhum lançamento foi registrado')
+    expect((await s.handle(msg('/e @antiga')))?.texto).toContain('Nenhum lançamento')
+    expect((await s.handle(msg('/e @antiga')))?.texto).not.toContain('CONTA NÃO ENCONTRADA')
+  })
+
+  it('/contas e filtros não rodam em mensagens recuperadas', async () => {
+    expect(await comDuasContas().handle(msg('/contas'), { recuperada: true })).toBeNull()
+  })
+
+  it('/ajuda cita @conta e /contas', async () => {
+    const t = (await novoService().handle(msg('/ajuda')))?.texto ?? ''
+    expect(t).toContain('@conta')
+    expect(t).toContain('/contas')
   })
 })

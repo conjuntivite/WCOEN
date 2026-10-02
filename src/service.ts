@@ -28,7 +28,7 @@ export class Service {
     if (this.tratadas.has(msg.msgId)) return null
     const cmd = parse(msg.texto)
     if (!cmd) return null
-    if (opcoes.recuperada && (cmd.tipo === 'balancete' || cmd.tipo === 'auditoria' || cmd.tipo === 'extrato' || cmd.tipo === 'uso' || cmd.tipo === 'ajuda')) return null
+    if (opcoes.recuperada && (cmd.tipo === 'balancete' || cmd.tipo === 'auditoria' || cmd.tipo === 'extrato' || cmd.tipo === 'uso' || cmd.tipo === 'ajuda' || cmd.tipo === 'contas')) return null
     try {
       const r = await this.executar(cmd, msg)
       this.tratadas.add(msg.msgId)
@@ -43,10 +43,11 @@ export class Service {
   private async executar(cmd: Comando, msg: Mensagem): Promise<Resposta | null> {
     switch (cmd.tipo) {
       case 'lancamento': {
+        const contaCorrente = cmd.contaCorrente ? await this.contasCC.porApelido(cmd.contaCorrente) : await this.contasCC.favorita()
+        if (!contaCorrente || !contaCorrente.ativa) return { texto: ui.contaNaoEncontrada(cmd.contaCorrente ?? '', await this.contasCC.ativas(), true), lancou: false }
         // sem data informada pelo usuário, vale a data de envio da mensagem
         const data = cmd.data ? resolverData(cmd.data, msg.enviadoEm) : msg.enviadoEm
         if (!data) return { texto: ui.ERRO_DATA, lancou: false }
-        const contaCorrente = await this.contasCC.favorita()
         const r = await this.repo.add({
           tipo: cmd.natureza,
           conta: cmd.conta,
@@ -58,24 +59,25 @@ export class Service {
           contaCorrenteId: contaCorrente.id,
         })
         if (r === 'duplicado') return null
-        return { texto: ui.lancamentoRegistrado({ natureza: cmd.natureza, conta: cmd.conta, valor: cmd.valor, dia: cmd.data ? data : undefined }), lancou: true }
+        const varias = (await this.contasCC.ativas()).length >= 2 // com uma conta só, a confirmação fica como sempre foi
+        return { texto: ui.lancamentoRegistrado({ natureza: cmd.natureza, conta: cmd.conta, valor: cmd.valor, dia: cmd.data ? data : undefined, contaCorrente: varias ? contaCorrente.nome : undefined }), lancou: true }
       }
       case 'desfazer': {
         const l = await this.repo.desfazerUltimo()
         return { texto: ui.desfeito(l), lancou: false }
       }
-      case 'contas': // provisório: implementado na Task 4
-        return null
+      case 'contas':
+        return { texto: ui.contas(await this.contasCC.ativas()), lancou: false }
       case 'ajuda':
         return { texto: ui.AJUDA, lancou: false }
       case 'uso':
         return { texto: ui.USO[cmd.comando], lancou: false }
       case 'balancete':
-        return { texto: await this.balancete(cmd.relatorio), lancou: false }
+        return { texto: await this.balancete(cmd.relatorio, cmd.contaCorrente), lancou: false }
       case 'auditoria':
         return { texto: await this.auditoria(cmd.relatorio), lancou: false }
       case 'extrato':
-        return { texto: await this.extratoPagina(cmd.pagina), lancou: false }
+        return { texto: await this.extratoPagina(cmd.pagina, cmd.contaCorrente), lancou: false }
     }
   }
 
@@ -109,33 +111,45 @@ export class Service {
     return { titulo, atual, janela }
   }
 
-  private async balancete(rel: 'hoje' | Relatorio): Promise<string> {
+  // `@apelido` de um relatório: o id/nome da conta, ou o texto de "não encontrada". Sem `@`, sem filtro. Desativadas ainda filtram.
+  private async filtro(apelido?: string): Promise<{ id?: string; nome?: string } | { erro: string }> {
+    if (!apelido) return {}
+    const c = await this.contasCC.porApelido(apelido)
+    if (!c) return { erro: ui.contaNaoEncontrada(apelido, await this.contasCC.ativas(), false) }
+    return { id: c.id, nome: c.nome }
+  }
+
+  private async balancete(rel: 'hoje' | Relatorio, apelido?: string): Promise<string> {
+    const f = await this.filtro(apelido)
+    if ('erro' in f) return f.erro
     const agora = this.agora()
-    if (rel === 'hoje') return this.balanceteDoDia(agora)
+    if (rel === 'hoje') return this.balanceteDoDia(agora, f)
 
     // resumo: um bloco por período da janela (o atual primeiro); os sem movimento não aparecem
     const blocos: ui.BlocoPeriodo[] = []
     for (const { rotulo, intervalo } of this.periodos(rel).janela) {
-      const b = await this.repo.balancete(intervalo)
+      const b = await this.repo.balancete(intervalo, f.id)
       if (!b.receitas.length && !b.despesas.length) continue
       blocos.push({ rotulo, receitas: soma(b.receitas), despesas: soma(b.despesas) })
     }
-    return ui.resumoPeriodos(rel, blocos)
+    return ui.resumoPeriodos(rel, blocos, f.nome)
   }
 
-  private async balanceteDoDia(agora: Date): Promise<string> {
-    const extrato = await this.repo.extrato(intervaloDoDia(agora))
-    return ui.balanceteDoDia(agora, extrato, somaTipo(extrato, 'receita'), somaTipo(extrato, 'despesa'))
+  private async balanceteDoDia(agora: Date, f: { id?: string; nome?: string }): Promise<string> {
+    const extrato = await this.repo.extrato(intervaloDoDia(agora), f.id)
+    return ui.balanceteDoDia(agora, extrato, somaTipo(extrato, 'receita'), somaTipo(extrato, 'despesa'), f.nome)
   }
 
   // extrato completo, do mais recente ao mais antigo, POR_PAGINA lançamentos por página; os totais gerais só na página 1
-  private async extratoPagina(pagina: number): Promise<string> {
-    const todos = (await this.repo.extrato({ de: new Date(0), ate: new Date('2100-01-01T00:00:00Z') })).reverse()
-    if (!todos.length) return ui.extratoVazio()
+  private async extratoPagina(pagina: number, apelido?: string): Promise<string> {
+    const f = await this.filtro(apelido)
+    if ('erro' in f) return f.erro
+    const todos = (await this.repo.extrato({ de: new Date(0), ate: new Date('2100-01-01T00:00:00Z') }, f.id)).reverse()
+    if (!todos.length) return ui.extratoVazio(f.nome)
     const total = Math.ceil(todos.length / POR_PAGINA)
     if (pagina > total) return ui.paginaInexistente(total)
     const itens = todos.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
-    return ui.extrato(pagina, total, itens, pagina === 1 ? { receitas: somaTipo(todos, 'receita'), despesas: somaTipo(todos, 'despesa') } : null)
+    return ui.extrato(pagina, total, itens, pagina === 1 ? { receitas: somaTipo(todos, 'receita'), despesas: somaTipo(todos, 'despesa') } : null, f.nome)
   }
 
   private async auditoria(rel: Relatorio): Promise<string> {

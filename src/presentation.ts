@@ -2,7 +2,7 @@
 // Sintaxe nativa: *negrito*, _itálico_, `código`. Padrão: emoji + TÍTULO em negrito, período em itálico, valores em negrito.
 import { formatBRL } from './money'
 import { rotuloDia, rotuloHora, rotuloMes } from './period'
-import type { Lancamento, Natureza } from './types'
+import type { ContaCorrenteComSaldo, Lancamento, Natureza } from './types'
 
 // --- helpers -------------------------------------------------------------
 
@@ -39,8 +39,8 @@ const icone = (t: Natureza) => (t === 'receita' ? '🟢' : '🔴')
 
 // --- lançamentos ---------------------------------------------------------
 
-export function lancamentoRegistrado(l: { natureza: Natureza; conta: string; valor: number; dia?: Date }): string {
-  const linhas = [`📝 ${italic(limpar(l.conta))}`, `💰 ${bold(formatBRL(l.valor))}`, ...(l.dia ? [`📅 ${italic(rotuloDia(l.dia))}`] : [])]
+export function lancamentoRegistrado(l: { natureza: Natureza; conta: string; valor: number; dia?: Date; contaCorrente?: string }): string {
+  const linhas = [`📝 ${italic(limpar(l.conta))}`, `💰 ${bold(formatBRL(l.valor))}`, ...(l.dia ? [`📅 ${italic(rotuloDia(l.dia))}`] : []), ...(l.contaCorrente ? [`🏦 ${italic(limpar(l.contaCorrente))}`] : [])]
   return `${cabecalho(icone(l.natureza), l.natureza === 'receita' ? 'RECEITA REGISTRADA' : 'DESPESA REGISTRADA')}\n\n${linhas.join('\n')}`
 }
 
@@ -51,8 +51,11 @@ export function desfeito(l: { conta: string; valor: number } | null): string {
 
 // --- relatórios ----------------------------------------------------------
 
-export function balanceteDoDia(agora: Date, itens: Lancamento[], receitas: number, despesas: number): string {
-  const cab = cabecalho('📊', 'BALANCETE DO DIA', dataCompleta(agora))
+// relatório filtrado por conta corrente: o nome da conta vai no subtítulo
+const comFiltro = (sub: string | undefined, filtro?: string) => (filtro ? [sub, limpar(filtro)].filter(Boolean).join(' · ') : sub)
+
+export function balanceteDoDia(agora: Date, itens: Lancamento[], receitas: number, despesas: number, filtro?: string): string {
+  const cab = cabecalho('📊', 'BALANCETE DO DIA', comFiltro(dataCompleta(agora), filtro))
   if (!itens.length) return `${cab}\n\n${italic('Nenhum lançamento registrado hoje.')}`
   const linhas = itens.map((l) => `🕐 ${bold(rotuloHora(l.enviadoEm))}\n${icone(l.tipo)} ${limpar(l.conta)}\n${sinal(l.tipo, l.valor)}`)
   return secoes(cab, linhas.join('\n\n'), totais(receitas, despesas))
@@ -60,26 +63,26 @@ export function balanceteDoDia(agora: Date, itens: Lancamento[], receitas: numbe
 
 export type BlocoPeriodo = { rotulo: string; receitas: number; despesas: number }
 
-export function resumoPeriodos(rel: string, blocos: BlocoPeriodo[]): string {
-  const cab = cabecalho('📊', `BALANCETE ${rel.toUpperCase()}`)
+export function resumoPeriodos(rel: string, blocos: BlocoPeriodo[], filtro?: string): string {
+  const cab = cabecalho('📊', `BALANCETE ${rel.toUpperCase()}`, comFiltro(undefined, filtro))
   if (!blocos.length) return `${cab}\n\n${italic('Nenhum lançamento no período.')}`
   return secoes(cab, ...blocos.map((b) => `📅 ${bold(rotuloBonito(b.rotulo))}\n\n${totais(b.receitas, b.despesas)}`))
 }
 
-export function extrato(pagina: number, total: number, itens: Lancamento[], geral: { receitas: number; despesas: number } | null): string {
+export function extrato(pagina: number, total: number, itens: Lancamento[], geral: { receitas: number; despesas: number } | null, filtro?: string): string {
   const linhas = itens
     .map((l) => `📅 ${bold(`${rotuloDia(l.data)} · ${rotuloHora(l.enviadoEm)}`)}\n${icone(l.tipo)} ${italic(limpar(l.conta))}\n${sinal(l.tipo, l.valor)}`)
     .join('\n\n')
   const rodape = pagina < total ? `➡️ ${italic(`Digite ${bold(`/extrato ${pagina + 1}`)} para continuar.`)}` : total > 1 ? `✅ ${italic('Fim do extrato.')}` : ''
   return secoes(
-    cabecalho('📒', 'EXTRATO', `Página ${pagina} de ${total}`),
+    cabecalho('📒', 'EXTRATO', comFiltro(`Página ${pagina} de ${total}`, filtro)),
     ...(geral ? [totais(geral.receitas, geral.despesas)] : []),
     linhas,
     ...(rodape ? [rodape] : []),
   )
 }
 
-export const extratoVazio = () => `${cabecalho('📒', 'EXTRATO')}\n\n${italic('Nenhum lançamento encontrado.')}`
+export const extratoVazio = (filtro?: string) => `${cabecalho('📒', 'EXTRATO', comFiltro(undefined, filtro))}\n\n${italic('Nenhum lançamento encontrado.')}`
 
 export const paginaInexistente = (total: number) =>
   erro('📒', 'PÁGINA INEXISTENTE', `O extrato tem só ${total} ${total === 1 ? 'página' : 'páginas'}.`) + `\n\n➡️ ${italic(`Digite ${bold('/extrato')} para começar.`)}`
@@ -137,6 +140,7 @@ export const AJUDA = [
     `🔴 Despesa\n${cmd('/d mercado 45,90')}`,
     `🟢 Receita\n${cmd('/r plantão 70')}`,
     `📅 Data opcional\n${cmd('/d mercado 45 ontem')}\n${cmd('/d mercado 45 15/09')}`,
+    `🏦 Outra conta (a favorita é a padrão)\n${cmd('/d mercado 45 @nubank')}`,
   ].join('\n\n'),
   [
     `📊 ${bold('RELATÓRIOS')}`,
@@ -146,6 +150,7 @@ export const AJUDA = [
   ].join('\n\n'),
   [`🔎 ${bold('AUDITORIA')}`, `${cmd('/auditoria mensal')}\n${cmd('/auditoria semanal')}\n${cmd('/auditoria anual')}\n${italic('ranking e análise da IA')}`].join('\n\n'),
   [`📒 ${bold('EXTRATO')}`, `${cmd('/extrato')}\n${italic('do mais recente ao mais antigo')}\n\n${cmd('/extrato 2')}\n${italic('próxima página')}`].join('\n\n'),
+  [`🏦 ${bold('CONTAS')}`, `${cmd('/contas')}\n${italic('contas e saldos')}\n\n${cmd('/balancete @conta')}\n${cmd('/extrato @conta')}\n${italic('relatório de uma conta só')}`].join('\n\n'),
   [`↩️ ${bold('CORREÇÃO')}`, `${cmd('/desfazer')}\n${italic('desfaz o último lançamento')}`].join('\n\n'),
 ].join(`\n\n${SEP}\n\n`)
 
@@ -156,11 +161,20 @@ export const recuperados = (n: number) =>
 
 const uso = (...comandos: string[]) => `${erro('⚠️', 'COMANDO INCOMPLETO', 'Use um destes:')}\n\n${comandos.map((c) => `👉 ${cmd(c)}`).join('\n')}`
 export const USO = {
-  balancete: uso('/balancete', '/balancete mensal', '/balancete semanal', '/balancete anual'),
+  balancete: uso('/balancete', '/balancete mensal', '/balancete semanal', '/balancete anual', '/balancete @conta'),
   auditoria: uso('/auditoria mensal', '/auditoria semanal', '/auditoria anual'),
-  extrato: uso('/extrato', '/extrato 2'),
-  despesa: uso('/d mercado 45,90', '/d mercado 45,90 ontem', '/d mercado 45,90 15/09'),
-  receita: uso('/r plantão 70', '/r plantão 70 ontem', '/r plantão 70 15/09'),
+  extrato: uso('/extrato', '/extrato 2', '/extrato @conta'),
+  despesa: uso('/d mercado 45,90', '/d mercado 45,90 ontem', '/d mercado 45,90 15/09', '/d mercado 45,90 @conta'),
+  receita: uso('/r plantão 70', '/r plantão 70 ontem', '/r plantão 70 15/09', '/r plantão 70 @conta'),
+}
+
+// `gravando`: o comando era um lançamento (nada foi gravado) ou só o filtro de um relatório
+export const contaNaoEncontrada = (apelido: string, ativas: ContaCorrenteComSaldo[], gravando: boolean) =>
+  `${erro('🏦', 'CONTA NÃO ENCONTRADA', `A conta @${limpar(apelido)} não existe ou está desativada.`, ...(gravando ? ['Nenhum lançamento foi registrado.'] : []))}\n\n${ativas.map((c) => `👉 ${cmd(`@${c.apelido}`)} · ${limpar(c.nome)}`).join('\n')}`
+
+export function contas(lista: ContaCorrenteComSaldo[]): string {
+  const itens = lista.map((c) => `${c.favorita ? '⭐ ' : ''}${bold(limpar(c.nome))}\n${cmd(`@${c.apelido}`)}\n💰 ${bold(formatBRL(c.saldo))}`)
+  return secoes(cabecalho('🏦', 'CONTAS CORRENTES'), ...itens)
 }
 
 export const ERRO_GENERICO = erro('⚠️', 'NÃO FOI POSSÍVEL CONCLUIR', 'Tente novamente em alguns instantes.')
