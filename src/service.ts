@@ -72,6 +72,8 @@ export class Service {
       }
       case 'contas':
         return { texto: ui.contas(await this.contasCC.ativas()), lancou: false }
+      case 'transferencia': // provisório: implementado na Task 3
+        return null
       case 'ajuda':
         return { texto: ui.AJUDA, lancou: false }
       case 'uso':

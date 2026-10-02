@@ -195,3 +195,29 @@ describe('parse: /contas', () => {
     expect(parse('/c @nubank')).toBeNull()
   })
 })
+
+describe('parse: transferência (/t)', () => {
+  it.each([
+    ['/t 500 @nubank @itau', { tipo: 'transferencia', valor: 50000, origem: 'nubank', destino: 'itau' }],
+    ['/t 500 @itau', { tipo: 'transferencia', valor: 50000, destino: 'itau' }],
+    ['/transferencia 1.234,56 @a @b', { tipo: 'transferencia', valor: 123456, origem: 'a', destino: 'b' }],
+    ['/t @nubank 500 @itau', { tipo: 'transferencia', valor: 50000, origem: 'nubank', destino: 'itau' }],
+    ['/t R$ 45,90 @itau', { tipo: 'transferencia', valor: 4590, destino: 'itau' }],
+    ['/T 500 @NuBank @Itau', { tipo: 'transferencia', valor: 50000, origem: 'nubank', destino: 'itau' }],
+  ])('%j', (entrada, esperado) => {
+    expect(parse(entrada)).toEqual(esperado)
+  })
+
+  it('data opcional, antes ou depois dos @', () => {
+    expect(parse('/t 500 @a @b ontem')).toEqual({ tipo: 'transferencia', valor: 50000, origem: 'a', destino: 'b', data: { tipo: 'relativa', diasAtras: 1 } })
+    expect(parse('/t 500 ontem @a @b')).toEqual({ tipo: 'transferencia', valor: 50000, origem: 'a', destino: 'b', data: { tipo: 'relativa', diasAtras: 1 } })
+    expect(parse('/t 500 @itau 15/09')).toEqual({ tipo: 'transferencia', valor: 50000, destino: 'itau', data: { tipo: 'dia', dia: 15, mes: 9, ano: undefined } })
+  })
+
+  it.each([['/t'], ['/t 500'], ['/t @a'], ['/t 500 @a @b @c'], ['/t 500 @'], ['/t abc @a'], ['/t 0 @a'], ['/t -5 @a'], ['/t 500 600 @a'], ['/t 500 @com.ponto @b'], ['/t 500 mercado @a']])(
+    'uso incorreto: %j',
+    (entrada) => {
+      expect(parse(entrada)).toEqual({ tipo: 'uso', comando: 'transferencia' })
+    },
+  )
+})

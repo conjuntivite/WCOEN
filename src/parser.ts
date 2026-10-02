@@ -9,19 +9,21 @@ export type Comando =
   | { tipo: 'auditoria'; relatorio: Relatorio }
   | { tipo: 'extrato'; pagina: number; contaCorrente?: string } // extrato completo da conta, paginado
   | { tipo: 'contas' } // lista as contas correntes
-  | { tipo: 'uso'; comando: 'balancete' | 'auditoria' | 'extrato' | 'despesa' | 'receita' } // uso incorreto: o service responde a dica
+  | { tipo: 'uso'; comando: 'balancete' | 'auditoria' | 'extrato' | 'despesa' | 'receita' | 'transferencia' } // uso incorreto: o service responde a dica
+  | { tipo: 'transferencia'; valor: number; data?: DataLanc; origem?: string; destino: string } // origem ausente = a conta favorita
   | { tipo: 'desfazer' }
   | { tipo: 'ajuda' }
 
 const MAX_CONTA = 40
 
 // só vale mensagem que começa com "/"; "/d" é despesa, por isso desfazer não tem atalho
-type Nome = 'despesa' | 'receita' | 'balancete' | 'extrato' | 'auditoria' | 'desfazer' | 'ajuda' | 'contas'
+type Nome = 'despesa' | 'receita' | 'balancete' | 'extrato' | 'auditoria' | 'desfazer' | 'ajuda' | 'contas' | 'transferencia'
 const COMANDOS = new Map<string, Nome>([
   ['d', 'despesa'], ['despesa', 'despesa'], ['r', 'receita'], ['receita', 'receita'],
   ['b', 'balancete'], ['balancete', 'balancete'], ['e', 'extrato'], ['extrato', 'extrato'],
   ['a', 'auditoria'], ['auditoria', 'auditoria'], ['desfazer', 'desfazer'], ['h', 'ajuda'], ['ajuda', 'ajuda'],
   ['c', 'contas'], ['contas', 'contas'],
+  ['t', 'transferencia'], ['transferencia', 'transferencia'],
 ])
 const RELATIVAS = new Map([['hoje', 0], ['ontem', 1], ['anteontem', 2]])
 const DIA_MES = /^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/
@@ -56,6 +58,17 @@ export function parse(texto: string): Comando | null {
   const marcaInvalida = marcas.length > 1 || (marcas.length === 1 && !apelido)
   const cc = apelido ? { contaCorrente: apelido } : {}
   const resto = palavras.join(' ')
+
+  // "/t valor @origem @destino [data]": com um @ só, é o destino e a origem é a favorita (o service resolve)
+  if (nome === 'transferencia') {
+    const apelidos = marcas.map((m) => APELIDO.exec(m)?.[1])
+    const data = palavras.length ? lerData(palavras[palavras.length - 1]) : null
+    const itens = data ? palavras.slice(0, -1) : palavras
+    const valor = itens.length === 1 ? parseValor(itens[0]) : null
+    if (valor === null || apelidos.length < 1 || apelidos.length > 2 || apelidos.some((a) => !a)) return { tipo: 'uso', comando: 'transferencia' }
+    const [primeiro, segundo] = apelidos as string[]
+    return { tipo: 'transferencia', valor, ...(data && { data }), ...(segundo ? { origem: primeiro, destino: segundo } : { destino: primeiro }) }
+  }
 
   if (nome === 'extrato') {
     const pagina = resto || '1'

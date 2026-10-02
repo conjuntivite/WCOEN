@@ -166,6 +166,7 @@ export const USO = {
   extrato: uso('/extrato', '/extrato 2', '/extrato @conta'),
   despesa: uso('/d mercado 45,90', '/d mercado 45,90 ontem', '/d mercado 45,90 15/09', '/d mercado 45,90 @conta'),
   receita: uso('/r plantão 70', '/r plantão 70 ontem', '/r plantão 70 15/09', '/r plantão 70 @conta'),
+  transferencia: uso('/t 500 @nubank @itau', '/t 500 @itau', '/t 500 @nubank @itau ontem'),
 }
 
 // `gravando`: o comando era um lançamento (nada foi gravado) ou só o filtro de um relatório
