@@ -14,7 +14,7 @@ describe('limpar (texto de usuário/IA na saída)', () => {
 
 describe('saldo: emoji pelo sinal', () => {
   const emojiDoSaldo = (receitas: number, despesas: number) =>
-    resumoPeriodos('mensal', [{ rotulo: '09/2026', receitas, despesas }]).match(/(\S+) \*SALDO\*/)![1]
+    resumoPeriodos('mensal', [{ rotulo: '09/2026', receitas, despesas }]).match(/(\S+) \*RESULTADO\*/)![1]
   it.each([
     ['positivo', 200, 100, '💚'],
     ['negativo', 100, 200, '⚠️'],

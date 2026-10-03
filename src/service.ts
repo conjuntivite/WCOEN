@@ -3,15 +3,24 @@ import { formatBRL } from './money'
 import * as ui from './presentation'
 import type { Auditor, DadosAuditoria } from './auditar'
 import { intervaloDaSemanaDomingo, intervaloDoAno, intervaloDoDia, intervaloDoMes, mesAtual, resolverData, rotuloDia, rotuloHora, rotuloMes } from './period'
-import type { Lancamento, LinhaConta, Natureza, Repo } from './types'
+import type { ContasDoCliente, Lancamento, LinhaConta, Natureza, Repo } from './types'
 
 export type Mensagem = { msgId: string; remetente: string; texto: string; enviadoEm: Date }
 export type Resposta = { texto: string; lancou: boolean }
 
 export const POR_PAGINA = 20 // lançamentos por página do extrato
 
+// transferência não é receita nem despesa: fica fora de totais e da auditoria
+const soReceitaDespesa = (ls: Lancamento[]) => ls.filter((l): l is Lancamento & { tipo: Natureza } => l.tipo !== 'transferencia')
 const somaTipo = (ls: Lancamento[], t: Natureza) => ls.filter((l) => l.tipo === t).reduce((s, l) => s + l.valor, 0)
 const soma = (linhas: LinhaConta[]) => linhas.reduce((s, l) => s + l.total, 0)
+
+// quanto o lançamento mexe no saldo do escopo (as contas em `ids`): receita soma, despesa subtrai, transferência sai da origem e entra no destino
+function efeito(l: Lancamento, ids: Set<string>): number {
+  if (l.tipo === 'transferencia') return (ids.has(l.contaDestinoId ?? '') ? l.valor : 0) - (ids.has(l.contaCorrenteId) ? l.valor : 0)
+  if (!ids.has(l.contaCorrenteId)) return 0
+  return l.tipo === 'receita' ? l.valor : -l.valor
+}
 
 export class Service {
   // ponytail: dedupe só em memória; um restart entre a entrega e a reentrega pode desfazer duas vezes. Persistir o msgId se acontecer.
@@ -19,6 +28,7 @@ export class Service {
 
   constructor(
     private repo: Repo,
+    private contasCC: ContasDoCliente,
     private agora: () => Date = () => new Date(),
     private auditor?: Auditor,
   ) {}
@@ -27,14 +37,14 @@ export class Service {
     if (this.tratadas.has(msg.msgId)) return null
     const cmd = parse(msg.texto)
     if (!cmd) return null
-    if (opcoes.recuperada && (cmd.tipo === 'balancete' || cmd.tipo === 'auditoria' || cmd.tipo === 'extrato' || cmd.tipo === 'uso' || cmd.tipo === 'ajuda')) return null
+    if (opcoes.recuperada && (cmd.tipo === 'balancete' || cmd.tipo === 'auditoria' || cmd.tipo === 'extrato' || cmd.tipo === 'uso' || cmd.tipo === 'ajuda' || cmd.tipo === 'contas')) return null
     try {
       const r = await this.executar(cmd, msg)
       this.tratadas.add(msg.msgId)
       return r
     } catch (err) {
       console.error('erro ao processar mensagem', msg.msgId, err)
-      const gravando = cmd.tipo === 'lancamento' || cmd.tipo === 'desfazer'
+      const gravando = cmd.tipo === 'lancamento' || cmd.tipo === 'transferencia' || cmd.tipo === 'desfazer'
       return { texto: gravando ? ui.ERRO_SALVAR : ui.ERRO_GENERICO, lancou: false }
     }
   }
@@ -42,6 +52,8 @@ export class Service {
   private async executar(cmd: Comando, msg: Mensagem): Promise<Resposta | null> {
     switch (cmd.tipo) {
       case 'lancamento': {
+        const contaCorrente = cmd.contaCorrente ? await this.contasCC.porApelido(cmd.contaCorrente) : await this.contasCC.favorita()
+        if (!contaCorrente || !contaCorrente.ativa) return { texto: ui.contaNaoEncontrada(cmd.contaCorrente ?? '', await this.contasCC.ativas(), true), lancou: false }
         // sem data informada pelo usuário, vale a data de envio da mensagem
         const data = cmd.data ? resolverData(cmd.data, msg.enviadoEm) : msg.enviadoEm
         if (!data) return { texto: ui.ERRO_DATA, lancou: false }
@@ -53,24 +65,58 @@ export class Service {
           msgId: msg.msgId,
           data,
           enviadoEm: msg.enviadoEm,
+          contaCorrenteId: contaCorrente.id,
         })
         if (r === 'duplicado') return null
-        return { texto: ui.lancamentoRegistrado({ natureza: cmd.natureza, conta: cmd.conta, valor: cmd.valor, dia: cmd.data ? data : undefined }), lancou: true }
+        const varias = (await this.contasCC.quantasAtivas()) >= 2 // com uma conta só, a confirmação fica como sempre foi
+        return { texto: ui.lancamentoRegistrado({ natureza: cmd.natureza, conta: cmd.conta, valor: cmd.valor, dia: cmd.data ? data : undefined, contaCorrente: varias ? contaCorrente.nome : undefined }), lancou: true }
       }
       case 'desfazer': {
         const l = await this.repo.desfazerUltimo()
-        return { texto: ui.desfeito(l), lancou: false }
+        if (l?.tipo === 'transferencia') {
+          const nomes = await this.contasCC.nomes()
+          return { texto: ui.transferenciaDesfeita({ origem: nomes[l.contaCorrenteId] ?? '?', destino: nomes[l.contaDestinoId ?? ''] ?? '?', valor: l.valor }), lancou: false }
+        }
+        // o último lançamento pode ser de qualquer conta: com 2+ contas ativas, diz de qual
+        const conta = l && (await this.contasCC.quantasAtivas()) >= 2 ? await this.contasCC.porId(l.contaCorrenteId) : null
+        return { texto: ui.desfeito(l, conta?.nome), lancou: false }
+      }
+      case 'contas':
+        const ativas = await this.contasCC.ativas()
+        return { texto: ui.contas(ativas, ativas.reduce((s, c) => s + c.saldo, 0)), lancou: false }
+      case 'transferencia': {
+        const origem = cmd.origem ? await this.contasCC.porApelido(cmd.origem) : await this.contasCC.favorita()
+        if (!origem || !origem.ativa) return { texto: ui.contaNaoEncontrada(cmd.origem ?? '', await this.contasCC.ativas(), true), lancou: false }
+        const destino = await this.contasCC.porApelido(cmd.destino)
+        if (!destino || !destino.ativa) return { texto: ui.contaNaoEncontrada(cmd.destino, await this.contasCC.ativas(), true), lancou: false }
+        if (origem.id === destino.id) return { texto: ui.TRANSFERENCIA_MESMA_CONTA, lancou: false }
+        // sem data informada pelo usuário, vale a data de envio da mensagem
+        const data = cmd.data ? resolverData(cmd.data, msg.enviadoEm) : msg.enviadoEm
+        if (!data) return { texto: ui.ERRO_DATA, lancou: false }
+        const r = await this.repo.add({
+          tipo: 'transferencia',
+          conta: 'transferência',
+          valor: cmd.valor,
+          remetente: msg.remetente,
+          msgId: msg.msgId,
+          data,
+          enviadoEm: msg.enviadoEm,
+          contaCorrenteId: origem.id,
+          contaDestinoId: destino.id,
+        })
+        if (r === 'duplicado') return null
+        return { texto: ui.transferenciaRegistrada({ origem: origem.nome, destino: destino.nome, valor: cmd.valor, dia: cmd.data ? data : undefined }), lancou: true }
       }
       case 'ajuda':
         return { texto: ui.AJUDA, lancou: false }
       case 'uso':
         return { texto: ui.USO[cmd.comando], lancou: false }
       case 'balancete':
-        return { texto: await this.balancete(cmd.relatorio), lancou: false }
+        return { texto: await this.balancete(cmd.relatorio, cmd.contaCorrente), lancou: false }
       case 'auditoria':
         return { texto: await this.auditoria(cmd.relatorio), lancou: false }
       case 'extrato':
-        return { texto: await this.extratoPagina(cmd.pagina), lancou: false }
+        return { texto: await this.extratoPagina(cmd.pagina, cmd.contaCorrente), lancou: false }
     }
   }
 
@@ -104,38 +150,75 @@ export class Service {
     return { titulo, atual, janela }
   }
 
-  private async balancete(rel: 'hoje' | Relatorio): Promise<string> {
+  // nomes das contas (id → nome) só quando há transferência na lista: evita a consulta nos relatórios sem elas
+  private async nomesSeHouverTransferencia(ls: Lancamento[]): Promise<Record<string, string>> {
+    return ls.some((l) => l.tipo === 'transferencia') ? this.contasCC.nomes() : {}
+  }
+
+  // `@apelido` de um relatório: o id/nome da conta, ou o texto de "não encontrada". Sem `@`, sem filtro. Desativadas ainda filtram.
+  private async filtro(apelido?: string): Promise<{ id?: string; nome?: string } | { erro: string }> {
+    if (!apelido) return {}
+    const c = await this.contasCC.porApelido(apelido)
+    if (!c) return { erro: ui.contaNaoEncontrada(apelido, await this.contasCC.ativas(), false) }
+    return { id: c.id, nome: c.nome }
+  }
+
+  // saldo atual do relatório: o da conta filtrada ou o total das ativas (as mesmas de /contas). Conta desativada: sem saldo (null)
+  private async saldoDoEscopo(f: { id?: string }): Promise<{ atual: number; ids: Set<string> } | null> {
+    const ativas = (await this.contasCC.ativas()).filter((c) => !f.id || c.id === f.id)
+    return ativas.length ? { atual: ativas.reduce((s, c) => s + c.saldo, 0), ids: new Set(ativas.map((c) => c.id)) } : null
+  }
+
+  private async balancete(rel: 'hoje' | Relatorio, apelido?: string): Promise<string> {
+    const f = await this.filtro(apelido)
+    if ('erro' in f) return f.erro
     const agora = this.agora()
-    if (rel === 'hoje') return this.balanceteDoDia(agora)
+    if (rel === 'hoje') return this.balanceteDoDia(agora, f)
 
     // resumo: um bloco por período da janela (o atual primeiro); os sem movimento não aparecem
     const blocos: ui.BlocoPeriodo[] = []
     for (const { rotulo, intervalo } of this.periodos(rel).janela) {
-      const b = await this.repo.balancete(intervalo)
+      const b = await this.repo.balancete(intervalo, f.id)
       if (!b.receitas.length && !b.despesas.length) continue
       blocos.push({ rotulo, receitas: soma(b.receitas), despesas: soma(b.despesas) })
     }
-    return ui.resumoPeriodos(rel, blocos)
+    return ui.resumoPeriodos(rel, blocos, f.nome, (await this.saldoDoEscopo(f))?.atual)
   }
 
-  private async balanceteDoDia(agora: Date): Promise<string> {
-    const extrato = await this.repo.extrato(intervaloDoDia(agora))
-    return ui.balanceteDoDia(agora, extrato, somaTipo(extrato, 'receita'), somaTipo(extrato, 'despesa'))
+  private async balanceteDoDia(agora: Date, f: { id?: string; nome?: string }): Promise<string> {
+    const extrato = await this.repo.extrato(intervaloDoDia(agora), f.id)
+    return ui.balanceteDoDia(agora, extrato, somaTipo(extrato, 'receita'), somaTipo(extrato, 'despesa'), f.nome, await this.nomesSeHouverTransferencia(extrato), (await this.saldoDoEscopo(f))?.atual)
   }
 
   // extrato completo, do mais recente ao mais antigo, POR_PAGINA lançamentos por página; os totais gerais só na página 1
-  private async extratoPagina(pagina: number): Promise<string> {
-    const todos = (await this.repo.extrato({ de: new Date(0), ate: new Date('2100-01-01T00:00:00Z') })).reverse()
-    if (!todos.length) return ui.extratoVazio()
+  private async extratoPagina(pagina: number, apelido?: string): Promise<string> {
+    const f = await this.filtro(apelido)
+    if ('erro' in f) return f.erro
+    const todos = (await this.repo.extrato({ de: new Date(0), ate: new Date('2100-01-01T00:00:00Z') }, f.id)).reverse()
+    if (!todos.length) return ui.extratoVazio(f.nome)
     const total = Math.ceil(todos.length / POR_PAGINA)
     if (pagina > total) return ui.paginaInexistente(total)
     const itens = todos.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
-    return ui.extrato(pagina, total, itens, pagina === 1 ? { receitas: somaTipo(todos, 'receita'), despesas: somaTipo(todos, 'despesa') } : null)
+    const nomes = await this.nomesSeHouverTransferencia(itens)
+
+    // saldo ao fim de cada dia: parte do saldo atual e desfaz os lançamentos do mais recente para o mais antigo
+    const escopo = await this.saldoDoEscopo(f)
+    let saldos: ui.SaldosExtrato | undefined
+    if (escopo) {
+      saldos = { agora: this.agora(), atual: escopo.atual, porDia: {} }
+      let corrente = escopo.atual
+      for (const l of todos) {
+        const dia = ui.dataCompleta(l.data)
+        if (!(dia in saldos.porDia)) saldos.porDia[dia] = corrente
+        corrente -= efeito(l, escopo.ids)
+      }
+    }
+    return ui.extrato(pagina, total, itens, pagina === 1 ? { receitas: somaTipo(todos, 'receita'), despesas: somaTipo(todos, 'despesa') } : null, f.nome, nomes, saldos)
   }
 
   private async auditoria(rel: Relatorio): Promise<string> {
     const { titulo, atual, janela } = this.periodos(rel)
-    const extrato = await this.repo.extrato(atual)
+    const extrato = soReceitaDespesa(await this.repo.extrato(atual))
     if (!extrato.length) return ui.auditoriaVazia(rel, titulo)
     if (!this.auditor) return ui.auditoriaSemIA(rel, titulo)
 

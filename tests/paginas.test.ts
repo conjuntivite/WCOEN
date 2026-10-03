@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { montarIndicadores } from '../src/dashboard'
-import type { MesSerie } from '../src/types'
-import { fragmentoPainel, paginaPerfil, paginaAdmin, paginaCadastro, paginaEsqueciSenha, paginaEntrar, paginaPainel, paginaRedefinirSenha, passoDe, paginaDashboard } from '../src/paginas'
+import type { ContaCorrenteComSaldo, MesSerie } from '../src/types'
+import { fragmentoPainel, paginaPerfil, paginaAdmin, paginaCadastro, paginaEsqueciSenha, paginaEntrar, paginaPainel, paginaRedefinirSenha, passoDe, paginaDashboard, paginaContasCorrentes } from '../src/paginas'
 import type { Conta, ContaResumo } from '../src/contas'
 import type { Convite } from '../src/convites'
 import type { Visao } from '../src/sessoes'
@@ -10,7 +10,8 @@ const conta: Conta = { id: 'c1', email: 'ana@x.com' }
 const comGrupo: Conta = { ...conta, grupoId: 'g1@g.us', grupoNome: 'Casa' }
 const grupos = [{ id: 'g1@g.us', nome: 'Casa' }]
 const frag = (visao: Visao, c: Conta = conta) => fragmentoPainel({ visao, conta: c, grupos, qrSvg: '<svg></svg>' })
-const passoAtual = (html: string) => /<li[^>]*aria-current="step"[^>]*>([\s\S]*?)<\/li>/.exec(html)?.[1] ?? ''
+const cards = (html: string) => html.split('<section class="cartao passo').slice(1)
+const situacao = (card: string) => (card.startsWith(' atual') ? 'atual' : card.startsWith(' feito') ? 'feito' : card.startsWith(' travado') ? 'travado' : '?')
 
 describe('marca e prévia do bot nas telas de entrada', () => {
   it.each([
@@ -51,18 +52,40 @@ describe('formulários acessíveis', () => {
   })
 })
 
-describe('painel: indicador de passos e status', () => {
+describe('painel: três cards e status', () => {
   it.each([
-    ['desconectado', { estado: 'desconectado' }, conta, 'Conectar'],
-    ['conectando', { estado: 'conectando' }, conta, 'Conectar'],
-    ['aguardando_qr', { estado: 'aguardando_qr', qr: 'QR' }, conta, 'Conectar'],
-    ['conectado sem grupo', { estado: 'conectado' }, conta, 'Grupo'],
-    ['conectado com grupo', { estado: 'conectado' }, comGrupo, 'Pronto'],
-  ] as [string, Visao, Conta, string][])('%s: passo atual = %s', (_n, visao, c, esperado) => {
+    ['desconectado', { estado: 'desconectado' }, conta, ['atual', 'travado', 'travado']],
+    ['conectando', { estado: 'conectando' }, conta, ['atual', 'travado', 'travado']],
+    ['aguardando_qr', { estado: 'aguardando_qr', qr: 'QR' }, conta, ['atual', 'travado', 'travado']],
+    ['conectado sem grupo', { estado: 'conectado' }, conta, ['feito', 'atual', 'travado']],
+    ['conectado com grupo', { estado: 'conectado' }, comGrupo, ['feito', 'feito', 'atual']],
+  ] as [string, Visao, Conta, string[]][])('%s: situação dos cards = %j', (_n, visao, c, esperado) => {
     const html = frag(visao, c)
-    expect(html).toMatch(/<ol[^>]*aria-label="Progresso/)
-    expect(passoAtual(html)).toContain(esperado)
+    const cs = cards(html)
+    expect(cs).toHaveLength(3)
+    expect(cs.map(situacao)).toEqual(esperado)
+    for (const [i, t] of ['Conectar', 'Grupo', 'Pronto'].entries()) expect(cs[i]).toContain(`</span>${t}</h2>`)
+    cs.forEach((x, i) => {
+      expect(x.includes('aria-current="step"')).toBe(esperado[i] === 'atual')
+      expect(x.includes('aria-disabled="true"')).toBe(esperado[i] === 'travado')
+    })
     expect((html.match(/aria-current="step"/g) ?? []).length).toBe(1)
+    expect(html).not.toContain('class="passos"')
+    expect(html).not.toContain('Progresso da configuração')
+  })
+
+  it('número vira check no card feito', () => {
+    const cs = cards(frag({ estado: 'conectado' }, comGrupo))
+    expect(cs[0]).toMatch(/<span class="num"><svg/)
+    expect(cs[1]).toMatch(/<span class="num"><svg/)
+    expect(cards(frag({ estado: 'desconectado' }))[0]).toMatch(/<span class="num">1<\/span>/)
+  })
+
+  it('comandos só no estado pronto; textos dos cards travados', () => {
+    expect(frag({ estado: 'conectado' }, conta)).not.toContain('/d mercado')
+    expect(frag({ estado: 'desconectado' })).not.toContain('/d mercado')
+    expect(cards(frag({ estado: 'desconectado' }))[1]).toContain('Conecte o WhatsApp primeiro.')
+    expect(cards(frag({ estado: 'conectado' }, conta))[2]).toContain('Escolha um grupo para liberar.')
   })
 
   it.each([
@@ -79,15 +102,18 @@ describe('painel: indicador de passos e status', () => {
     expect(passoDe({ estado: 'aguardando_qr', codigo: 'ABCD1234' }, conta)).toBe('aguardando_qr:codigo')
   })
 
-  it('pronto: comandos em cartões e o grupo escapado', () => {
+  it('pronto: comandos no card 3 e o grupo escapado no card 2', () => {
     const html = frag({ estado: 'conectado' }, { ...comGrupo, grupoNome: '<i>Casa</i>' })
-    expect(html).toContain('&lt;i&gt;Casa&lt;/i&gt;')
+    expect(cards(html)[1]).toContain('&lt;i&gt;Casa&lt;/i&gt;')
+    expect(html).not.toContain('<i>Casa</i>')
     for (const c of ['/d mercado 45,90', '/r plantão 70', '/balancete', '/extrato', '/desfazer', '/ajuda']) expect(html).toContain(c)
   })
 
   it('área que o SSE atualiza é região viva (aria-live) e o painel traz o e-mail escapado', () => {
     const html = paginaPainel('<b>@x.com', frag({ estado: 'desconectado' }), 'desconectado')
-    expect(html).toMatch(/id="estado"[^>]*aria-live="polite"|aria-live="polite"[^>]*id="estado"/)
+    expect(html).toMatch(/<div id="estado" class="painel-passos" data-passo="desconectado" aria-live="polite">/)
+    expect(html).toContain('.painel-passos')
+    expect(html).toContain('min-width:1180px')
     expect(html).toContain('&lt;b&gt;@x.com')
     expect(html).not.toContain('<b>@x.com')
   })
@@ -451,12 +477,6 @@ describe('grades por tela', () => {
     expect(html).toContain('Nenhum lançamento nos últimos 6 meses')
   })
 
-  it('painel pronto: duas colunas, comandos antes no celular', () => {
-    const html = frag({ estado: 'conectado' }, comGrupo)
-    expect(html).toMatch(/class="pronto-grade"[\s\S]*class="pg-info"[\s\S]*class="pg-cmd"[\s\S]*\/d mercado 45,90/)
-    expect(frag({ estado: 'desconectado' })).not.toContain('pronto-grade')
-  })
-
   it('perfil: identidade (6) e as demais seções (6)', () => {
     const html = paginaPerfil(conta, 'usuario', 'desconectado')
     expect(html).toMatch(/class="grade duas"[\s\S]*class="cartao c6"[\s\S]*Identidade[\s\S]*class="pilha c6"[\s\S]*Segurança/)
@@ -496,5 +516,70 @@ describe('movimento e acabamento', () => {
   })
   it('item ativo do menu tem barra de destaque', () => {
     expect(html).toContain('.item[aria-current=page]::before')
+  })
+})
+
+describe('página de contas correntes', () => {
+  const lista: ContaCorrenteComSaldo[] = [
+    { id: 'a', apelido: 'principal', nome: 'Principal', saldoInicial: 0, saldo: 1500, favorita: true, ativa: true },
+    { id: 'b', apelido: 'nubank', nome: '<b>Nubank</b>', saldoInicial: 0, saldo: -300, favorita: false, ativa: true },
+    { id: 'c', apelido: 'antiga', nome: 'Antiga', saldoInicial: 0, saldo: 0, favorita: false, ativa: false },
+  ]
+  const html = paginaContasCorrentes('a@x.com', false, lista, {})
+
+  it('lista contas com apelido, saldo, favorita e desativada; nome escapado', () => {
+    expect(html).toContain('@principal')
+    expect(html).toContain('R$ 15,00')
+    expect(html).toContain('-R$ 3,00')
+    expect(html).toContain('Favorita')
+    expect(html).toContain('Desativada')
+    expect(html).toContain('&lt;b&gt;Nubank&lt;/b&gt;')
+    expect(html).not.toContain('<b>Nubank</b>')
+  })
+
+  it('a favorita não tem botão de desativar; as outras têm; desativada tem reativar', () => {
+    expect(html.match(/action="\/contas-correntes\/desativar"/g)).toHaveLength(1)
+    expect(html.match(/action="\/contas-correntes\/reativar"/g)).toHaveLength(1)
+    expect(html.match(/action="\/contas-correntes\/favoritar"/g)).toHaveLength(1) // só a ativa que não é favorita
+  })
+
+  it('desativadas ficam fora da lista, num bloco recolhido; sem desativadas o bloco não existe', () => {
+    const [ativas, desativadas] = html.split('<details class="desativadas">')
+    expect(ativas).toContain('@nubank')
+    expect(ativas).not.toContain('@antiga')
+    expect(desativadas).toContain('Mostrar contas desativadas (1)')
+    expect(desativadas).toContain('@antiga')
+    expect(desativadas).toContain('action="/contas-correntes/reativar"')
+    expect(html).not.toMatch(/<details class="desativadas"[^>]*open/)
+    expect(paginaContasCorrentes('a@x.com', false, lista.slice(0, 2), {})).not.toContain('<details class="desativadas">')
+  })
+
+  it('formulário de criar com rótulos; menu marca a página atual', () => {
+    expect(html).toMatch(/<label[^>]*for="apelido"/)
+    expect(html).toMatch(/<label[^>]*for="nome"/)
+    expect(html).toMatch(/<label[^>]*for="saldo"/)
+    expect(html).toContain('action="/contas-correntes"')
+    expect(html).toMatch(/href="\/contas-correntes" aria-current="page"/)
+  })
+
+  it('mostra erro e aviso', () => {
+    expect(paginaContasCorrentes('a@x.com', false, lista, { erro: 'Apelido inválido.' })).toContain('Apelido inválido.')
+    expect(paginaContasCorrentes('a@x.com', false, lista, { ok: 'Conta criada.' })).toContain('Conta criada.')
+  })
+})
+
+describe('dashboard: seletor de conta', () => {
+  const ind = montarIndicadores([{ ano: 2026, mes: 9, receitas: 100000, despesas: 25000 }], { receitas: [], despesas: [{ conta: 'mercado', total: 25000 }] })
+  const contasSel = [{ apelido: 'principal', nome: 'Principal' }, { apelido: 'nubank', nome: 'Nubank' }]
+  it('com 2+ contas mostra o seletor (formulário GET), com "Todas" e a selecionada marcada', () => {
+    const html = paginaDashboard('a@x.com', ind, false, undefined, contasSel, 'nubank')
+    expect(html).toContain('<form method="get" action="/dashboard"')
+    expect(html).toContain('<option value="">Todas as contas</option>')
+    expect(html).toContain('<option value="nubank" selected>Nubank</option>')
+    expect(html).toContain('· Nubank') // e o nome aparece no subtítulo
+  })
+  it('com uma conta só, nada de seletor', () => {
+    expect(paginaDashboard('a@x.com', ind, false, undefined, [contasSel[0]])).not.toContain('<select')
+    expect(paginaDashboard('a@x.com', ind, false)).not.toContain('<select')
   })
 })
