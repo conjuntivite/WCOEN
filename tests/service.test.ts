@@ -14,6 +14,7 @@ const msg = (texto: string, enviadoEm = '2026-09-10T12:00:00Z', msgId = `m${++n}
   enviadoEm: new Date(enviadoEm),
 })
 const SEP = '──────────────'
+const SA = '🏦 *SALDO ATUAL*\n*R$ 0,00*' // saldo da conta Principal de teste
 const secoes = (...b: string[]) => b.join(`\n\n${SEP}\n\n`)
 const agora = () => new Date('2026-09-15T12:00:00Z')
 const novoService = () => new Service(new MemoryRepo(), contasEmMemoria(), agora)
@@ -86,7 +87,7 @@ const USO_BALANCETE = USO('/balancete', '/balancete mensal', '/balancete semanal
 const USO_EXTRATO = USO('/extrato', '/extrato 2', '/extrato @conta')
 
 // bloco de totais no novo formato
-const tot = (r: string, d: string, saldo: string, emoji = '💚') => `🟢 Receitas\n*${r}*\n\n🔴 Despesas\n*${d}*\n\n${emoji} *SALDO*\n*${saldo}*`
+const tot = (r: string, d: string, saldo: string, emoji = '💚') => `🟢 Receitas\n*${r}*\n\n🔴 Despesas\n*${d}*\n\n${emoji} *RESULTADO*\n*${saldo}*`
 const periodo = (rotulo: string, r: string, d: string, saldo: string, emoji?: string) => `📅 *${rotulo}*\n\n${tot(r, d, saldo, emoji)}`
 
 describe('Service: balancete mensal (só resumo)', () => {
@@ -98,7 +99,7 @@ describe('Service: balancete mensal (só resumo)', () => {
     await s.handle(msg('/d mercado 10', '2026-08-31T12:00:00Z')) // fora de setembro
     return s
   }
-  const esperado = secoes('📊 *BALANCETE MENSAL*', periodo('Setembro/2026', 'R$ 3.000,00', 'R$ 512,40', 'R$ 2.487,60'), periodo('Agosto/2026', 'R$ 0,00', 'R$ 10,00', '-R$ 10,00', '⚠️'))
+  const esperado = secoes('📊 *BALANCETE MENSAL*', SA, periodo('Setembro/2026', 'R$ 3.000,00', 'R$ 512,40', 'R$ 2.487,60'), periodo('Agosto/2026', 'R$ 0,00', 'R$ 10,00', '-R$ 10,00', '⚠️'))
 
   it('resumo por mês, sem extrato', async () => {
     const s = await comDados()
@@ -109,7 +110,7 @@ describe('Service: balancete mensal (só resumo)', () => {
   })
 
   it('nenhum lançamento: só cabeçalho e a frase', async () => {
-    expect((await novoService().handle(msg('/balancete mensal')))?.texto).toBe('📊 *BALANCETE MENSAL*\n\n_Nenhum lançamento no período._')
+    expect((await novoService().handle(msg('/balancete mensal')))?.texto).toBe(secoes('📊 *BALANCETE MENSAL*', SA, '_Nenhum lançamento no período._'))
   })
 
   it('lançamento desfeito não aparece', async () => {
@@ -118,7 +119,7 @@ describe('Service: balancete mensal (só resumo)', () => {
     await s.handle(msg('/d luz 20', '2026-09-11T12:00:00Z'))
     await s.handle(msg('/desfazer', '2026-09-11T13:00:00Z'))
     expect((await s.handle(msg('/balancete mensal')))?.texto).toBe(
-      secoes('📊 *BALANCETE MENSAL*', periodo('Setembro/2026', 'R$ 0,00', 'R$ 10,00', '-R$ 10,00', '⚠️')),
+      secoes('📊 *BALANCETE MENSAL*', SA, periodo('Setembro/2026', 'R$ 0,00', 'R$ 10,00', '-R$ 10,00', '⚠️')),
     )
   })
 
@@ -126,7 +127,7 @@ describe('Service: balancete mensal (só resumo)', () => {
     const s = novoService()
     await s.handle(msg('/r plantão 450 31/08', '2026-09-10T12:00:00Z'))
     expect((await s.handle(msg('/balancete mensal')))?.texto).toBe(
-      secoes('📊 *BALANCETE MENSAL*', periodo('Agosto/2026', 'R$ 450,00', 'R$ 0,00', 'R$ 450,00')),
+      secoes('📊 *BALANCETE MENSAL*', SA, periodo('Agosto/2026', 'R$ 450,00', 'R$ 0,00', 'R$ 450,00')),
     )
   })
 
@@ -135,7 +136,7 @@ describe('Service: balancete mensal (só resumo)', () => {
     await s.handle(msg('/d mercado 10', '2025-12-20T12:00:00Z'))
     await s.handle(msg('/d luz 5', '2026-01-05T12:00:00Z'))
     expect((await s.handle(msg('/balancete mensal')))?.texto).toBe(
-      secoes('📊 *BALANCETE MENSAL*', periodo('Janeiro/2026', 'R$ 0,00', 'R$ 5,00', '-R$ 5,00', '⚠️'), periodo('Dezembro/2025', 'R$ 0,00', 'R$ 10,00', '-R$ 10,00', '⚠️')),
+      secoes('📊 *BALANCETE MENSAL*', SA, periodo('Janeiro/2026', 'R$ 0,00', 'R$ 5,00', '-R$ 5,00', '⚠️'), periodo('Dezembro/2025', 'R$ 0,00', 'R$ 10,00', '-R$ 10,00', '⚠️')),
     )
   })
 
@@ -156,12 +157,12 @@ describe('Service: balancete semanal (domingo a sábado)', () => {
     await s.handle(msg('/d luz 20', '2026-09-12T12:00:00Z'))
     await s.handle(msg('/d gas 30', '2026-08-31T12:00:00Z'))
     expect((await s.handle(msg('/balancete semanal')))?.texto).toBe(
-      secoes('📊 *BALANCETE SEMANAL*', periodo('13/09 a 19/09', 'R$ 0,00', 'R$ 10,00', '-R$ 10,00', '⚠️'), periodo('06/09 a 12/09', 'R$ 0,00', 'R$ 20,00', '-R$ 20,00', '⚠️'), periodo('30/08 a 05/09', 'R$ 0,00', 'R$ 30,00', '-R$ 30,00', '⚠️')),
+      secoes('📊 *BALANCETE SEMANAL*', SA, periodo('13/09 a 19/09', 'R$ 0,00', 'R$ 10,00', '-R$ 10,00', '⚠️'), periodo('06/09 a 12/09', 'R$ 0,00', 'R$ 20,00', '-R$ 20,00', '⚠️'), periodo('30/08 a 05/09', 'R$ 0,00', 'R$ 30,00', '-R$ 30,00', '⚠️')),
     )
   })
 
   it('nenhum lançamento', async () => {
-    expect((await novoService().handle(msg('/balancete semanal')))?.texto).toBe('📊 *BALANCETE SEMANAL*\n\n_Nenhum lançamento no período._')
+    expect((await novoService().handle(msg('/balancete semanal')))?.texto).toBe(secoes('📊 *BALANCETE SEMANAL*', SA, '_Nenhum lançamento no período._'))
   })
 })
 
@@ -174,12 +175,12 @@ describe('Service: balancete anual (só resumo)', () => {
     await s.handle(msg('/d mercado 10', '2025-12-31T12:00:00Z'))
     await s.handle(msg('/d gas 5', '2021-03-10T12:00:00Z')) // fora dos 5 anos
     expect((await s.handle(msg('/balancete anual')))?.texto).toBe(
-      secoes('📊 *BALANCETE ANUAL*', periodo('2026', 'R$ 3.000,00', 'R$ 512,40', 'R$ 2.487,60'), periodo('2025', 'R$ 0,00', 'R$ 10,00', '-R$ 10,00', '⚠️')),
+      secoes('📊 *BALANCETE ANUAL*', SA, periodo('2026', 'R$ 3.000,00', 'R$ 512,40', 'R$ 2.487,60'), periodo('2025', 'R$ 0,00', 'R$ 10,00', '-R$ 10,00', '⚠️')),
     )
   })
 
   it('nenhum lançamento', async () => {
-    expect((await novoService().handle(msg('/balancete anual')))?.texto).toBe('📊 *BALANCETE ANUAL*\n\n_Nenhum lançamento no período._')
+    expect((await novoService().handle(msg('/balancete anual')))?.texto).toBe(secoes('📊 *BALANCETE ANUAL*', SA, '_Nenhum lançamento no período._'))
   })
 })
 
@@ -193,6 +194,7 @@ describe('Service: balancete do dia', () => {
     expect(r?.texto).toBe(
       secoes(
         '📊 *BALANCETE DO DIA*\n_15/09/2026_',
+        SA,
         '🕐 *09:30*\n🔴 mercado\n*− R$ 45,90*\n\n🕐 *12:05*\n🟢 plantão\n*+ R$ 450,00*',
         tot('R$ 450,00', 'R$ 45,90', 'R$ 404,10'),
       ),
@@ -202,7 +204,7 @@ describe('Service: balancete do dia', () => {
   })
 
   it('vazio', async () => {
-    expect((await novoService().handle(msg('/balancete')))?.texto).toBe('📊 *BALANCETE DO DIA*\n_15/09/2026_\n\n_Nenhum lançamento registrado hoje._')
+    expect((await novoService().handle(msg('/balancete')))?.texto).toBe(secoes('📊 *BALANCETE DO DIA*\n_15/09/2026_', SA, '_Nenhum lançamento registrado hoje._'))
   })
 
   it('virada do dia local: 02:59Z ainda é o dia anterior', async () => {
@@ -211,7 +213,7 @@ describe('Service: balancete do dia', () => {
     expect((await antes.handle(msg('/balancete')))?.texto).toContain('_14/09/2026_')
     const depois = new Service(new MemoryRepo(), contasEmMemoria(), () => new Date('2026-09-15T03:00:00Z'))
     await depois.handle(msg('/d mercado 10', '2026-09-14T15:00:00Z'))
-    expect((await depois.handle(msg('/balancete')))?.texto).toBe('📊 *BALANCETE DO DIA*\n_15/09/2026_\n\n_Nenhum lançamento registrado hoje._')
+    expect((await depois.handle(msg('/balancete')))?.texto).toBe(secoes('📊 *BALANCETE DO DIA*\n_15/09/2026_', SA, '_Nenhum lançamento registrado hoje._'))
   })
 
   it('desfeito some', async () => {
@@ -227,7 +229,7 @@ describe('Service: balancete do dia', () => {
   it('retroativo (data de outro dia) não aparece no dia de hoje', async () => {
     const s = novoService()
     await s.handle(msg('/r plantão 450 01/09', '2026-09-15T12:00:00Z'))
-    expect((await s.handle(msg('/balancete')))?.texto).toBe('📊 *BALANCETE DO DIA*\n_15/09/2026_\n\n_Nenhum lançamento registrado hoje._')
+    expect((await s.handle(msg('/balancete')))?.texto).toBe(secoes('📊 *BALANCETE DO DIA*\n_15/09/2026_', SA, '_Nenhum lançamento registrado hoje._'))
   })
 })
 
@@ -268,7 +270,7 @@ describe('Service: data do lançamento', () => {
     const s = novoService()
     expect(await s.handle(msg('/d mercado 10 25/09/2026'))).toEqual({ texto: ERRO_DATA, lancou: false })
     expect((await s.handle(msg('/d mercado 10 29/02/2026')))?.texto).toBe(ERRO_DATA)
-    expect((await s.handle(msg('/balancete mensal')))?.texto).toBe('📊 *BALANCETE MENSAL*\n\n_Nenhum lançamento no período._')
+    expect((await s.handle(msg('/balancete mensal')))?.texto).toBe(secoes('📊 *BALANCETE MENSAL*', SA, '_Nenhum lançamento no período._'))
   })
 
   it('desfazer desfaz o último enviado, não o de data mais recente', async () => {
@@ -482,13 +484,13 @@ describe('Service: extrato', () => {
     expect(r).toEqual({
       texto: secoes(
         '📒 *EXTRATO*\n_Página 1 de 1_',
+        SA,
         tot('R$ 3.450,00', 'R$ 512,40', 'R$ 2.937,60'),
-        [
-          '📅 *12/09 · 15:05*\n🔴 _luz_\n*− R$ 166,50*',
-          '📅 *10/09 · 12:30*\n🔴 _mercado_\n*− R$ 345,90*',
-          '📅 *05/09 · 09:00*\n🟢 _salário_\n*+ R$ 3.000,00*',
-          '📅 *01/09 · 09:00*\n🟢 _plantão_\n*+ R$ 450,00*',
-        ].join('\n\n'),
+        // saldo atual 0: o de cada dia é o atual desfeito dos lançamentos mais recentes
+        '📅 *12/09*\n💰 Saldo do dia: *R$ 0,00*\n\n🕐 *15:05*\n🔴 _luz_\n*− R$ 166,50*',
+        '📅 *10/09*\n💰 Saldo do dia: *R$ 166,50*\n\n🕐 *12:30*\n🔴 _mercado_\n*− R$ 345,90*',
+        '📅 *05/09*\n💰 Saldo do dia: *R$ 512,40*\n\n🕐 *09:00*\n🟢 _salário_\n*+ R$ 3.000,00*',
+        '📅 *01/09*\n💰 Saldo do dia: *-R$ 2.487,60*\n\n🕐 *09:00*\n🟢 _plantão_\n*+ R$ 450,00*',
       ),
       lancou: false,
     })
@@ -540,12 +542,12 @@ describe('Service: extrato', () => {
       const p2 = (await s.handle(msg('/extrato 2')))!.texto
       const p3 = (await s.handle(msg('/extrato 3')))!.texto
 
-      expect(p1.startsWith(`📒 *EXTRATO*\n_Página 1 de 3_\n\n${SEP}\n\n${tot('R$ 0,00', 'R$ 1.035,00', '-R$ 1.035,00', '⚠️')}\n\n${SEP}\n\n📅 *`)).toBe(true)
+      expect(p1.startsWith(`📒 *EXTRATO*\n_Página 1 de 3_\n\n${SEP}\n\n${SA}\n\n${SEP}\n\n${tot('R$ 0,00', 'R$ 1.035,00', '-R$ 1.035,00', '⚠️')}\n\n${SEP}\n\n📅 *`)).toBe(true)
       expect(p1.endsWith(`\n\n${SEP}\n\n➡️ _Digite */extrato 2* para continuar._`)).toBe(true)
-      expect(p2.startsWith(`📒 *EXTRATO*\n_Página 2 de 3_\n\n${SEP}\n\n📅 *`)).toBe(true)
+      expect(p2.startsWith(`📒 *EXTRATO*\n_Página 2 de 3_\n\n${SEP}\n\n${SA}\n\n${SEP}\n\n📅 *`)).toBe(true)
       expect(p2).not.toContain('Receitas')
       expect(p2.endsWith(`\n\n${SEP}\n\n➡️ _Digite */extrato 3* para continuar._`)).toBe(true)
-      expect(p3.startsWith(`📒 *EXTRATO*\n_Página 3 de 3_\n\n${SEP}\n\n📅 *`)).toBe(true)
+      expect(p3.startsWith(`📒 *EXTRATO*\n_Página 3 de 3_\n\n${SEP}\n\n${SA}\n\n${SEP}\n\n📅 *`)).toBe(true)
       expect(p3).not.toContain('Despesas')
       expect(p3.endsWith(`\n\n${SEP}\n\n✅ _Fim do extrato._`)).toBe(true)
 
@@ -691,7 +693,7 @@ describe('Service: contas correntes', () => {
     const r = await comDuasContas().handle(msg('/contas'))
     expect(r).toEqual({
       lancou: false,
-      texto: secoes('🏦 *CONTAS CORRENTES*', '⭐ *Principal*\n`@principal`\n💰 *R$ 0,00*', '*Nubank*\n`@nubank`\n💰 *R$ 1.500,00*'),
+      texto: secoes('🏦 *CONTAS CORRENTES*', '💰 *SALDO TOTAL*\n*R$ 1.500,00*', '⭐ *Principal*\n`@principal`\n*R$ 0,00*', '*Nubank*\n`@nubank`\n*R$ 1.500,00*'),
     })
   })
 
@@ -838,5 +840,60 @@ describe('Service: transferência entre contas', () => {
 
   it('/ajuda cita a transferência', async () => {
     expect((await novoService().handle(msg('/ajuda')))?.texto).toContain('/t 500')
+  })
+})
+
+describe('Service: saldo estilo app de banco', () => {
+  const P: ContaCorrenteComSaldo = { ...PRINCIPAL, saldo: 100000 }
+  const duas = (repo = new MemoryRepo()) => new Service(repo, contasEmMemoria([P, NUBANK, ANTIGA]), agora)
+  const SALDO_TOTAL = '🏦 *SALDO ATUAL*\n*R$ 2.500,00*' // 1.000 + 1.500; a desativada fica de fora
+
+  it('/saldo responde o mesmo que /contas', async () => {
+    const s = duas()
+    expect((await s.handle(msg('/saldo')))?.texto).toBe((await s.handle(msg('/contas')))?.texto)
+  })
+
+  it('/extrato traz o saldo atual total de todas as contas ativas, em qualquer página', async () => {
+    const s = duas()
+    for (let i = 0; i < 25; i++) await s.handle(msg(`/d item${i} 1`, new Date(Date.UTC(2026, 7, 1) + i * 86400000).toISOString()))
+    expect((await s.handle(msg('/extrato')))?.texto).toContain(SALDO_TOTAL)
+    expect((await s.handle(msg('/extrato 2')))?.texto).toContain(SALDO_TOTAL)
+  })
+
+  it('/balancete (dia, semanal, mensal e anual) traz o saldo atual total', async () => {
+    const s = duas()
+    await s.handle(msg('/d mercado 10', '2026-09-15T12:00:00Z'))
+    for (const c of ['/balancete', '/balancete semanal', '/balancete mensal', '/balancete anual']) expect((await s.handle(msg(c)))?.texto).toContain(SALDO_TOTAL)
+  })
+
+  it('/extrato agrupa por dia com o saldo ao fim de cada um (o de ontem é o de hoje desfeito)', async () => {
+    const s = duas()
+    await s.handle(msg('/d mercado 10', '2026-09-14T12:00:00Z'))
+    await s.handle(msg('/d luz 20', '2026-09-15T12:00:00Z'))
+    await s.handle(msg('/r plantão 5', '2026-09-15T13:00:00Z'))
+    const t = (await s.handle(msg('/extrato')))!.texto
+    // hoje: saldo atual; ontem: atual − (+5 − 20) = 2.515
+    expect(t).toContain('📅 *HOJE · 15/09*\n💰 Saldo do dia: *R$ 2.500,00*\n\n🕐 *10:00*\n🟢 _plantão_\n*+ R$ 5,00*\n\n🕐 *09:00*\n🔴 _luz_\n*− R$ 20,00*')
+    expect(t).toContain('📅 *14/09*\n💰 Saldo do dia: *R$ 2.515,00*\n\n🕐 *09:00*\n🔴 _mercado_\n*− R$ 10,00*')
+    expect(t.indexOf('HOJE')).toBeLessThan(t.indexOf('14/09'))
+  })
+
+  it('com @conta, o saldo é o da conta e a transferência entra (destino) ou sai (origem)', async () => {
+    const s = duas()
+    await s.handle(msg('/t 500 @nubank', '2026-09-15T12:00:00Z')) // Principal → Nubank hoje
+    const nu = (await s.handle(msg('/e @nubank')))!.texto
+    expect(nu).toContain('🏦 *SALDO ATUAL*\n*R$ 1.500,00*')
+    expect(nu).toContain('Saldo do dia: *R$ 1.500,00*')
+    await s.handle(msg('/d luz 20', '2026-09-14T12:00:00Z'))
+    const pr = (await s.handle(msg('/e @principal')))!.texto
+    expect(pr).toContain('🏦 *SALDO ATUAL*\n*R$ 1.000,00*')
+    expect(pr).toContain('📅 *14/09*\n💰 Saldo do dia: *R$ 1.500,00*') // antes de sair os 500 de hoje
+  })
+
+  it('transferência entre contas ativas não muda o saldo total do dia', async () => {
+    const s = duas()
+    await s.handle(msg('/t 500 @nubank', '2026-09-14T12:00:00Z'))
+    const t = (await s.handle(msg('/extrato')))!.texto
+    expect(t).toContain('📅 *14/09*\n💰 Saldo do dia: *R$ 2.500,00*')
   })
 })

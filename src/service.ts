@@ -15,6 +15,13 @@ const soReceitaDespesa = (ls: Lancamento[]) => ls.filter((l): l is Lancamento & 
 const somaTipo = (ls: Lancamento[], t: Natureza) => ls.filter((l) => l.tipo === t).reduce((s, l) => s + l.valor, 0)
 const soma = (linhas: LinhaConta[]) => linhas.reduce((s, l) => s + l.total, 0)
 
+// quanto o lançamento mexe no saldo do escopo (as contas em `ids`): receita soma, despesa subtrai, transferência sai da origem e entra no destino
+function efeito(l: Lancamento, ids: Set<string>): number {
+  if (l.tipo === 'transferencia') return (ids.has(l.contaDestinoId ?? '') ? l.valor : 0) - (ids.has(l.contaCorrenteId) ? l.valor : 0)
+  if (!ids.has(l.contaCorrenteId)) return 0
+  return l.tipo === 'receita' ? l.valor : -l.valor
+}
+
 export class Service {
   // ponytail: dedupe só em memória; um restart entre a entrega e a reentrega pode desfazer duas vezes. Persistir o msgId se acontecer.
   private tratadas = new Set<string>()
@@ -75,7 +82,8 @@ export class Service {
         return { texto: ui.desfeito(l, conta?.nome), lancou: false }
       }
       case 'contas':
-        return { texto: ui.contas(await this.contasCC.ativas()), lancou: false }
+        const ativas = await this.contasCC.ativas()
+        return { texto: ui.contas(ativas, ativas.reduce((s, c) => s + c.saldo, 0)), lancou: false }
       case 'transferencia': {
         const origem = cmd.origem ? await this.contasCC.porApelido(cmd.origem) : await this.contasCC.favorita()
         if (!origem || !origem.ativa) return { texto: ui.contaNaoEncontrada(cmd.origem ?? '', await this.contasCC.ativas(), true), lancou: false }
@@ -155,6 +163,12 @@ export class Service {
     return { id: c.id, nome: c.nome }
   }
 
+  // saldo atual do relatório: o da conta filtrada ou o total das ativas (as mesmas de /contas). Conta desativada: sem saldo (null)
+  private async saldoDoEscopo(f: { id?: string }): Promise<{ atual: number; ids: Set<string> } | null> {
+    const ativas = (await this.contasCC.ativas()).filter((c) => !f.id || c.id === f.id)
+    return ativas.length ? { atual: ativas.reduce((s, c) => s + c.saldo, 0), ids: new Set(ativas.map((c) => c.id)) } : null
+  }
+
   private async balancete(rel: 'hoje' | Relatorio, apelido?: string): Promise<string> {
     const f = await this.filtro(apelido)
     if ('erro' in f) return f.erro
@@ -168,12 +182,12 @@ export class Service {
       if (!b.receitas.length && !b.despesas.length) continue
       blocos.push({ rotulo, receitas: soma(b.receitas), despesas: soma(b.despesas) })
     }
-    return ui.resumoPeriodos(rel, blocos, f.nome)
+    return ui.resumoPeriodos(rel, blocos, f.nome, (await this.saldoDoEscopo(f))?.atual)
   }
 
   private async balanceteDoDia(agora: Date, f: { id?: string; nome?: string }): Promise<string> {
     const extrato = await this.repo.extrato(intervaloDoDia(agora), f.id)
-    return ui.balanceteDoDia(agora, extrato, somaTipo(extrato, 'receita'), somaTipo(extrato, 'despesa'), f.nome, await this.nomesSeHouverTransferencia(extrato))
+    return ui.balanceteDoDia(agora, extrato, somaTipo(extrato, 'receita'), somaTipo(extrato, 'despesa'), f.nome, await this.nomesSeHouverTransferencia(extrato), (await this.saldoDoEscopo(f))?.atual)
   }
 
   // extrato completo, do mais recente ao mais antigo, POR_PAGINA lançamentos por página; os totais gerais só na página 1
@@ -186,7 +200,20 @@ export class Service {
     if (pagina > total) return ui.paginaInexistente(total)
     const itens = todos.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
     const nomes = await this.nomesSeHouverTransferencia(itens)
-    return ui.extrato(pagina, total, itens, pagina === 1 ? { receitas: somaTipo(todos, 'receita'), despesas: somaTipo(todos, 'despesa') } : null, f.nome, nomes)
+
+    // saldo ao fim de cada dia: parte do saldo atual e desfaz os lançamentos do mais recente para o mais antigo
+    const escopo = await this.saldoDoEscopo(f)
+    let saldos: ui.SaldosExtrato | undefined
+    if (escopo) {
+      saldos = { agora: this.agora(), atual: escopo.atual, porDia: {} }
+      let corrente = escopo.atual
+      for (const l of todos) {
+        const dia = ui.dataCompleta(l.data)
+        if (!(dia in saldos.porDia)) saldos.porDia[dia] = corrente
+        corrente -= efeito(l, escopo.ids)
+      }
+    }
+    return ui.extrato(pagina, total, itens, pagina === 1 ? { receitas: somaTipo(todos, 'receita'), despesas: somaTipo(todos, 'despesa') } : null, f.nome, nomes, saldos)
   }
 
   private async auditoria(rel: Relatorio): Promise<string> {

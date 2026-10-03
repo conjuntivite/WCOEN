@@ -293,7 +293,7 @@ document.addEventListener('DOMContentLoaded', () => {
 `
 
 // exemplo real do que o bot responde no grupo (conteúdo do WhatsApp, por isso mantém os emojis)
-const BALAO = `<div class="balao" role="img" aria-label="Exemplo de mensagem do bot: balancete do dia com saldo de R$ 404,10"><div aria-hidden="true"><p><b>📊 BALANCETE DO DIA</b><br><i>15/09/2026</i></p><hr><p>🟢 Receitas<br><b>R$ 450,00</b></p><p>🔴 Despesas<br><b>R$ 45,90</b></p><p style="margin:0">💚 <b>SALDO</b><br><b>R$ 404,10</b></p></div></div><p class="legenda">Assim o bot responde no seu grupo.</p>`
+const BALAO = `<div class="balao" role="img" aria-label="Exemplo de mensagem do bot: balancete do dia com resultado de R$ 404,10"><div aria-hidden="true"><p><b>📊 BALANCETE DO DIA</b><br><i>15/09/2026</i></p><hr><p>🟢 Receitas<br><b>R$ 450,00</b></p><p>🔴 Despesas<br><b>R$ 45,90</b></p><p style="margin:0">💚 <b>RESULTADO</b><br><b>R$ 404,10</b></p></div></div><p class="legenda">Assim o bot responde no seu grupo.</p>`
 
 const telaAuth = (titulo: string, conteudo: string) =>
   layout(

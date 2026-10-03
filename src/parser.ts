@@ -22,7 +22,7 @@ const COMANDOS = new Map<string, Nome>([
   ['d', 'despesa'], ['despesa', 'despesa'], ['r', 'receita'], ['receita', 'receita'],
   ['b', 'balancete'], ['balancete', 'balancete'], ['e', 'extrato'], ['extrato', 'extrato'],
   ['a', 'auditoria'], ['auditoria', 'auditoria'], ['desfazer', 'desfazer'], ['h', 'ajuda'], ['ajuda', 'ajuda'],
-  ['c', 'contas'], ['contas', 'contas'],
+  ['c', 'contas'], ['contas', 'contas'], ['saldo', 'contas'],
   ['t', 'transferencia'], ['transferencia', 'transferencia'],
 ])
 const RELATIVAS = new Map([['hoje', 0], ['ontem', 1], ['anteontem', 2]])

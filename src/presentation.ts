@@ -22,16 +22,19 @@ export const limpar = (s: string) => s.replace(/[*_~`]/g, (c) => SOSIAS[c])
 
 // "09/2026" -> "Setembro/2026"; rótulos de semana e ano passam direto
 const rotuloBonito = (r: string) => r.replace(/^(\d{2})\/(\d{4})$/, (_, m, a) => `${MESES[Number(m) - 1]}/${a}`)
-const dataCompleta = (d: Date) => `${rotuloDia(d)}/${rotuloMes(d).slice(3)}`
+export const dataCompleta = (d: Date) => `${rotuloDia(d)}/${rotuloMes(d).slice(3)}`
 const saldoEmoji = (n: number) => (n > 0 ? '💚' : n < 0 ? '⚠️' : '⚪')
 const linhaValor = (emoji: string, rotulo: string, valor: string) => `${emoji} ${rotulo}\n${bold(valor)}`
 
-// receitas / despesas / saldo, um valor por linha; o saldo ganha o emoji do sinal
+// saldo real das contas (o que está no banco), destacado no topo dos relatórios; não confundir com o RESULTADO do período
+const blocoSaldo = (saldo: number) => linhaValor('🏦', bold('SALDO ATUAL'), formatBRL(saldo))
+
+// receitas / despesas / resultado do período, um valor por linha; o resultado ganha o emoji do sinal
 const totais = (receitas: number, despesas: number) =>
   [
     linhaValor('🟢', 'Receitas', formatBRL(receitas)),
     linhaValor('🔴', 'Despesas', formatBRL(despesas)),
-    linhaValor(saldoEmoji(receitas - despesas), bold('SALDO'), formatBRL(receitas - despesas)),
+    linhaValor(saldoEmoji(receitas - despesas), bold('RESULTADO'), formatBRL(receitas - despesas)),
   ].join('\n\n')
 
 const sinal = (t: TipoLancamento, valor: number) => bold(t === 'transferencia' ? formatBRL(valor) : `${t === 'receita' ? '+' : '−'} ${formatBRL(valor)}`)
@@ -68,30 +71,47 @@ export function desfeito(l: { conta: string; valor: number } | null, contaCorren
 // relatório filtrado por conta corrente: o nome da conta vai no subtítulo
 const comFiltro = (sub: string | undefined, filtro?: string) => (filtro ? [sub, limpar(filtro)].filter(Boolean).join(' · ') : sub)
 
-export function balanceteDoDia(agora: Date, itens: Lancamento[], receitas: number, despesas: number, filtro?: string, nomes: Record<string, string> = {}): string {
+// `saldo`: saldo atual das contas do relatório (undefined = desconhecido, ex.: conta desativada)
+export function balanceteDoDia(agora: Date, itens: Lancamento[], receitas: number, despesas: number, filtro?: string, nomes: Record<string, string> = {}, saldo?: number): string {
   const cab = cabecalho('📊', 'BALANCETE DO DIA', comFiltro(dataCompleta(agora), filtro))
-  if (!itens.length) return `${cab}\n\n${italic('Nenhum lançamento registrado hoje.')}`
+  const saldoAtual = saldo === undefined ? [] : [blocoSaldo(saldo)]
+  if (!itens.length) return secoes(cab, ...saldoAtual, italic('Nenhum lançamento registrado hoje.'))
   const linhas = itens.map((l) => `🕐 ${bold(rotuloHora(l.enviadoEm))}\n${icone(l.tipo)} ${descricaoDe(l, nomes)}\n${sinal(l.tipo, l.valor)}`)
-  return secoes(cab, linhas.join('\n\n'), totais(receitas, despesas))
+  return secoes(cab, ...saldoAtual, linhas.join('\n\n'), totais(receitas, despesas))
 }
 
 export type BlocoPeriodo = { rotulo: string; receitas: number; despesas: number }
 
-export function resumoPeriodos(rel: string, blocos: BlocoPeriodo[], filtro?: string): string {
+export function resumoPeriodos(rel: string, blocos: BlocoPeriodo[], filtro?: string, saldo?: number): string {
   const cab = cabecalho('📊', `BALANCETE ${rel.toUpperCase()}`, comFiltro(undefined, filtro))
-  if (!blocos.length) return `${cab}\n\n${italic('Nenhum lançamento no período.')}`
-  return secoes(cab, ...blocos.map((b) => `📅 ${bold(rotuloBonito(b.rotulo))}\n\n${totais(b.receitas, b.despesas)}`))
+  const saldoAtual = saldo === undefined ? [] : [blocoSaldo(saldo)]
+  if (!blocos.length) return secoes(cab, ...saldoAtual, italic('Nenhum lançamento no período.'))
+  return secoes(cab, ...saldoAtual, ...blocos.map((b) => `📅 ${bold(rotuloBonito(b.rotulo))}\n\n${totais(b.receitas, b.despesas)}`))
 }
 
-export function extrato(pagina: number, total: number, itens: Lancamento[], geral: { receitas: number; despesas: number } | null, filtro?: string, nomes: Record<string, string> = {}): string {
-  const linhas = itens
-    .map((l) => `📅 ${bold(`${rotuloDia(l.data)} · ${rotuloHora(l.enviadoEm)}`)}\n${icone(l.tipo)} ${italic(descricaoDe(l, nomes))}\n${sinal(l.tipo, l.valor)}`)
-    .join('\n\n')
+// `saldos`: saldo atual e saldo ao fim de cada dia (chave = dataCompleta); ausente quando a conta filtrada está desativada
+export type SaldosExtrato = { agora: Date; atual: number; porDia: Record<string, number> }
+
+export function extrato(pagina: number, total: number, itens: Lancamento[], geral: { receitas: number; despesas: number } | null, filtro?: string, nomes: Record<string, string> = {}, saldos?: SaldosExtrato): string {
+  // itens já vêm do mais recente ao mais antigo: um bloco por dia, com o saldo ao fim dele
+  const dias: { chave: string; itens: Lancamento[] }[] = []
+  for (const l of itens) {
+    const chave = dataCompleta(l.data)
+    if (dias.at(-1)?.chave !== chave) dias.push({ chave, itens: [] })
+    dias.at(-1)!.itens.push(l)
+  }
+  const blocos = dias.map((d) => {
+    const titulo = `📅 ${bold(`${saldos && d.chave === dataCompleta(saldos.agora) ? 'HOJE · ' : ''}${d.chave.slice(0, 5)}`)}`
+    const saldoDoDia = saldos ? `\n💰 Saldo do dia: ${bold(formatBRL(saldos.porDia[d.chave]))}` : ''
+    const linhas = d.itens.map((l) => `🕐 ${bold(rotuloHora(l.enviadoEm))}\n${icone(l.tipo)} ${italic(descricaoDe(l, nomes))}\n${sinal(l.tipo, l.valor)}`)
+    return `${titulo}${saldoDoDia}\n\n${linhas.join('\n\n')}`
+  })
   const rodape = pagina < total ? `➡️ ${italic(`Digite ${bold(`/extrato ${pagina + 1}`)} para continuar.`)}` : total > 1 ? `✅ ${italic('Fim do extrato.')}` : ''
   return secoes(
     cabecalho('📒', 'EXTRATO', comFiltro(`Página ${pagina} de ${total}`, filtro)),
+    ...(saldos ? [blocoSaldo(saldos.atual)] : []),
     ...(geral ? [totais(geral.receitas, geral.despesas)] : []),
-    linhas,
+    ...blocos,
     ...(rodape ? [rodape] : []),
   )
 }
@@ -164,7 +184,7 @@ export const AJUDA = [
   ].join('\n\n'),
   [`🔎 ${bold('AUDITORIA')}`, `${cmd('/auditoria mensal')}\n${cmd('/auditoria semanal')}\n${cmd('/auditoria anual')}\n${italic('ranking e análise da IA')}`].join('\n\n'),
   [`📒 ${bold('EXTRATO')}`, `${cmd('/extrato')}\n${italic('do mais recente ao mais antigo')}\n\n${cmd('/extrato 2')}\n${italic('próxima página')}`].join('\n\n'),
-  [`🏦 ${bold('CONTAS')}`, `${cmd('/contas')}\n${italic('contas e saldos')}\n\n${cmd('/balancete @conta')}\n${cmd('/extrato @conta')}\n${italic('relatório de uma conta só')}`, `🔁 Transferência entre contas\n${cmd('/t 500 @nubank @itau')}\n${italic('sai do primeiro, vai para o segundo')}\n${cmd('/t 500 @itau')}\n${italic('sai da conta favorita')}`].join('\n\n'),
+  [`🏦 ${bold('CONTAS')}`, `${cmd('/contas')} ou ${cmd('/saldo')}\n${italic('contas e saldos')}\n\n${cmd('/balancete @conta')}\n${cmd('/extrato @conta')}\n${italic('relatório de uma conta só')}`, `🔁 Transferência entre contas\n${cmd('/t 500 @nubank @itau')}\n${italic('sai do primeiro, vai para o segundo')}\n${cmd('/t 500 @itau')}\n${italic('sai da conta favorita')}`].join('\n\n'),
   [`↩️ ${bold('CORREÇÃO')}`, `${cmd('/desfazer')}\n${italic('desfaz o último lançamento')}`].join('\n\n'),
 ].join(`\n\n${SEP}\n\n`)
 
@@ -187,9 +207,9 @@ export const USO = {
 export const contaNaoEncontrada = (apelido: string, ativas: ContaCorrenteComSaldo[], gravando: boolean) =>
   `${erro('🏦', 'CONTA NÃO ENCONTRADA', `A conta @${limpar(apelido)} não existe ou está desativada.`, ...(gravando ? ['Nenhum lançamento foi registrado.'] : []))}\n\n${ativas.map((c) => `👉 ${cmd(`@${c.apelido}`)} · ${limpar(c.nome)}`).join('\n')}`
 
-export function contas(lista: ContaCorrenteComSaldo[]): string {
-  const itens = lista.map((c) => `${c.favorita ? '⭐ ' : ''}${bold(limpar(c.nome))}\n${cmd(`@${c.apelido}`)}\n💰 ${bold(formatBRL(c.saldo))}`)
-  return secoes(cabecalho('🏦', 'CONTAS CORRENTES'), ...itens)
+export function contas(lista: ContaCorrenteComSaldo[], saldoTotal: number): string {
+  const itens = lista.map((c) => `${c.favorita ? '⭐ ' : ''}${bold(limpar(c.nome))}\n${cmd(`@${c.apelido}`)}\n${bold(formatBRL(c.saldo))}`)
+  return secoes(cabecalho('🏦', 'CONTAS CORRENTES'), linhaValor('💰', bold('SALDO TOTAL'), formatBRL(saldoTotal)), ...itens)
 }
 
 export const ERRO_GENERICO = erro('⚠️', 'NÃO FOI POSSÍVEL CONCLUIR', 'Tente novamente em alguns instantes.')
