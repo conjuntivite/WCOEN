@@ -19,3 +19,5 @@ services:
         sync: false
       - key: OPENROUTER_MODEL
         sync: false
+      - key: OPENROUTER_VISION_MODEL
+        sync: false

@@ -175,6 +175,7 @@ export const AJUDA = [
     `🟢 Receita\n${cmd('/r plantão 70')}`,
     `📅 Data opcional\n${cmd('/d mercado 45 ontem')}\n${cmd('/d mercado 45 15/09')}`,
     `🏦 Outra conta (a favorita é a padrão)\n${cmd('/d mercado 45 @nubank')}`,
+    `📸 Foto de nota (IA lê, você confirma)\n${cmd('/nota')} ${italic('na legenda da foto')}\n${italic('responda a prévia com')} ${cmd('/ok')}`,
   ].join('\n\n'),
   [
     `📊 ${bold('RELATÓRIOS')}`,
