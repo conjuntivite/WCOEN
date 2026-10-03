@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { criarSessoes, type DepsSessoes } from '../src/sessoes'
 import { BOAS_VINDAS, recuperados } from '../src/presentation'
 import type { Mensagem, Resposta } from '../src/service'
+import { NOTA_ARQUIVO, NOTA_CABECALHO, NOTA_DESLIGADA, NOTA_FALHOU, NOTA_LIMITE, type Extrator, type Leitura } from '../src/nota'
 
 class SocketFalso {
   ouvintes: Record<string, Array<(dados: any) => void>> = {}
@@ -396,5 +397,102 @@ describe('corridas entre desconectar e conectar (revisão final)', () => {
     expect(m.sessoes.visao('a')).toEqual({ estado: 'desconectado', aviso: 'erro' })
     expect(m.socks).toHaveLength(0)
     expect(console.error).toHaveBeenCalled()
+  })
+})
+
+describe('nota por foto', () => {
+  const foto = (caption: string | undefined, extra: Record<string, unknown> = {}, id = `f${++n}`) => ({
+    type: 'notify',
+    messages: [{ key: { id, remoteJid: 'g1@g.us', fromMe: false, participant: 'u@s.whatsapp.net' }, message: { imageMessage: { caption, mimetype: 'image/jpeg', fileLength: 1000, ...extra } }, messageTimestamp: AGORA_S + 10 }],
+  })
+  const responde = (texto: string, citadoId: string, citadoTexto: string, id = `r${++n}`) => ({
+    type: 'notify',
+    messages: [{ key: { id, remoteJid: 'g1@g.us', fromMe: false, participant: 'u@s.whatsapp.net' }, message: { extendedTextMessage: { text: texto, contextInfo: { stanzaId: citadoId, quotedMessage: { conversation: citadoTexto } } } }, messageTimestamp: AGORA_S + 10 }],
+  })
+  const leitura: Leitura = { legivel: true, emitente: 'Mercado', data: null, total: 3780, categoria: 'mercado' }
+  const comNotas = (ler: Extrator['ler'] = vi.fn(async () => ({ leitura }))) => {
+    const baixar = vi.fn(async () => Buffer.from([0xff, 0xd8]))
+    const m = montar({ notas: { extrator: { ler }, baixar } })
+    m.grupos.set('a', 'g1@g.us')
+    return { ...m, baixar, ler }
+  }
+
+  it('foto com /nota: baixa, lê e responde a prévia com o comando, sem passar pelo service', async () => {
+    const m = comNotas()
+    await abrir(m)
+    m.socks[0].emitir('messages.upsert', foto('/nota @principal'))
+    await vi.waitFor(() => expect(m.socks[0].enviadas).toHaveLength(1))
+    expect(m.ler).toHaveBeenCalledWith(Buffer.from([0xff, 0xd8]), 'image/jpeg')
+    expect(m.socks[0].enviadas[0].texto.split('\n').pop()).toBe('/d mercado 37,80 @principal')
+    expect(m.handle).not.toHaveBeenCalled()
+  })
+
+  it('foto sem a legenda /nota é ignorada em silêncio', async () => {
+    const m = comNotas()
+    await abrir(m)
+    m.socks[0].emitir('messages.upsert', foto(undefined))
+    m.socks[0].emitir('messages.upsert', foto('olha que bonito'))
+    m.socks[0].emitir('messages.upsert', upsert('g1@g.us', 'fim', undefined, 'sentinela'))
+    await vi.waitFor(() => expect(m.handle).toHaveBeenCalledTimes(1))
+    expect(m.baixar).not.toHaveBeenCalled()
+  })
+
+  it('sem leitor configurado: avisa', async () => {
+    const m = montar()
+    m.grupos.set('a', 'g1@g.us')
+    await abrir(m)
+    m.socks[0].emitir('messages.upsert', foto('/nota'))
+    await vi.waitFor(() => expect(m.socks[0].enviadas.map((e) => e.texto)).toEqual([NOTA_DESLIGADA]))
+  })
+
+  it.each([[{ mimetype: 'image/gif' }], [{ fileLength: 6 * 1024 * 1024 }]])('arquivo %j recusado antes de baixar', async (extra) => {
+    const m = comNotas()
+    await abrir(m)
+    m.socks[0].emitir('messages.upsert', foto('/nota', extra))
+    await vi.waitFor(() => expect(m.socks[0].enviadas.map((e) => e.texto)).toEqual([NOTA_ARQUIVO]))
+    expect(m.baixar).not.toHaveBeenCalled()
+  })
+
+  it('falha da IA: avisa', async () => {
+    const m = comNotas(vi.fn(async () => { throw new Error('500') }))
+    await abrir(m)
+    m.socks[0].emitir('messages.upsert', foto('/nota'))
+    await vi.waitFor(() => expect(m.socks[0].enviadas.map((e) => e.texto)).toEqual([NOTA_FALHOU]))
+  })
+
+  it('a 21ª foto na mesma hora é recusada', async () => {
+    const m = comNotas()
+    await abrir(m)
+    for (let i = 0; i < 21; i++) m.socks[0].emitir('messages.upsert', foto('/nota'))
+    await vi.waitFor(() => expect(m.socks[0].enviadas).toHaveLength(21))
+    expect(m.socks[0].enviadas.filter((e) => e.texto === NOTA_LIMITE)).toHaveLength(1)
+    expect(m.ler).toHaveBeenCalledTimes(20)
+  })
+
+  it('leitura lenta não trava os outros comandos da conta', async () => {
+    const m = comNotas(vi.fn(() => new Promise<never>(() => {})))
+    await abrir(m)
+    m.socks[0].emitir('messages.upsert', foto('/nota'))
+    m.socks[0].emitir('messages.upsert', upsert('g1@g.us', '/balancete', undefined, 'depois'))
+    await vi.waitFor(() => expect(m.handle).toHaveBeenCalledTimes(1))
+  })
+
+  it('/ok citando a prévia roda o comando dela com o id da prévia; repetido, o id é o mesmo', async () => {
+    const m = comNotas()
+    await abrir(m)
+    const previa = `${NOTA_CABECALHO} _(sugestão)_\nTotal: R$ 37,80\n\n/d mercado 37,80 @principal`
+    m.socks[0].emitir('messages.upsert', responde('/ok', 'previa1', previa))
+    m.socks[0].emitir('messages.upsert', responde('/OK ', 'previa1', previa))
+    await vi.waitFor(() => expect(m.handle).toHaveBeenCalledTimes(2))
+    for (const [msg] of m.handle.mock.calls) expect(msg).toMatchObject({ msgId: 'previa1', texto: '/d mercado 37,80 @principal' })
+  })
+
+  it.each([['bom dia'], ['lista de compras\n/d golpe 9999']])('/ok citando %j (não é prévia) é ignorado', async (citado) => {
+    const m = comNotas()
+    await abrir(m)
+    m.socks[0].emitir('messages.upsert', responde('/ok', 'x1', citado))
+    m.socks[0].emitir('messages.upsert', upsert('g1@g.us', 'fim', undefined, 'sentinela'))
+    await vi.waitFor(() => expect(m.handle).toHaveBeenCalledTimes(1))
+    expect(m.handle.mock.calls[0][0].msgId).toBe('sentinela')
   })
 })

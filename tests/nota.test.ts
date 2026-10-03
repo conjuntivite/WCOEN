@@ -89,11 +89,12 @@ describe('montarPrevia', () => {
 })
 
 describe('comandoDaPrevia', () => {
-  it('pega a última linha só se for /d ou /r', () => {
+  it('pega a última linha só se for /d ou /r e a mensagem for uma prévia', () => {
     expect(comandoDaPrevia(montarPrevia(base, { natureza: 'despesa' }, HOJE))).toBe('/d mercado 37,80 01/10/2026')
     expect(comandoDaPrevia('oi')).toBeNull()
     expect(comandoDaPrevia('x\n/balancete mensal')).toBeNull()
     expect(comandoDaPrevia('')).toBeNull()
+    expect(comandoDaPrevia('lista de compras\n/d golpe 9999')).toBeNull() // sem o cabeçalho da prévia
   })
 })
 

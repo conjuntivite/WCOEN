@@ -1,3 +1,4 @@
+import { downloadMediaMessage } from '@whiskeysockets/baileys'
 import { criarAuditorOpenRouter } from './auditar'
 import { apagarAuth, criarAuthState, garantirTabelaAuth } from './authstate'
 import { criarSocketBaileys } from './baileys'
@@ -7,6 +8,7 @@ import { criarContasCorrentes } from './contasCorrentes'
 import { criarConvites } from './convites'
 import { conectarPostgres } from './db'
 import { criarMailer, criarMailerResend } from './mailer'
+import { criarExtratorOpenRouter } from './nota'
 import { criarRepo } from './repo'
 import { Service } from './service'
 import { criarSessoes } from './sessoes'
@@ -32,6 +34,8 @@ const mailer = config.resend ? criarMailerResend(config.resend) : config.smtp ? 
 
 // auditor só existe com OPENROUTER_API_KEY + OPENROUTER_MODEL; sem ele, o comando auditoria avisa que a IA está desligada
 const auditor = config.openrouter ? criarAuditorOpenRouter(config.openrouter) : undefined
+// leitura de nota só existe com OPENROUTER_VISION_MODEL (modelo pago); sem ele, "/nota" avisa que está desligada
+const extratorNota = config.openrouter?.visionModel ? criarExtratorOpenRouter({ apiKey: config.openrouter.apiKey, model: config.openrouter.visionModel }) : undefined
 
 const sessoes = criarSessoes({
   criarAuth: (id) => criarAuthState(banco.pool, id, config.chaveCripto),
@@ -42,6 +46,7 @@ const sessoes = criarSessoes({
   salvarGrupo: (id, grupoId, nome) => contas.definirGrupo(id, grupoId, nome),
   marcarConectada: (id, conectada) => contas.marcarConectada(id, conectada),
   maxSessoes: config.maxSessoes,
+  notas: extratorNota && { extrator: extratorNota, baixar: (m) => downloadMediaMessage(m, 'buffer', {}) },
 })
 
 const web = criarWeb({
