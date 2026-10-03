@@ -8,7 +8,7 @@ export type Config = {
   chaveCripto: Buffer // 32 bytes; criptografa as credenciais do WhatsApp no banco
   maxSessoes: number
   adminEmails: string[] // veem /admin e podem criar/revogar convites; normalizados (minúsculo, sem espaços)
-  openrouter?: { apiKey: string; models: string[] } // opcional: sem chave, a auditoria fica desligada; models (só pagos) em ordem de tentativa
+  openrouter?: { apiKey: string; models: string[]; visionModel?: string } // opcional: sem chave, a auditoria fica desligada; models (só pagos) em ordem de tentativa; visionModel liga o /nota
   smtp?: { host: string; port: number; user: string; pass: string; from: string } // opcional: sem SMTP_HOST, o link de redefinição só é logado no console
   resend?: { apiKey: string; from: string } // opcional: e-mail por API HTTPS (vale no Render gratuito, que bloqueia SMTP); tem prioridade sobre o SMTP
 }
@@ -27,7 +27,9 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   if (env.OPENROUTER_API_KEY) {
     const models = [...new Set(lista(env.OPENROUTER_MODEL))]
     if (!models.length) throw new Error('OPENROUTER_MODEL não definido no .env (obrigatório com OPENROUTER_API_KEY)')
-    openrouter = { apiKey: env.OPENROUTER_API_KEY, models }
+    const visionModel = env.OPENROUTER_VISION_MODEL?.trim()
+    if (visionModel?.endsWith(':free')) throw new Error('OPENROUTER_VISION_MODEL não pode ser gratuito (:free): a foto da nota tem dados de terceiros')
+    openrouter = { apiKey: env.OPENROUTER_API_KEY, models, ...(visionModel && { visionModel }) }
   }
 
   let smtp: Config['smtp']

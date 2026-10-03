@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { comandoDaPrevia, lerLegenda, montarPrevia, NOTA_ILEGIVEL, NOTA_SEM_COMANDO, validarLeitura, type Leitura } from '../src/nota'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { comandoDaPrevia, criarExtratorOpenRouter, lerLegenda, montarPrevia, NOTA_ILEGIVEL, NOTA_SEM_COMANDO, validarLeitura, type Leitura } from '../src/nota'
 import { parse } from '../src/parser'
 
 const HOJE = new Date('2026-10-02T15:00:00Z') // 12:00 em -03:00
@@ -94,5 +94,66 @@ describe('comandoDaPrevia', () => {
     expect(comandoDaPrevia('oi')).toBeNull()
     expect(comandoDaPrevia('x\n/balancete mensal')).toBeNull()
     expect(comandoDaPrevia('')).toBeNull()
+  })
+})
+
+describe('criarExtratorOpenRouter', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  const IMG = Buffer.from([0xff, 0xd8, 0xff, 0x00])
+  const json = { legivel: true, emitente: 'X', data_emissao: '2026-10-01', total: '37.80', categoria: 'mercado' }
+  const resposta = (conteudo: unknown, status = 200, usage: unknown = { prompt_tokens: 900, completion_tokens: 40, cost: 0.0004 }) =>
+    new Response(JSON.stringify({ choices: [{ message: { content: typeof conteudo === 'string' ? conteudo : JSON.stringify(conteudo) } }], usage }), { status })
+  const criar = (r: Response | Error) => {
+    const fetchFn = vi.fn(async (_url: string, _init: RequestInit) => {
+      if (r instanceof Error) throw r
+      return r
+    })
+    return { fetchFn, ex: criarExtratorOpenRouter({ apiKey: 'chave-secreta', model: 'v/modelo', fetchFn: fetchFn as unknown as typeof fetch }) }
+  }
+
+  it('manda texto antes da imagem, schema strict e a política de privacidade', async () => {
+    const { fetchFn, ex } = criar(resposta(json))
+    await ex.ler(IMG, 'image/jpeg')
+    const [url, init] = fetchFn.mock.calls[0]
+    expect(url).toBe('https://openrouter.ai/api/v1/chat/completions')
+    expect(init.signal).toBeInstanceOf(AbortSignal)
+    const corpo = JSON.parse(init.body as string)
+    expect(corpo).toMatchObject({
+      model: 'v/modelo',
+      temperature: 0,
+      provider: { require_parameters: true, data_collection: 'deny' },
+      response_format: { type: 'json_schema', json_schema: { name: 'nota', strict: true } },
+    })
+    const conteudo = corpo.messages[1].content
+    expect(conteudo[0].type).toBe('text')
+    expect(conteudo[1].image_url.url).toBe(`data:image/jpeg;base64,${IMG.toString('base64')}`)
+  })
+
+  it('devolve a leitura validada e o custo', async () => {
+    const { ex } = criar(resposta(json))
+    expect(await ex.ler(IMG, 'image/jpeg')).toEqual({ leitura: { legivel: true, emitente: 'X', data: '2026-10-01', total: 3780, categoria: 'mercado' }, custoUsd: 0.0004 })
+  })
+
+  it('sem custo informado: custoUsd ausente', async () => {
+    const { ex } = criar(resposta(json, 200, { prompt_tokens: 1 }))
+    expect((await ex.ler(IMG, 'image/jpeg')).custoUsd).toBeUndefined()
+  })
+
+  it.each([
+    ['HTTP 500', resposta(json, 500)],
+    ['conteúdo que não é JSON', resposta('não sei')],
+    ['JSON fora do combinado', resposta({ total: '37.80' })],
+    ['falha de rede', new Error('rede caiu')],
+  ])('%s: lança erro sem expor a chave', async (_nome, r) => {
+    const { ex } = criar(r)
+    const erro = await ex.ler(IMG, 'image/jpeg').catch((e: Error) => e)
+    expect(erro).toBeInstanceOf(Error)
+    expect((erro as Error).message).not.toContain('chave-secreta')
   })
 })
