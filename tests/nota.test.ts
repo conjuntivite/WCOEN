@@ -124,6 +124,7 @@ describe('criarExtratorOpenRouter', () => {
     expect(url).toBe('https://openrouter.ai/api/v1/chat/completions')
     expect(init.signal).toBeInstanceOf(AbortSignal)
     const corpo = JSON.parse(init.body as string)
+    expect(corpo.max_tokens).toBeGreaterThanOrEqual(1000) // modelos que raciocinam gastam max_tokens antes do JSON
     expect(corpo).toMatchObject({
       model: 'v/modelo',
       temperature: 0,

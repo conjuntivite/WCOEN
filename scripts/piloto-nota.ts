@@ -1,4 +1,5 @@
-// Etapa 0: lê as fotos de piloto/ com OPENROUTER_VISION_MODEL. Para em US$ 1 ou 30 fotos.
+// Etapa 0: lê as fotos de piloto/ com OPENROUTER_VISION_MODEL. Para em ~US$ 1, 30 fotos ou no primeiro erro.
+// ponytail: o teto aqui é estimado (supõe a próxima chamada igual à anterior); a garantia firme é o limite de crédito da chave.
 // Faz chamadas PAGAS e envia as fotos ao provedor: só rode com fotos autorizadas.
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { extname, join } from 'node:path'
@@ -42,6 +43,9 @@ for (const foto of fotos) {
   } catch (err) {
     resultados.push({ foto, ms: Date.now() - inicio, erro: err instanceof Error ? err.message : String(err) })
     console.log(`${foto}: ERRO ${err instanceof Error ? err.message : err}`)
+    // a chamada pode ter sido cobrada sem devolver o custo: para aqui em vez de gastar às cegas
+    console.log('Parei no primeiro erro: corrija a causa antes de seguir.')
+    break
   }
 }
 await writeFile(join(PASTA, 'resultado.json'), JSON.stringify({ model, gastoUsd: gasto, resultados }, null, 2))

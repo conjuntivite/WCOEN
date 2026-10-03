@@ -120,7 +120,7 @@ export function criarExtratorOpenRouter({ apiKey, model, fetchFn = fetch }: { ap
         body: JSON.stringify({
           model,
           temperature: 0,
-          max_tokens: 300,
+          max_tokens: 1000, // o JSON tem ~60 tokens, mas modelos que raciocinam gastam daqui antes de responder
           messages: [
             { role: 'system', content: PROMPT },
             {
