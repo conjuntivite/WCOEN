@@ -642,6 +642,17 @@ const comDuasContas = (repo = new MemoryRepo()) => new Service(repo, contasEmMem
 const mes = { de: new Date('2026-09-01T03:00:00Z'), ate: new Date('2026-10-01T03:00:00Z') }
 
 describe('Service: contas correntes', () => {
+  it('lançamento que não gravou pode ser repetido com o mesmo id (/ok de novo na prévia da nota)', async () => {
+    const repo = new MemoryRepo()
+    const lista = [PRINCIPAL]
+    const s = new Service(repo, contasEmMemoria(lista), agora)
+    expect((await s.handle(msg('/d mercado 10 @nubank', undefined, 'previa1')))?.lancou).toBe(false)
+    lista.push(NUBANK) // o usuário cria a conta no portal
+    expect((await s.handle(msg('/d mercado 10 @nubank', undefined, 'previa1')))?.lancou).toBe(true)
+    expect(await s.handle(msg('/d mercado 10 @nubank', undefined, 'previa1'))).toBeNull()
+    expect(await repo.extrato(mes)).toHaveLength(1)
+  })
+
   it('sem @ vai para a favorita; com @ vai para a outra', async () => {
     const repo = new MemoryRepo()
     const s = comDuasContas(repo)

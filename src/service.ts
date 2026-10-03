@@ -40,7 +40,10 @@ export class Service {
     if (opcoes.recuperada && (cmd.tipo === 'balancete' || cmd.tipo === 'auditoria' || cmd.tipo === 'extrato' || cmd.tipo === 'uso' || cmd.tipo === 'ajuda' || cmd.tipo === 'contas')) return null
     try {
       const r = await this.executar(cmd, msg)
-      this.tratadas.add(msg.msgId)
+      // lançamento recusado (conta inexistente, data inválida) não marca o id: o /ok repetido na mesma prévia tenta de novo.
+      // O que gravou é barrado pelo índice único (conta_id, msg_id).
+      const recusado = (cmd.tipo === 'lancamento' || cmd.tipo === 'transferencia') && r?.lancou === false
+      if (!recusado) this.tratadas.add(msg.msgId)
       return r
     } catch (err) {
       console.error('erro ao processar mensagem', msg.msgId, err)
