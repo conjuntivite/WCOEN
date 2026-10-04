@@ -8,10 +8,10 @@ import { criarContasCorrentes } from './contasCorrentes'
 import { criarConvites } from './convites'
 import { conectarPostgres } from './db'
 import { criarMailer, criarMailerResend } from './mailer'
-import { criarExtratorOpenRouter } from './nota'
+import { criarExtratorOpenRouter, lerAte } from './nota'
 import { criarRepo } from './repo'
 import { Service } from './service'
-import { criarSessoes } from './sessoes'
+import { criarSessoes, MAX_BYTES_NOTA } from './sessoes'
 import { criarWeb } from './web'
 
 const config = loadConfig()
@@ -46,7 +46,7 @@ const sessoes = criarSessoes({
   salvarGrupo: (id, grupoId, nome) => contas.definirGrupo(id, grupoId, nome),
   marcarConectada: (id, conectada) => contas.marcarConectada(id, conectada),
   maxSessoes: config.maxSessoes,
-  notas: extratorNota && { extrator: extratorNota, baixar: (m) => downloadMediaMessage(m, 'buffer', {}) },
+  notas: extratorNota && { extrator: extratorNota, baixar: async (m) => lerAte(await downloadMediaMessage(m, 'stream', { options: { signal: AbortSignal.timeout(30_000) } }), MAX_BYTES_NOTA) }, // teto de bytes e 30 s: arquivo gigante ou CDN travado não seguram a leitura
 })
 
 const web = criarWeb({

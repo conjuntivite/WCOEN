@@ -66,7 +66,7 @@ type Sessao = {
 
 const CACHE_GRUPOS_MS = 60_000
 const MIMES_NOTA = new Set(['image/jpeg', 'image/png', 'image/webp'])
-const MAX_BYTES_NOTA = 5 * 1024 * 1024
+export const MAX_BYTES_NOTA = 5 * 1024 * 1024
 const PREVIA_PENDENTE_MS = 30 * 60_000 // o /ok solto só confirma prévia recente
 
 export function criarSessoes(deps: DepsSessoes) {
