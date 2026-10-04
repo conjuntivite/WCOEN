@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { criarSessoes, type DepsSessoes } from '../src/sessoes'
 import { BOAS_VINDAS, recuperados } from '../src/presentation'
 import type { Mensagem, Resposta } from '../src/service'
-import { NOTA_ARQUIVO, NOTA_CABECALHO, NOTA_DESLIGADA, NOTA_FALHOU, NOTA_LIMITE, type Extrator, type Leitura } from '../src/nota'
+import { NOTA_ARQUIVO, NOTA_CABECALHO, NOTA_DESLIGADA, NOTA_FALHOU, NOTA_LIMITE, NOTA_NADA_PENDENTE, type Extrator, type Leitura } from '../src/nota'
 
 class SocketFalso {
   ouvintes: Record<string, Array<(dados: any) => void>> = {}
@@ -487,12 +487,89 @@ describe('nota por foto', () => {
     for (const [msg] of m.handle.mock.calls) expect(msg).toMatchObject({ msgId: 'previa1', texto: '/d mercado 37,80 @principal' })
   })
 
-  it.each([['bom dia'], ['lista de compras\n/d golpe 9999']])('/ok citando %j (não é prévia) é ignorado', async (citado) => {
+  it.each([['bom dia'], ['lista de compras\n/d golpe 9999']])('/ok citando %j (não é prévia) e sem prévia pendente: avisa e não lança', async (citado) => {
     const m = comNotas()
     await abrir(m)
     m.socks[0].emitir('messages.upsert', responde('/ok', 'x1', citado))
     m.socks[0].emitir('messages.upsert', upsert('g1@g.us', 'fim', undefined, 'sentinela'))
     await vi.waitFor(() => expect(m.handle).toHaveBeenCalledTimes(1))
     expect(m.handle.mock.calls[0][0].msgId).toBe('sentinela')
+    expect(m.socks[0].enviadas[0].texto).toBe(NOTA_NADA_PENDENTE)
+  })
+
+  it('"ok" sem barra respondendo a prévia também confirma', async () => {
+    const m = comNotas()
+    await abrir(m)
+    m.socks[0].emitir('messages.upsert', responde('Ok', 'previa1', `${NOTA_CABECALHO}\n\n/d mercado 37,80`))
+    await vi.waitFor(() => expect(m.handle).toHaveBeenCalledTimes(1))
+    expect(m.handle.mock.calls[0][0]).toMatchObject({ msgId: 'previa1', texto: '/d mercado 37,80' })
+  })
+
+  it('"ok" sem barra e sem citar nada é conversa: ignorado em silêncio', async () => {
+    const m = comNotas()
+    await abrir(m)
+    m.socks[0].emitir('messages.upsert', foto('/nota'))
+    await vi.waitFor(() => expect(m.socks[0].enviadas).toHaveLength(1))
+    m.socks[0].emitir('messages.upsert', upsert('g1@g.us', 'ok'))
+    m.socks[0].emitir('messages.upsert', upsert('g1@g.us', 'fim', undefined, 'sentinela'))
+    await vi.waitFor(() => expect(m.handle).toHaveBeenCalledTimes(1))
+    expect(m.handle.mock.calls[0][0].msgId).toBe('sentinela')
+    expect(m.socks[0].enviadas.map((e) => e.texto)).not.toContain(NOTA_NADA_PENDENTE)
+  })
+
+  it('/ok solto confirma a última prévia, com o id dela', async () => {
+    const m = comNotas()
+    m.handle.mockResolvedValue({ texto: 'lançado', lancou: true })
+    await abrir(m)
+    m.socks[0].emitir('messages.upsert', foto('/nota @principal'))
+    await vi.waitFor(() => expect(m.socks[0].enviadas).toHaveLength(1))
+    m.socks[0].emitir('messages.upsert', upsert('g1@g.us', '/OK'))
+    await vi.waitFor(() => expect(m.handle).toHaveBeenCalledTimes(1))
+    expect(m.handle.mock.calls[0][0]).toMatchObject({ msgId: 'saida1', texto: '/d mercado 37,80 @principal' })
+  })
+
+  it('/ok solto depois de lançada: não há mais prévia pendente', async () => {
+    const m = comNotas()
+    m.handle.mockResolvedValue({ texto: 'lançado', lancou: true })
+    await abrir(m)
+    m.socks[0].emitir('messages.upsert', foto('/nota'))
+    await vi.waitFor(() => expect(m.socks[0].enviadas).toHaveLength(1))
+    m.socks[0].emitir('messages.upsert', upsert('g1@g.us', '/ok'))
+    m.socks[0].emitir('messages.upsert', upsert('g1@g.us', '/ok'))
+    await vi.waitFor(() => expect(m.socks[0].enviadas.map((e) => e.texto).at(-1)).toBe(NOTA_NADA_PENDENTE))
+    expect(m.handle).toHaveBeenCalledTimes(1)
+  })
+
+  it('/ok solto com o lançamento recusado: a prévia continua pendente para tentar de novo', async () => {
+    const m = comNotas()
+    m.handle.mockResolvedValue({ texto: 'conta não encontrada', lancou: false })
+    await abrir(m)
+    m.socks[0].emitir('messages.upsert', foto('/nota'))
+    await vi.waitFor(() => expect(m.socks[0].enviadas).toHaveLength(1))
+    m.socks[0].emitir('messages.upsert', upsert('g1@g.us', '/ok'))
+    m.socks[0].emitir('messages.upsert', upsert('g1@g.us', '/ok'))
+    await vi.waitFor(() => expect(m.handle).toHaveBeenCalledTimes(2))
+    for (const [msg] of m.handle.mock.calls) expect(msg.msgId).toBe('saida1')
+  })
+
+  it('/ok solto mais de 30 min depois da prévia: avisa que não há nota pendente', async () => {
+    const m = comNotas()
+    await abrir(m)
+    m.socks[0].emitir('messages.upsert', foto('/nota'))
+    await vi.waitFor(() => expect(m.socks[0].enviadas).toHaveLength(1))
+    m.relogio.ms += 31 * 60_000
+    m.socks[0].emitir('messages.upsert', upsert('g1@g.us', '/ok'))
+    await vi.waitFor(() => expect(m.socks[0].enviadas.map((e) => e.texto)).toContain(NOTA_NADA_PENDENTE))
+    expect(m.handle).not.toHaveBeenCalled()
+  })
+
+  it('a prévia de uma nota ilegível não fica pendente', async () => {
+    const m = comNotas(vi.fn(async () => ({ leitura: { ...leitura, legivel: false, total: null } })))
+    await abrir(m)
+    m.socks[0].emitir('messages.upsert', foto('/nota'))
+    await vi.waitFor(() => expect(m.socks[0].enviadas).toHaveLength(1))
+    m.socks[0].emitir('messages.upsert', upsert('g1@g.us', '/ok'))
+    await vi.waitFor(() => expect(m.socks[0].enviadas.map((e) => e.texto).at(-1)).toBe(NOTA_NADA_PENDENTE))
+    expect(m.handle).not.toHaveBeenCalled()
   })
 })

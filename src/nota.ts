@@ -16,6 +16,7 @@ export const NOTA_SEM_COMANDO = '🤖 Li a nota, mas não consegui montar o lan�
 export const NOTA_FALHOU = '🤖 A leitura da nota falhou agora. Tente de novo em instantes ou lance com /d.'
 export const NOTA_LIMITE = '🤖 Limite de 20 notas por hora atingido. Tente mais tarde ou lance com /d.'
 export const NOTA_ARQUIVO = '🤖 Só leio fotos JPEG, PNG ou WebP de até 5 MB.'
+export const NOTA_NADA_PENDENTE = '🤖 Nenhuma nota esperando confirmação. Para uma prévia antiga, responda a ela com /ok.'
 export const NOTA_CABECALHO = '🤖 *Nota lida pela IA*'
 export const NOTA_DESLIGADA = '🤖 A leitura de notas não está configurada (defina OPENROUTER_VISION_MODEL).'
 
@@ -77,7 +78,7 @@ export function montarPrevia(l: Leitura, legenda: Legenda, hoje: Date): string {
   const linhas = [`${NOTA_CABECALHO} _(sugestão: confira antes de lançar)_`]
   if (l.emitente) linhas.push(`Emitente: ${l.emitente.replace(/\s+/g, ' ').trim().slice(0, 60)}`)
   linhas.push(`Data: ${data ? br(data) : 'hoje'}`, `Total: ${formatBRL(l.total)}`, ...alertas.map((a) => `⚠️ ${a}`))
-  linhas.push('', 'Para lançar, responda a esta mensagem com /ok.', 'Para corrigir, copie a linha abaixo, ajuste e envie.', '', comando)
+  linhas.push('', 'Para lançar, envie /ok.', 'Para corrigir, copie a linha abaixo, ajuste e envie.', '', comando)
   return linhas.join('\n')
 }
 

@@ -1,7 +1,7 @@
 import { DisconnectReason, jidNormalizedUser, normalizeMessageContent, type AuthenticationState, type WAMessage } from '@whiskeysockets/baileys'
 import { atrasoReconexao } from './backoff'
 import { criarLimitador } from './contas'
-import { comandoDaPrevia, lerLegenda, montarPrevia, NOTA_ARQUIVO, NOTA_DESLIGADA, NOTA_FALHOU, NOTA_LIMITE, type Extrator } from './nota'
+import { comandoDaPrevia, lerLegenda, montarPrevia, NOTA_ARQUIVO, NOTA_DESLIGADA, NOTA_FALHOU, NOTA_LIMITE, NOTA_NADA_PENDENTE, type Extrator } from './nota'
 import { BOAS_VINDAS, recuperados } from './presentation'
 import type { Mensagem, Resposta } from './service'
 
@@ -60,11 +60,14 @@ type Sessao = {
   timerReconexao?: ReturnType<typeof setTimeout>
   timerResumo?: ReturnType<typeof setTimeout>
   ouvintes: Set<(v: Visao) => void>
+  // ponytail: só em memória; depois de um restart o /ok solto não acha a prévia (responder citando continua valendo)
+  previa?: { id: string; comando: string; em: number } // última prévia de nota, para o /ok solto
 }
 
 const CACHE_GRUPOS_MS = 60_000
 const MIMES_NOTA = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const MAX_BYTES_NOTA = 5 * 1024 * 1024
+const PREVIA_PENDENTE_MS = 30 * 60_000 // o /ok solto só confirma prévia recente
 
 export function criarSessoes(deps: DepsSessoes) {
   const max = deps.maxSessoes ?? 20
@@ -215,6 +218,7 @@ export function criarSessoes(deps: DepsSessoes) {
     await dormir(500 + Math.random() * 1000) // pequeno atraso, menos robótico
     const r = await sock.sendMessage(s.grupoId, { text: texto })
     if (r?.key.id) s.enviados.add(r.key.id)
+    return r?.key.id ?? undefined
   }
 
   function agendarResumo(s: Sessao) {
@@ -240,7 +244,10 @@ export function criarSessoes(deps: DepsSessoes) {
       const bytes = await deps.notas.baixar(m)
       if (bytes.length > MAX_BYTES_NOTA) return await enviar(s, NOTA_ARQUIVO)
       const { leitura } = await deps.notas.extrator.ler(bytes, mime)
-      await enviar(s, montarPrevia(leitura, legenda, new Date(agora())))
+      const previa = montarPrevia(leitura, legenda, new Date(agora()))
+      const id = await enviar(s, previa)
+      const comando = comandoDaPrevia(previa) // null = nota ilegível ou sem comando: nada a confirmar
+      if (id && comando) s.previa = { id, comando, em: agora() }
     } catch (err) {
       log(s, 'nota', err)
       await enviar(s, NOTA_FALHOU).catch(() => {})
@@ -259,13 +266,24 @@ export function criarSessoes(deps: DepsSessoes) {
       let texto = conteudo?.conversation ?? conteudo?.extendedTextMessage?.text
       if (!texto) return
       let msgId = id
-      if (texto.trim().toLowerCase() === '/ok') {
-        // confirma a prévia citada: roda o comando da última linha com o id da prévia, e o /ok repetido cai no índice único
+      const ok = texto.trim().toLowerCase()
+      if (ok === '/ok' || ok === 'ok') {
+        // confirma a prévia citada ("ok" sem barra só vale citando) ou, com "/ok" solto, a última prévia pendente.
+        // Roda o comando da última linha com o id da prévia: o /ok repetido cai no índice único.
         const ctx = conteudo?.extendedTextMessage?.contextInfo
         const linha = comandoDaPrevia(ctx?.quotedMessage?.conversation ?? ctx?.quotedMessage?.extendedTextMessage?.text ?? '')
-        if (!linha || !ctx?.stanzaId) return
-        texto = linha
-        msgId = ctx.stanzaId
+        if (linha && ctx?.stanzaId) {
+          texto = linha
+          msgId = ctx.stanzaId
+        } else if (ok === 'ok') {
+          return // "ok" solto é conversa
+        } else if (s.previa && agora() - s.previa.em <= PREVIA_PENDENTE_MS) {
+          texto = s.previa.comando
+          msgId = s.previa.id
+        } else {
+          await enviar(s, NOTA_NADA_PENDENTE)
+          return
+        }
       }
 
       const ts = Number(m.messageTimestamp) || 0
@@ -275,6 +293,7 @@ export function criarSessoes(deps: DepsSessoes) {
       const recuperada = ts > 0 && ts < s.conectouEm - 2
 
       const r = await s.service.handle({ msgId, remetente, texto, enviadoEm }, { recuperada })
+      if (msgId === s.previa?.id && (!r || r.lancou)) s.previa = undefined // lançada (ou já estava): não há mais o que confirmar
       if (!r) return
       if (recuperada && r.lancou) {
         s.recuperados++
