@@ -1,6 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { comandoDaPrevia, criarExtratorOpenRouter, lerLegenda, montarPrevia, NOTA_ILEGIVEL, NOTA_SEM_COMANDO, validarLeitura, type Leitura } from '../src/nota'
+import { Readable } from 'node:stream'
+import { comandoDaPrevia, criarExtratorOpenRouter, lerAte, lerLegenda, montarPrevia, NOTA_ILEGIVEL, NOTA_SEM_COMANDO, validarLeitura, type Leitura } from '../src/nota'
 import { parse } from '../src/parser'
+
+describe('lerAte', () => {
+  const pedacos = () => Readable.from([Buffer.alloc(3, 1), Buffer.alloc(3, 2), Buffer.alloc(3, 3)])
+
+  it('dentro do limite: devolve tudo', async () => {
+    expect(await lerAte(pedacos(), 9)).toEqual(Buffer.concat([Buffer.alloc(3, 1), Buffer.alloc(3, 2), Buffer.alloc(3, 3)]))
+  })
+
+  it('passou do limite: para de ler, fecha o stream e devolve só o que passou (quem chama recusa)', async () => {
+    const s = pedacos()
+    const r = await lerAte(s, 4)
+    expect(r.length).toBe(6)
+    expect(s.destroyed).toBe(true)
+  })
+})
 
 const HOJE = new Date('2026-10-02T15:00:00Z') // 12:00 em -03:00
 const base: Leitura = { legivel: true, emitente: 'Mercado Bom Preço', data: '2026-10-01', total: 3780, categoria: 'mercado' }

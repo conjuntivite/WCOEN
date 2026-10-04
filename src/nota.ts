@@ -89,6 +89,19 @@ export function comandoDaPrevia(t: string): string | null {
   return /^\/[dr] /.test(ultimaLinha) ? ultimaLinha : null
 }
 
+// Lê até passar de `max` e para (o break fecha o stream): o tamanho declarado na mensagem vem do remetente,
+// então não dá para confiar nele; quem chama vê length > max e recusa, sem bufferizar um arquivo gigante.
+export async function lerAte(stream: AsyncIterable<Buffer>, max: number): Promise<Buffer> {
+  const partes: Buffer[] = []
+  let total = 0
+  for await (const parte of stream) {
+    partes.push(parte)
+    total += parte.length
+    if (total > max) break
+  }
+  return Buffer.concat(partes)
+}
+
 export interface Extrator {
   ler(imagem: Buffer, mime: string): Promise<{ leitura: Leitura; custoUsd?: number }> // lança se a IA falhar
 }
