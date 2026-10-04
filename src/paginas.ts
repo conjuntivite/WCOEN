@@ -1,7 +1,7 @@
 import { AVATAR_CORES, AVATAR_ICONES, type Conta, type ContaResumo, type Papel, type Perfil } from './contas'
 import type { Convite } from './convites'
 import type { Aviso, Visao } from './sessoes'
-import { rotuloMesCurto, svgTendencia, type Indicadores } from './dashboard'
+import { curto, rotuloMesCurto, svgLinhaSaldo, svgPizza, svgTendencia, type Categoria, type Indicadores } from './dashboard'
 import { formatBRL } from './money'
 import type { ContaCorrenteComSaldo } from './types'
 
@@ -11,10 +11,10 @@ export const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ENTIDADES[c])
 // --- identidade visual ---------------------------------------------------
 // Sem fontes nem imagens externas (a CSP só permite o próprio site): pilha do sistema e SVG inline.
 
-const ESCURO = '--fundo:#0d0a0a;--cartao:#171213;--texto:#f3eaea;--suave:#b5a2a4;--borda:#322627;--marca:#ff4444;--marca-forte:#ff7a7a;--sobre-marca:#1a0505;--marca-suave:#33191a;--erro:#f97066;--erro-suave:#33191a;--alerta:#f5b544;--alerta-suave:#33280f;--foco:#ff7a7a;--receita:#4ade80;--despesa:#fbbf24;--sombra:none;--sombra2:0 10px 30px rgba(0,0,0,.5)'
+const ESCURO = '--fundo:#0d0a0a;--cartao:#171213;--texto:#f3eaea;--suave:#b5a2a4;--borda:#322627;--marca:#ff4444;--marca-forte:#ff7a7a;--sobre-marca:#1a0505;--marca-suave:#33191a;--erro:#f97066;--erro-suave:#33191a;--alerta:#f5b544;--alerta-suave:#33280f;--foco:#ff7a7a;--receita:#4ade80;--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#008300;--despesa:#fbbf24;--sombra:none;--sombra2:0 10px 30px rgba(0,0,0,.5)'
 
 const ESTILO = `
-:root{color-scheme:light dark;--fundo:#f8f5f4;--cartao:#fff;--texto:#1a1213;--suave:#5e5052;--borda:#e6dcdb;--marca:#d10f0f;--marca-forte:#a80b0b;--sobre-marca:#fff;--marca-suave:#fbe9e8;--erro:#b42318;--erro-suave:#fdeceb;--alerta:#9a5b00;--alerta-suave:#fdf3dc;--foco:#d10f0f;--receita:#0f7a43;--despesa:#b45309;--sombra:0 1px 2px rgba(40,10,10,.06),0 8px 24px rgba(40,10,10,.07);--e1:4px;--e2:8px;--e3:12px;--e4:16px;--e5:24px;--e6:32px;--raio:16px;--sombra2:0 2px 4px rgba(40,10,10,.08),0 14px 32px rgba(40,10,10,.14);--ease:cubic-bezier(.2,.8,.2,1)}
+:root{color-scheme:light dark;--fundo:#f8f5f4;--cartao:#fff;--texto:#1a1213;--suave:#5e5052;--borda:#e6dcdb;--marca:#d10f0f;--marca-forte:#a80b0b;--sobre-marca:#fff;--marca-suave:#fbe9e8;--erro:#b42318;--erro-suave:#fdeceb;--alerta:#9a5b00;--alerta-suave:#fdf3dc;--foco:#d10f0f;--receita:#0f7a43;--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--despesa:#b45309;--sombra:0 1px 2px rgba(40,10,10,.06),0 8px 24px rgba(40,10,10,.07);--e1:4px;--e2:8px;--e3:12px;--e4:16px;--e5:24px;--e6:32px;--raio:16px;--sombra2:0 2px 4px rgba(40,10,10,.08),0 14px 32px rgba(40,10,10,.14);--ease:cubic-bezier(.2,.8,.2,1)}
 @media (prefers-color-scheme:dark){:root:not([data-tema=light]){${ESCURO}}}
 :root[data-tema=dark]{color-scheme:dark;${ESCURO}}:root[data-tema=light]{color-scheme:light}
 *{box-sizing:border-box}
@@ -132,7 +132,7 @@ fieldset.opcoes{border:0;padding:0;margin:14px 0}fieldset.opcoes legend{font-siz
 .op .avatar{width:40px;height:40px;font-size:1rem}.op .avatar .ic{width:20px;height:20px}
 .op input:checked+.avatar{outline:3px solid var(--foco);outline-offset:2px}.op input:focus-visible+.avatar{outline:3px dashed var(--texto);outline-offset:2px}
 .so-leitor{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-.aviso.ok{background:var(--marca-suave);color:var(--receita)}
+.aviso.ok{background:color-mix(in srgb,var(--receita) 12%,var(--cartao));color:var(--receita)}
 /* admin */
 .convites{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
 .convite{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border:1px solid var(--borda);border-radius:12px}
@@ -148,19 +148,26 @@ fieldset.opcoes{border:0;padding:0;margin:14px 0}fieldset.opcoes legend{font-siz
 /* dashboard */
 .dash{display:grid;gap:16px}
 .kpis{display:grid;gap:12px;grid-template-columns:1fr}
-.kpi{background:var(--cartao);border:1px solid var(--borda);border-radius:var(--raio);padding:16px;box-shadow:var(--sombra)}
-.kpi .rot{color:var(--suave);font-size:.9rem}.kpi .num{white-space:nowrap;font-size:1.6rem;font-weight:700;letter-spacing:-.01em}
+.kpi{min-width:0;background:var(--cartao);border:1px solid var(--borda);border-radius:var(--raio);padding:16px;box-shadow:var(--sombra)}
+.kpi .rot{color:var(--suave);font-size:.9rem}.kpi .num{white-space:nowrap;font-size:clamp(1.25rem,2vw,1.6rem);font-weight:700;letter-spacing:-.01em}
 .var{display:inline-flex;align-items:center;gap:4px;font-size:.88rem;font-weight:600}.var.bom{color:var(--receita)}.var.ruim{color:var(--erro)}.var.neutro{color:var(--suave)}
-.grafico{display:block;width:100%;max-width:560px;height:auto;margin:0 auto}
-.grafico .b-rec{fill:var(--receita)}.grafico .b-desp{fill:url(#hachura);stroke:var(--despesa);stroke-width:1.5}
+.grafico{display:block;width:100%;height:auto;max-height:280px}
+.grafico .b-rec{fill:var(--receita)}.grafico .b-desp{fill:url(#tend-hachura);stroke:var(--despesa);stroke-width:1.5}
 .grafico .h-fundo{fill:var(--cartao)}.grafico .h-traco{stroke:var(--despesa);stroke-width:3}
-.grafico .val,.grafico .eixo{fill:var(--texto);font-size:10px}.grafico .eixo{fill:var(--suave);font-size:11px}.grafico .base{stroke:var(--borda)}
+.grafico .val,.grafico .eixo{fill:var(--texto);font-size:12px}.grafico .eixo{fill:var(--suave);font-size:13px}.grafico .base{stroke:var(--borda)}
 .dash .legenda{display:flex;gap:16px;flex-wrap:wrap;margin:8px 0 0;padding:0;list-style:none;font-size:.88rem;color:var(--suave)}
 .dash .legenda i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}.dash .legenda .l-rec{background:var(--receita)}.dash .legenda .l-desp{border:1.5px solid var(--despesa);background:repeating-linear-gradient(45deg,var(--despesa) 0 2px,transparent 2px 5px)}
 .cats{list-style:none;margin:0;padding:0;display:grid;gap:12px}.cats li{display:grid;grid-template-columns:1fr auto;gap:2px 12px}.cats .nome{overflow-wrap:anywhere}.cats .valor{font-variant-numeric:tabular-nums;font-weight:600}
-.trilho{grid-column:1/-1;height:8px;background:var(--borda);border-radius:99px;overflow:hidden}.trilho div{height:100%;background:var(--despesa);border-radius:99px}
+.kpi .rot,.dash h2{display:flex;align-items:center;gap:8px}.dash h2 .ic{color:var(--suave)}
+.grafico .linha{fill:none;stroke:var(--s1);stroke-width:2;stroke-linejoin:round}.grafico .zero{stroke:var(--borda);stroke-dasharray:4 4}.grafico .ponto{fill:var(--s1);stroke:var(--cartao);stroke-width:2}.grafico .ponto.neg{fill:var(--erro)}
+@media (max-width:480px){.grafico .val,.grafico .eixo{font-size:17px}.tend .val{display:none}} /* no celular o valor de cada barra fica na tabela */
+.grade.tres{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr))}
+.pizza{display:block;width:100%;max-width:190px;margin:4px auto 16px}.pizza .fatia{fill:none;stroke:var(--c);stroke-width:6;transition:stroke-width .15s}.pizza .fatia:hover{stroke-width:7.5}.pizza .trilho-pizza{fill:none;stroke:var(--borda);stroke-width:6}.pizza .centro{fill:var(--texto);font-size:5px;font-weight:700}
+.f1{--c:var(--s1)}.f2{--c:var(--s2)}.f3{--c:var(--s3)}.f4{--c:var(--s4)}.f5{--c:var(--s5)}.f6{--c:var(--s6)}
+.cats .nome{display:flex;align-items:center;gap:8px;min-width:0}.cats i{flex:none;width:12px;height:12px;border-radius:3px;background:var(--c)}.cats small{color:var(--suave);font-weight:500;margin-left:6px}
+.cats .valor.neg{color:var(--erro)}.saldos .nome .ic{color:var(--suave)}.saldos li.sel .nome{font-weight:700}.saldos li.total{border-top:1px solid var(--borda);padding-top:12px;font-weight:700}
 .dash details{margin-top:12px;font-size:.9rem}.dash summary{cursor:pointer;color:var(--suave)}.dash table{width:100%;border-collapse:collapse;margin-top:8px}.dash th,.dash td{text-align:right;padding:6px 8px;border-bottom:1px solid var(--borda)}.dash th:first-child,.dash td:first-child{text-align:left}
-.filtro{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.filtro{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.filtro select{width:auto;min-width:min(100%,220px)}
 @media (min-width:860px){.pagina{padding:var(--e6) max(40px,env(safe-area-inset-right)) 64px max(40px,env(safe-area-inset-left))}}
 @media (min-width:1024px){.grade.duas{grid-template-columns:repeat(12,minmax(0,1fr))}.c5{grid-column:span 5}.c6{grid-column:span 6}.c7{grid-column:span 7}}
 @media (min-width:1180px){.painel-passos{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -182,8 +189,7 @@ fieldset.opcoes{border:0;padding:0;margin:14px 0}fieldset.opcoes legend{font-siz
 :is(.kpis,.grade,.pilha,main)>:nth-child(3){animation-delay:80ms}
 :is(.kpis,.grade,.pilha,main)>:nth-child(n+4){animation-delay:120ms}
 .grafico .b-rec,.grafico .b-desp{transform-box:fill-box;transform-origin:50% 100%;animation:cresce .5s var(--ease) .1s backwards}
-.trilho div{transform-origin:0 50%;animation:cresce-x .6s var(--ease) .15s backwards}
-@keyframes cresce{from{transform:scaleY(0)}}@keyframes cresce-x{from{transform:scaleX(0)}}
+@keyframes cresce{from{transform:scaleY(0)}}
 @media (hover:hover){.kpi:hover,.comandos li:hover{transform:translateY(-1px);box-shadow:var(--sombra2)}}
 /* acabamento */
 .item[aria-current=page]{position:relative}
@@ -215,6 +221,11 @@ const ICONES = {
   chama: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
   foguete: '<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>',
   banco: '<line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="11"/><line x1="10" x2="10" y1="18" y2="11"/><line x1="14" x2="14" y1="18" y2="11"/><line x1="18" x2="18" y1="18" y2="11"/><polygon points="12 2 20 7 4 7"/>',
+  carteira: '<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>',
+  entrada: '<path d="M16 7h6v6"/><path d="m22 7-8.5 8.5-5-5L2 17"/>',
+  saida: '<path d="M16 17h6v-6"/><path d="m22 17-8.5-8.5-5 5L2 7"/>',
+  pizza: '<path d="M21 12c.552 0 1.005-.449.95-.998a10 10 0 0 0-8.953-8.951c-.55-.055-.998.398-.998.95v8a1 1 0 0 0 1 1z"/><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/>',
+  linha: '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m19 9-5 5-4-4-3 3"/>',
   troca: '<path d="M17 3l4 4-4 4"/><path d="M3 7h18"/><path d="M7 21l-4-4 4-4"/><path d="M21 17H3"/>',
 }
 const ic = (nome: keyof typeof ICONES, classe = '') =>
@@ -381,23 +392,41 @@ const variacao = (v: number | null, altaEhBoa: boolean) => {
   return `<span class="var ${bom ? 'bom' : 'ruim'}">${ic(v > 0 ? 'cima' : 'baixo')}${v > 0 ? '+' : ''}${v}% vs. mês anterior</span>`
 }
 
-const kpi = (rotulo: string, valor: number, v: number | null, altaEhBoa: boolean) =>
-  `<div class="kpi"><div class="rot">${rotulo}</div><div class="num">${formatBRL(valor)}</div>${variacao(v, altaEhBoa)}</div>`
+const kpi = (icone: keyof typeof ICONES, rotulo: string, valor: number, v: number | null, altaEhBoa: boolean) =>
+  `<div class="kpi"><div class="rot">${ic(icone)}${rotulo}</div><div class="num">${formatBRL(valor)}</div>${variacao(v, altaEhBoa)}</div>`
+
+const cartao = (classe: string, icone: keyof typeof ICONES, titulo: string, corpo: string) => `<section class="cartao${classe ? ` ${classe}` : ''}"><h2>${ic(icone)}${titulo}</h2>${corpo}</section>`
+
+// donut + legenda em texto (nome, valor e %): a cor nunca é a única informação
+const pizza = (cats: Categoria[], id: string, titulo: string, semDados: string) =>
+  cats.length
+    ? `${svgPizza(cats, id, titulo, `R$ ${curto(cats.reduce((s, c) => s + c.total, 0))}`)}<ul class="cats">${cats.map((c, i) => `<li><span class="nome"><i class="f${i + 1}" aria-hidden="true"></i>${esc(c.conta)}</span><span class="valor">${formatBRL(c.total)}<small>${c.pct}%</small></span></li>`).join('')}</ul>`
+    : vazio('pizza', semDados)
+
+type ContaDash = Pick<ContaCorrenteComSaldo, 'apelido' | 'nome' | 'saldo' | 'ativa'>
+
+// saldo atual de cada conta ativa (todas, mesmo com filtro: é a visão do patrimônio); a filtrada fica em negrito
+const saldos = (contas: ContaDash[], selecionada: string) => {
+  const ativas = contas.filter((c) => c.ativa)
+  const linha = (nome: string, saldo: number, classe = '', icone = '') => `<li${classe ? ` class="${classe}"` : ''}><span class="nome">${icone}${nome}</span><span class="valor${saldo < 0 ? ' neg' : ''}">${formatBRL(saldo)}</span></li>`
+  return `<ul class="cats saldos">${ativas.map((c) => linha(esc(c.nome), c.saldo, c.apelido === selecionada ? 'sel' : '', ic('banco'))).join('')}${ativas.length > 1 ? linha('Total', ativas.reduce((s, c) => s + c.saldo, 0), 'total') : ''}</ul>`
+}
 
 // filtro por conta corrente (formulário GET, sem JS: a CSP não permite script inline); só aparece com 2+ contas
-const seletorConta = (contas: { apelido: string; nome: string }[], selecionada: string) =>
+const seletorConta = (contas: ContaDash[], selecionada: string) =>
   contas.length < 2
     ? ''
-    : `<form method="get" action="/dashboard" class="filtro-conta"><label for="cc">Conta</label> <select id="cc" name="cc"><option value="">Todas as contas</option>${contas.map((c) => `<option value="${esc(c.apelido)}"${c.apelido === selecionada ? ' selected' : ''}>${esc(c.nome)}</option>`).join('')}</select> <button class="btn sec pequeno">Aplicar</button></form>`
+    : `<form method="get" action="/dashboard" class="filtro"><label for="cc">Conta</label> <select id="cc" name="cc"><option value="">Todas as contas</option>${contas.map((c) => `<option value="${esc(c.apelido)}"${c.apelido === selecionada ? ' selected' : ''}>${esc(c.nome)}</option>`).join('')}</select> <button class="btn sec pequeno">Aplicar</button></form>`
 
 // o dashboard é sempre da própria conta: nem o admin enxerga os valores de outras
-export const paginaDashboard = (email: string, ind: Indicadores, admin: boolean, perfil?: Perfil, contas: { apelido: string; nome: string }[] = [], selecionada = '') => {
+export const paginaDashboard = (email: string, ind: Indicadores, admin: boolean, perfil?: Perfil, contas: ContaDash[] = [], selecionada = '') => {
   const corpo = ind.vazio
     ? `<div class="cartao">${vazio('grafico', 'Nenhum lançamento nos últimos 6 meses. Registre uma despesa ou receita no grupo do WhatsApp e ela aparece aqui.')}</div>`
-    : `<div class="kpis">${kpi('Saldo do mês', ind.saldo, ind.variacao.saldo, true)}${kpi('Receitas', ind.mes.receitas, ind.variacao.receitas, true)}${kpi('Despesas', ind.mes.despesas, ind.variacao.despesas, false)}</div><div class="grade duas">
-<section class="cartao c7"><h2>Últimos ${ind.serie.length} meses</h2>${svgTendencia(ind.serie)}<ul class="legenda"><li><i class="l-rec"></i>Receitas</li><li><i class="l-desp"></i>Despesas</li></ul>
-<details><summary>Ver dados em tabela</summary><table><thead><tr><th>Mês</th><th>Receitas</th><th>Despesas</th></tr></thead><tbody>${ind.serie.map((s) => `<tr><td>${rotuloMesCurto(s)}/${s.ano}</td><td>${formatBRL(s.receitas)}</td><td>${formatBRL(s.despesas)}</td></tr>`).join('')}</tbody></table></details></section>
-<section class="cartao c5"><h2>Despesas por categoria</h2>${ind.categorias.length ? `<ul class="cats">${ind.categorias.map((c) => `<li><span class="nome">${esc(c.conta)}</span><span class="valor">${formatBRL(c.total)}</span><div class="trilho" aria-hidden="true"><div style="width:${c.largura}%"></div></div></li>`).join('')}</ul>` : vazio('grafico', 'Sem despesas neste mês.')}</section></div>`
+    : `<div class="kpis">${kpi('carteira', 'Saldo do mês', ind.saldo, ind.variacao.saldo, true)}${kpi('entrada', 'Receitas', ind.mes.receitas, ind.variacao.receitas, true)}${kpi('saida', 'Despesas', ind.mes.despesas, ind.variacao.despesas, false)}</div>
+<div class="grade duas">${cartao('c7', 'grafico', `Últimos ${ind.serie.length} meses`, `${svgTendencia(ind.serie)}<ul class="legenda"><li><i class="l-rec"></i>Receitas</li><li><i class="l-desp"></i>Despesas</li></ul>
+<details><summary>Ver dados em tabela</summary><table><thead><tr><th>Mês</th><th>Receitas</th><th>Despesas</th><th>Resultado</th></tr></thead><tbody>${ind.serie.map((s) => `<tr><td>${rotuloMesCurto(s)}/${s.ano}</td><td>${formatBRL(s.receitas)}</td><td>${formatBRL(s.despesas)}</td><td>${formatBRL(s.receitas - s.despesas)}</td></tr>`).join('')}</tbody></table></details>`)}
+${cartao('c5', 'linha', 'Resultado mês a mês', svgLinhaSaldo(ind.serie))}</div>
+<div class="grade tres">${cartao('', 'pizza', 'Despesas por categoria', pizza(ind.categorias, 'pz-desp', 'Despesas do mês por categoria', 'Sem despesas neste mês.'))}${cartao('', 'pizza', 'Receitas por categoria', pizza(ind.receitasCat, 'pz-rec', 'Receitas do mês por categoria', 'Sem receitas neste mês.'))}${contas.length ? cartao('', 'banco', 'Saldo por conta', saldos(contas, selecionada)) : ''}</div>`
   const nomeSel = contas.find((c) => c.apelido === selecionada)?.nome
   return shell('dashboard', email, admin ? 'admin' : 'usuario', `<main id="conteudo" class="dash">${topo('Dashboard', `${nomeMes(ind.mes.ano, ind.mes.mes)}${nomeSel ? ` · ${nomeSel}` : ''}`)}${seletorConta(contas, selecionada)}${corpo}</main>`, '', perfil)
 }

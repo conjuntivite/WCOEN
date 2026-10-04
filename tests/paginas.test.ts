@@ -358,6 +358,52 @@ describe('paginaDashboard', () => {
   it('o painel ganha o link para o dashboard', () => {
     expect(paginaPainel('ana@x.com', '', 'conectar')).toContain('href="/dashboard"')
   })
+
+  it('pizzas de despesas e de receitas, com legenda em texto (nome, valor e %)', () => {
+    const i = montarIndicadores(serie, { receitas: [{ conta: 'salário', total: 150000 }], despesas: [{ conta: 'mercado', total: 15000 }, { conta: 'aluguel', total: 10000 }] })
+    const html = paginaDashboard('ana@x.com', i, false)
+    expect(html).toContain('Despesas por categoria')
+    expect(html).toContain('Receitas por categoria')
+    expect(html).toContain('id="pz-desp-t"')
+    expect(html).toContain('id="pz-rec-t"')
+    expect(html).toMatch(/mercado[\s\S]*R\$ 150,00[\s\S]*60%/)
+    expect(html).toMatch(/salário[\s\S]*R\$ 1\.500,00[\s\S]*100%/)
+  })
+
+  it('mês sem receitas mostra aviso no lugar da pizza de receitas', () => {
+    expect(paginaDashboard('ana@x.com', ind(), false)).toContain('Sem receitas neste mês.')
+  })
+
+  it('linha do resultado mês a mês', () => {
+    expect(paginaDashboard('ana@x.com', ind(), false)).toContain('Resultado mês a mês')
+  })
+
+  it('saldo por conta: só contas ativas, nome escapado e saldo negativo destacado', () => {
+    const contas = [
+      { apelido: 'nu', nome: '<b>Nu</b>', saldo: 123456, ativa: true },
+      { apelido: 'itau', nome: 'Itaú', saldo: -4500, ativa: true },
+      { apelido: 'velha', nome: 'Conta velha', saldo: 999, ativa: false },
+    ]
+    const html = paginaDashboard('ana@x.com', ind(), false, undefined, contas)
+    expect(html).toContain('Saldo por conta')
+    expect(html).toContain('&lt;b&gt;Nu&lt;/b&gt;')
+    expect(html).toContain('R$ 1.234,56')
+    expect(html).toMatch(/class="valor neg">-R\$\s?45,00/)
+    expect(html.match(/<ul class="cats saldos">[\s\S]*?<\/ul>/)![0]).not.toContain('Conta velha') // o seletor continua listando todas
+  })
+
+  it('cada KPI e cada título de cartão tem ícone', () => {
+    const html = paginaDashboard('ana@x.com', ind(), false)
+    expect(html.match(/<div class="rot"><svg class="ic"/g)).toHaveLength(3)
+    expect(html).toMatch(/<h2><svg class="ic"[^>]*>[\s\S]*?<\/svg>Últimos/)
+  })
+
+  it('ids únicos na página (vários gráficos SVG juntos)', () => {
+    const contas = [{ apelido: 'a', nome: 'A', saldo: 1, ativa: true }]
+    const i = montarIndicadores(serie, { receitas: [{ conta: 'salário', total: 150000 }], despesas: [{ conta: 'mercado', total: 25000 }] })
+    const ids = [...paginaDashboard('ana@x.com', i, false, undefined, contas).matchAll(/ id="([^"]+)"/g)].map((r) => r[1])
+    expect(new Set(ids).size).toBe(ids.length)
+  })
 })
 
 describe('CSS compartilhado', () => {
@@ -466,9 +512,10 @@ describe('grades por tela', () => {
   const ind = montarIndicadores([{ ano: 2026, mes: 9, receitas: 100000, despesas: 25000 }], { receitas: [], despesas: [{ conta: 'mercado', total: 25000 }] })
   const vazio = montarIndicadores([{ ano: 2026, mes: 9, receitas: 0, despesas: 0 }], { receitas: [], despesas: [] })
 
-  it('dashboard: gráfico (7) ao lado das categorias (5)', () => {
-    const html = paginaDashboard('a@x.com', ind, false)
-    expect(html).toMatch(/class="grade duas"[\s\S]*class="cartao c7"[\s\S]*Últimos[\s\S]*class="cartao c5"[\s\S]*Despesas por categoria/)
+  it('dashboard: barras (7) ao lado do resultado (5); embaixo pizzas de despesas e receitas e o saldo por conta', () => {
+    const html = paginaDashboard('a@x.com', ind, false, undefined, [{ apelido: 'principal', nome: 'Principal', saldo: 0, ativa: true }])
+    expect(html).toMatch(/class="grade duas"[\s\S]*class="cartao c7"[\s\S]*Últimos[\s\S]*class="cartao c5"[\s\S]*Resultado mês a mês/)
+    expect(html).toMatch(/class="grade tres"[\s\S]*Despesas por categoria[\s\S]*Receitas por categoria[\s\S]*Saldo por conta/)
   })
 
   it('dashboard vazio: estado vazio com ícone e o texto de antes', () => {
@@ -570,10 +617,10 @@ describe('página de contas correntes', () => {
 
 describe('dashboard: seletor de conta', () => {
   const ind = montarIndicadores([{ ano: 2026, mes: 9, receitas: 100000, despesas: 25000 }], { receitas: [], despesas: [{ conta: 'mercado', total: 25000 }] })
-  const contasSel = [{ apelido: 'principal', nome: 'Principal' }, { apelido: 'nubank', nome: 'Nubank' }]
+  const contasSel = [{ apelido: 'principal', nome: 'Principal', saldo: 0, ativa: true }, { apelido: 'nubank', nome: 'Nubank', saldo: 0, ativa: true }]
   it('com 2+ contas mostra o seletor (formulário GET), com "Todas" e a selecionada marcada', () => {
     const html = paginaDashboard('a@x.com', ind, false, undefined, contasSel, 'nubank')
-    expect(html).toContain('<form method="get" action="/dashboard"')
+    expect(html).toContain('<form method="get" action="/dashboard" class="filtro"')
     expect(html).toContain('<option value="">Todas as contas</option>')
     expect(html).toContain('<option value="nubank" selected>Nubank</option>')
     expect(html).toContain('· Nubank') // e o nome aparece no subtítulo

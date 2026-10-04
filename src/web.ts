@@ -163,7 +163,7 @@ export function criarWeb(op: OpcoesWeb): Server {
           leitura.balancete(intervaloDoMes(ano, mes), selecionada?.id),
           contasCorrentes.listar(conta.id),
         ])
-        return html(res, 200, paginaDashboard(conta.email, montarIndicadores(serie, balancete), isAdmin(conta), perfilDe(conta), todas.map((c) => ({ apelido: c.apelido, nome: c.nome })), selecionada?.apelido ?? ''))
+        return html(res, 200, paginaDashboard(conta.email, montarIndicadores(serie, balancete), isAdmin(conta), perfilDe(conta), todas, selecionada?.apelido ?? ''))
       }
       if (caminho === '/contas-correntes') {
         if (!conta) return ir(res, '/entrar')
