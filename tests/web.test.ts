@@ -806,6 +806,17 @@ describe('dashboard por conta corrente', () => {
     await get('/dashboard?cc=segredo', b.cookie)
     expect(spies.serie).toHaveBeenLastCalledWith(expect.any(Date), 6, undefined)
   })
+
+  it('saldo por conta mostra o saldo das próprias contas e nunca as de outro cliente', async () => {
+    const a = await entrar()
+    const b = await entrar()
+    await post('/contas-correntes', { apelido: 'nubank', nome: 'Nubank', saldo: '1.234,56' }, { cookie: a.cookie })
+    await post('/contas-correntes', { apelido: 'segredo', nome: 'Cofre do B', saldo: '999' }, { cookie: b.cookie })
+    const html = await (await get('/dashboard', a.cookie)).text()
+    expect(html).toContain('Saldo por conta')
+    expect(html).toContain('R$ 1.234,56')
+    expect(html).not.toContain('Cofre do B')
+  })
 })
 
 describe('perfil', () => {
