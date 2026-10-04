@@ -65,6 +65,15 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ ...base, OPENROUTER_API_KEY: 'k' })).toThrow('OPENROUTER_MODEL não definido')
   })
 
+  it('OPENROUTER_VISION_MODEL é opcional e fica junto da chave', () => {
+    expect(loadConfig({ ...base, OPENROUTER_API_KEY: 'k', OPENROUTER_MODEL: 'a/1' }).openrouter).toEqual({ apiKey: 'k', models: ['a/1'] })
+    expect(loadConfig({ ...base, OPENROUTER_API_KEY: 'k', OPENROUTER_MODEL: 'a/1', OPENROUTER_VISION_MODEL: ' v/2 ' }).openrouter?.visionModel).toBe('v/2')
+  })
+
+  it('OPENROUTER_VISION_MODEL gratuito derruba o boot', () => {
+    expect(() => loadConfig({ ...base, OPENROUTER_API_KEY: 'k', OPENROUTER_MODEL: 'a/1', OPENROUTER_VISION_MODEL: 'v/2:free' })).toThrow(':free')
+  })
+
   it('SMTP é opcional: sem SMTP_HOST fica desligado', () => {
     expect(loadConfig(base).smtp).toBeUndefined()
   })

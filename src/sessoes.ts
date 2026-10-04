@@ -1,5 +1,7 @@
 import { DisconnectReason, jidNormalizedUser, normalizeMessageContent, type AuthenticationState, type WAMessage } from '@whiskeysockets/baileys'
 import { atrasoReconexao } from './backoff'
+import { criarLimitador } from './contas'
+import { comandoDaPrevia, lerLegenda, montarPrevia, NOTA_ARQUIVO, NOTA_DESLIGADA, NOTA_FALHOU, NOTA_LIMITE, NOTA_NADA_PENDENTE, type Extrator } from './nota'
 import { BOAS_VINDAS, recuperados } from './presentation'
 import type { Mensagem, Resposta } from './service'
 
@@ -32,6 +34,7 @@ export type DepsSessoes = {
   qrMaxMs?: number // padrão 120 000
   dormir?: (ms: number) => Promise<void>
   agora?: () => number // ms
+  notas?: { extrator: Extrator; baixar: (m: WAMessage) => Promise<Buffer> } // sem isto, "/nota" responde que a leitura está desligada
 }
 
 type Grupo = { id: string; nome: string }
@@ -57,9 +60,14 @@ type Sessao = {
   timerReconexao?: ReturnType<typeof setTimeout>
   timerResumo?: ReturnType<typeof setTimeout>
   ouvintes: Set<(v: Visao) => void>
+  // ponytail: só em memória; depois de um restart o /ok solto não acha a prévia (responder citando continua valendo)
+  previa?: { id: string; comando: string; em: number } // última prévia de nota, para o /ok solto
 }
 
 const CACHE_GRUPOS_MS = 60_000
+const MIMES_NOTA = new Set(['image/jpeg', 'image/png', 'image/webp'])
+const MAX_BYTES_NOTA = 5 * 1024 * 1024
+const PREVIA_PENDENTE_MS = 30 * 60_000 // o /ok solto só confirma prévia recente
 
 export function criarSessoes(deps: DepsSessoes) {
   const max = deps.maxSessoes ?? 20
@@ -67,6 +75,7 @@ export function criarSessoes(deps: DepsSessoes) {
   const dormir = deps.dormir ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)))
   const agora = deps.agora ?? Date.now
   const sessoes = new Map<string, Sessao>()
+  const limiteNotas = criarLimitador(20, 60 * 60_000, agora) // por conta
 
   const log = (s: Sessao, onde: string, err: unknown) => console.error(`[conta ${s.contaId}] ${onde}:`, err instanceof Error ? err.message : err)
 
@@ -209,6 +218,7 @@ export function criarSessoes(deps: DepsSessoes) {
     await dormir(500 + Math.random() * 1000) // pequeno atraso, menos robótico
     const r = await sock.sendMessage(s.grupoId, { text: texto })
     if (r?.key.id) s.enviados.add(r.key.id)
+    return r?.key.id ?? undefined
   }
 
   function agendarResumo(s: Sessao) {
@@ -220,13 +230,61 @@ export function criarSessoes(deps: DepsSessoes) {
     }, 5000)
   }
 
+  // Fora da fila serial: a IA leva segundos e os outros comandos da conta não esperam.
+  // ponytail: a leitura em andamento se perde se o processo cair; o usuário reenvia a foto.
+  async function lerNota(s: Sessao, m: WAMessage, img: { caption?: string | null; mimetype?: string | null; fileLength?: unknown }) {
+    try {
+      const legenda = lerLegenda(img.caption ?? '')
+      if (!legenda) return
+      if (!deps.notas) return await enviar(s, NOTA_DESLIGADA)
+      if (limiteNotas.bloqueado(s.contaId)) return await enviar(s, NOTA_LIMITE)
+      const mime = img.mimetype ?? ''
+      if (!MIMES_NOTA.has(mime) || Number(img.fileLength) > MAX_BYTES_NOTA) return await enviar(s, NOTA_ARQUIVO)
+      limiteNotas.falhou(s.contaId) // "falhou" = registra uma tentativa (o limitador nasceu para o login)
+      const bytes = await deps.notas.baixar(m)
+      if (bytes.length > MAX_BYTES_NOTA) return await enviar(s, NOTA_ARQUIVO)
+      const { leitura } = await deps.notas.extrator.ler(bytes, mime)
+      const previa = montarPrevia(leitura, legenda, new Date(agora()))
+      const id = await enviar(s, previa)
+      const comando = comandoDaPrevia(previa) // null = nota ilegível ou sem comando: nada a confirmar
+      if (id && comando) s.previa = { id, comando, em: agora() }
+    } catch (err) {
+      log(s, 'nota', err)
+      await enviar(s, NOTA_FALHOU).catch(() => {})
+    }
+  }
+
   async function tratar(s: Sessao, m: WAMessage) {
     try {
       const id = m.key.id
       if (!id || !s.grupoId || m.key.remoteJid !== s.grupoId || s.enviados.has(id)) return
       const conteudo = normalizeMessageContent(m.message) // desembrulha mensagens temporárias / visualização única
-      const texto = conteudo?.conversation ?? conteudo?.extendedTextMessage?.text
+      if (conteudo?.imageMessage) {
+        void lerNota(s, m, conteudo.imageMessage) // sem await: não segura a fila
+        return
+      }
+      let texto = conteudo?.conversation ?? conteudo?.extendedTextMessage?.text
       if (!texto) return
+      let msgId = id
+      const ok = texto.trim().toLowerCase()
+      if (ok === '/ok' || ok === 'ok') {
+        // confirma a prévia citada ("ok" sem barra só vale citando) ou, com "/ok" solto, a última prévia pendente.
+        // Roda o comando da última linha com o id da prévia: o /ok repetido cai no índice único.
+        const ctx = conteudo?.extendedTextMessage?.contextInfo
+        const linha = comandoDaPrevia(ctx?.quotedMessage?.conversation ?? ctx?.quotedMessage?.extendedTextMessage?.text ?? '')
+        if (linha && ctx?.stanzaId) {
+          texto = linha
+          msgId = ctx.stanzaId
+        } else if (ok === 'ok') {
+          return // "ok" solto é conversa
+        } else if (s.previa && agora() - s.previa.em <= PREVIA_PENDENTE_MS) {
+          texto = s.previa.comando
+          msgId = s.previa.id
+        } else {
+          await enviar(s, NOTA_NADA_PENDENTE)
+          return
+        }
+      }
 
       const ts = Number(m.messageTimestamp) || 0
       const enviadoEm = new Date((ts || agora() / 1000) * 1000)
@@ -234,7 +292,8 @@ export function criarSessoes(deps: DepsSessoes) {
       // enviada antes de reconectar = chegou enquanto o bot estava offline
       const recuperada = ts > 0 && ts < s.conectouEm - 2
 
-      const r = await s.service.handle({ msgId: id, remetente, texto, enviadoEm }, { recuperada })
+      const r = await s.service.handle({ msgId, remetente, texto, enviadoEm }, { recuperada })
+      if (msgId === s.previa?.id && (!r || r.lancou)) s.previa = undefined // lançada (ou já estava): não há mais o que confirmar
       if (!r) return
       if (recuperada && r.lancou) {
         s.recuperados++

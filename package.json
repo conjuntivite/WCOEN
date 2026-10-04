@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:paginas": "vitest run tests/paginas.test.ts --config vitest.paginas.config.ts",
     "typecheck": "tsc --noEmit",
-    "senha": "node --env-file=.env --import tsx src/cli/senha.ts"
+    "piloto:nota": "node --env-file=.env --import tsx scripts/piloto-nota.ts",
+    "senha":"node --env-file=.env --import tsx src/cli/senha.ts"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^7.0.0-rc14",
