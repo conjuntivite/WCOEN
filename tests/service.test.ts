@@ -884,8 +884,8 @@ describe('Service: saldo estilo app de banco', () => {
     await s.handle(msg('/r plantão 5', '2026-09-15T13:00:00Z'))
     const t = (await s.handle(msg('/extrato')))!.texto
     // hoje: saldo atual; ontem: atual − (+5 − 20) = 2.515
-    expect(t).toContain('📅 *HOJE · 15/09*\n💰 Saldo do dia: *R$ 2.500,00*\n\n🕐 *10:00*\n🟢 _plantão_\n*+ R$ 5,00*\n\n🕐 *09:00*\n🔴 _luz_\n*− R$ 20,00*')
-    expect(t).toContain('📅 *14/09*\n💰 Saldo do dia: *R$ 2.515,00*\n\n🕐 *09:00*\n🔴 _mercado_\n*− R$ 10,00*')
+    expect(t).toContain('📅 *HOJE · 15/09*\n💰 Saldo do dia: *R$ 2.500,00*\n\n🕐 *10:00*\n🟢 _plantão_\n*+ R$ 5,00*\n🏦 _@principal_\n\n🕐 *09:00*\n🔴 _luz_\n*− R$ 20,00*\n🏦 _@principal_')
+    expect(t).toContain('📅 *14/09*\n💰 Saldo do dia: *R$ 2.515,00*\n\n🕐 *09:00*\n🔴 _mercado_\n*− R$ 10,00*\n🏦 _@principal_')
     expect(t.indexOf('HOJE')).toBeLessThan(t.indexOf('14/09'))
   })
 
@@ -899,6 +899,21 @@ describe('Service: saldo estilo app de banco', () => {
     const pr = (await s.handle(msg('/e @principal')))!.texto
     expect(pr).toContain('🏦 *SALDO ATUAL*\n*R$ 1.000,00*')
     expect(pr).toContain('📅 *14/09*\n💰 Saldo do dia: *R$ 1.500,00*') // antes de sair os 500 de hoje
+  })
+
+  it('/extrato mostra o @apelido da conta abaixo de cada receita/despesa; a transferência já diz origem → destino', async () => {
+    const s = duas()
+    await s.handle(msg('/d mercado 10 @nubank', '2026-09-15T12:00:00Z'))
+    await s.handle(msg('/t 500 @nubank', '2026-09-15T13:00:00Z'))
+    const t = (await s.handle(msg('/extrato')))!.texto
+    expect(t).toContain('🔴 _mercado_\n*− R$ 10,00*\n🏦 _@nubank_')
+    expect(t).not.toContain('Nubank_\n*R$ 500,00*\n🏦')
+  })
+
+  it('com uma conta só, o extrato não repete o apelido', async () => {
+    const s = novoService()
+    await s.handle(msg('/d mercado 10', '2026-09-15T12:00:00Z'))
+    expect((await s.handle(msg('/extrato')))!.texto).not.toContain('@principal')
   })
 
   it('transferência entre contas ativas não muda o saldo total do dia', async () => {

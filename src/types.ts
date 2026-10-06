@@ -28,4 +28,5 @@ export interface ContasDoCliente {
   quantasAtivas(): Promise<number> // só a contagem, barata: roda a cada lançamento
   porId(id: string): Promise<ContaCorrente | null> // ativa ou não
   nomes(): Promise<Record<string, string>> // id → nome de todas as contas do cliente, ativas ou não (para rotular transferências antigas)
+  apelidos(): Promise<Record<string, string>> // id → apelido, idem (para a linha 🏦 do extrato)
 }

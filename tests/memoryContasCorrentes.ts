@@ -14,6 +14,7 @@ export function contasEmMemoria(lista: ContaCorrenteComSaldo[] = [PRINCIPAL]): C
     ativas: async () => lista.filter((c) => c.ativa),
     quantasAtivas: async () => lista.filter((c) => c.ativa).length,
     nomes: async () => Object.fromEntries(lista.map((c) => [c.id, c.nome])),
+    apelidos: async () => Object.fromEntries(lista.map((c) => [c.id, c.apelido])),
     porId: async (id) => {
       const c = lista.find((x) => x.id === id)
       return c ? semSaldo(c) : null
