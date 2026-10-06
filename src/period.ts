@@ -71,8 +71,6 @@ export function rotuloHora(d: Date): string {
 export function resolverData(d: DataLanc, ref: Date): Date | null {
   const h = diaLocal(ref)
   const hoje = meioDia(h.ano, h.mes, h.dia)
-  if (d.tipo === 'relativa') return meioDia(h.ano, h.mes, h.dia - d.diasAtras)
-
   let r = meioDia(d.ano ?? h.ano, d.mes, d.dia)
   if (d.ano === undefined && r.getTime() > hoje.getTime()) r = meioDia(h.ano - 1, d.mes, d.dia) // sem ano e no futuro: ano anterior
   const existe = r.getUTCMonth() + 1 === d.mes // 31/04 e 29/02 fora de bissexto rolariam para o mês seguinte

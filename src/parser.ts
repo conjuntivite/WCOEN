@@ -25,13 +25,11 @@ const COMANDOS = new Map<string, Nome>([
   ['c', 'contas'], ['contas', 'contas'], ['saldo', 'contas'],
   ['t', 'transferencia'], ['transferencia', 'transferencia'],
 ])
-const RELATIVAS = new Map([['hoje', 0], ['ontem', 1], ['anteontem', 2]])
 const DIA_MES = /^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/
 const APELIDO = /^@([a-z0-9_-]{1,20})$/ // a mensagem já chega minúscula
 
+// só a data em si (dd/mm ou dd/mm/aaaa): "ontem" e afins viravam texto da descrição quando o comando não os esperava
 function lerData(token: string): DataLanc | null {
-  const diasAtras = RELATIVAS.get(token)
-  if (diasAtras !== undefined) return { tipo: 'relativa', diasAtras }
   const m = DIA_MES.exec(token)
   if (!m) return null
   const dia = Number(m[1])
@@ -83,7 +81,7 @@ export function parse(texto: string): Comando | null {
     return nome === 'balancete' ? { tipo: 'balancete', relatorio, ...cc } : { tipo: 'auditoria', relatorio: relatorio as Relatorio }
   }
 
-  // "/d conta valor [data] [@conta]": data opcional no fim ("ontem", "15/09", "15/09/2026"); sem ela, o service usa a data de envio
+  // "/d conta valor [data] [@conta]": data opcional no fim ("15/09", "15/09/2026"); sem ela, o service usa a data de envio
   const data = palavras.length ? lerData(palavras[palavras.length - 1]) : null
   const itens = data ? palavras.slice(0, -1) : palavras
   const valor = itens.length >= 2 ? parseValor(itens[itens.length - 1]) : null

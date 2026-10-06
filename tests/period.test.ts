@@ -45,15 +45,9 @@ describe('resolverData', () => {
   const ref = new Date('2026-09-10T15:00:00Z') // 10/09/2026 12:00 em SP
   const iso = (d: Date | null) => d?.toISOString() ?? null
 
-  it('relativas contam a partir do dia de ref', () => {
-    expect(iso(resolverData({ tipo: 'relativa', diasAtras: 0 }, ref))).toBe('2026-09-10T15:00:00.000Z')
-    expect(iso(resolverData({ tipo: 'relativa', diasAtras: 1 }, ref))).toBe('2026-09-09T15:00:00.000Z')
-    expect(iso(resolverData({ tipo: 'relativa', diasAtras: 10 }, ref))).toBe('2026-08-31T15:00:00.000Z')
-  })
-
   it('23h em SP ainda é hoje', () => {
     const noite = new Date('2026-09-11T02:00:00Z') // 10/09 23:00 em SP
-    expect(iso(resolverData({ tipo: 'relativa', diasAtras: 0 }, noite))).toBe('2026-09-10T15:00:00.000Z')
+    expect(iso(resolverData({ tipo: 'dia', dia: 10, mes: 9 }, noite))).toBe('2026-09-10T15:00:00.000Z')
   })
 
   it('dia/mês sem ano usa o ano de ref; se cair no futuro, o ano anterior', () => {
