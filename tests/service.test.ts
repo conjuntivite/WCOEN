@@ -43,8 +43,8 @@ describe('Service: lançamentos', () => {
 
   it('lançamento incompleto responde a dica de uso, sem gravar', async () => {
     const s = novoService()
-    expect(await s.handle(msg('/d mercado'))).toEqual({ texto: USO('/d mercado 45,90', '/d mercado 45,90 ontem', '/d mercado 45,90 15/09', '/d mercado 45,90 @conta'), lancou: false })
-    expect((await s.handle(msg('/r salário')))?.texto).toBe(USO('/r plantão 70', '/r plantão 70 ontem', '/r plantão 70 15/09', '/r plantão 70 @conta'))
+    expect(await s.handle(msg('/d mercado'))).toEqual({ texto: USO('/d mercado 45,90', '/d mercado 45,90 15/09', '/d mercado 45,90 @conta'), lancou: false })
+    expect((await s.handle(msg('/r salário')))?.texto).toBe(USO('/r plantão 70', '/r plantão 70 15/09', '/r plantão 70 @conta'))
     expect((await s.handle(msg('/extrato')))?.texto).toContain('Nenhum lançamento')
   })
 
@@ -253,7 +253,7 @@ describe('Service: data do lançamento', () => {
 
   it('com data informada, lança nela e mostra o dia na confirmação', async () => {
     const s = novoService() // mensagens enviadas em 10/09/2026
-    expect((await s.handle(msg('/r plantão 450 ontem')))?.texto).toBe('🟢 *RECEITA REGISTRADA*\n\n📝 _plantão_\n💰 *R$ 450,00*\n📅 _09/09_')
+    expect((await s.handle(msg('/r plantão 450 09/09')))?.texto).toBe('🟢 *RECEITA REGISTRADA*\n\n📝 _plantão_\n💰 *R$ 450,00*\n📅 _09/09_')
     expect((await s.handle(msg('/d mercado 10 31/08')))?.texto).toBe('🔴 *DESPESA REGISTRADA*\n\n📝 _mercado_\n💰 *R$ 10,00*\n📅 _31/08_')
     const b = (await s.handle(msg('/balancete mensal')))?.texto
     expect(b).toContain('📅 *Setembro/2026*\n\n🟢 Receitas\n*R$ 450,00*\n\n🔴 Despesas\n*R$ 0,00*')
@@ -590,7 +590,7 @@ describe('Service: ajuda e recuperação', () => {
   it('ajuda é um menu com todos os comandos', async () => {
     const t = (await novoService().handle(msg('/ajuda')))!.texto
     expect(t.startsWith('🤖 *WCOEN*\n_Seu controle financeiro pelo WhatsApp_')).toBe(true)
-    for (const c of ['/d mercado 45,90', '/r plantão 70', '/d mercado 45 ontem', '/balancete', '/balancete mensal', '/balancete semanal', '/balancete anual', '/auditoria mensal', '/auditoria semanal', '/auditoria anual', '/extrato', '/extrato 2', '/desfazer']) {
+    for (const c of ['/d mercado 45,90', '/r plantão 70', '/d mercado 45 15/09', '/balancete', '/balancete mensal', '/balancete semanal', '/balancete anual', '/auditoria mensal', '/auditoria semanal', '/auditoria anual', '/extrato', '/extrato 2', '/desfazer']) {
       expect(t).toContain(`\`${c}\``)
     }
     for (const t2 of ['LANÇAMENTOS', 'RELATÓRIOS', 'AUDITORIA', 'EXTRATO', 'CORREÇÃO']) expect(t).toContain(`*${t2}*`)
@@ -773,7 +773,7 @@ describe('Service: transferência entre contas', () => {
     const repo = new MemoryRepo()
     const s = comDuasContas(repo)
     expect((await s.handle(msg('/t 500 @nubank')))?.texto).toBe('🔁 *TRANSFERÊNCIA REGISTRADA*\n\n🏦 _Principal → Nubank_\n💰 *R$ 500,00*')
-    expect((await s.handle(msg('/t 70 @nubank ontem')))?.texto).toContain('📅')
+    expect((await s.handle(msg('/t 70 @nubank 14/09')))?.texto).toContain('📅')
     expect((await repo.extrato(mes))[0]).toMatchObject({ contaCorrenteId: 'cc1', contaDestinoId: 'cc2' })
   })
 
@@ -802,7 +802,7 @@ describe('Service: transferência entre contas', () => {
 
   it('uso incorreto devolve a dica, sem gravar', async () => {
     const repo = new MemoryRepo()
-    const dica = USO('/t 500 @nubank @itau', '/t 500 @itau', '/t 500 @nubank @itau ontem')
+    const dica = USO('/t 500 @nubank @itau', '/t 500 @itau', '/t 500 @nubank @itau 15/09')
     expect((await comDuasContas(repo).handle(msg('/t 500')))?.texto).toBe(dica)
     expect((await comDuasContas(repo).handle(msg('/t 500 @a @b @c')))?.texto).toBe(dica)
     expect(await repo.extrato(mes)).toEqual([])

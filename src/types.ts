@@ -1,7 +1,7 @@
 export type Natureza = 'despesa' | 'receita'
 // 'transferencia' não é receita nem despesa: move dinheiro entre duas contas correntes do cliente (origem = contaCorrenteId, destino = contaDestinoId)
 export type TipoLancamento = Natureza | 'transferencia'
-export type DataLanc = { tipo: 'relativa'; diasAtras: number } | { tipo: 'dia'; dia: number; mes: number; ano?: number }
+export type DataLanc = { tipo: 'dia'; dia: number; mes: number; ano?: number }
 // data = dia do lançamento (o balancete filtra por ela): a informada pelo usuário ou, sem ela, enviadoEm; enviadoEm = quando a mensagem foi enviada (ordena o desfazer)
 export type NovoLancamento = { tipo: TipoLancamento; conta: string; valor: number; remetente: string; msgId: string; data: Date; enviadoEm: Date; contaCorrenteId: string; contaDestinoId?: string }
 export type Lancamento = NovoLancamento & { desfeitoEm: Date | null }

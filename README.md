@@ -30,10 +30,10 @@ Requer Node >= 20.6 (o `npm start` usa `--env-file`).
 | `/balancete anual` | resumo do ano atual e dos 4 anteriores |
 | `/extrato` (`/e`) / `/extrato 2` | todos os lançamentos, do mais recente ao mais antigo, **20 por página**; no fim da página o bot diz qual comando digitar para ver a próxima (`/extrato 2`, `/extrato 3`...) |
 | `/auditoria` (`/a`) (+ `semanal` ou `anual`) | ranking dos maiores gastos, comparação com o período anterior e sugestões da IA |
-| `/r plantão 450 ontem`, `/d mercado 45 15/09` | data opcional no fim: `hoje`, `ontem`, `anteontem`, `dd/mm`, `dd/mm/aaaa`. Sem data, vale o dia do envio da mensagem |
+| `/r plantão 450 15/09`, `/d mercado 45 15/09/2026` | data opcional no fim: `dd/mm` ou `dd/mm/aaaa` (palavras como `ontem` não valem). Sem data, vale o dia do envio da mensagem |
 | `/d mercado 45,90 @nubank`, `/r plantão 70 @itau` | lança em outra conta corrente: `@apelido` em qualquer posição. Sem `@`, vale a conta **favorita** |
 | `/contas` (`/c`) | contas correntes ativas com apelido e saldo atual |
-| `/t 500 @nubank @itau` | transfere R$ 500 da conta `@nubank` para a `@itau` (o primeiro `@` é a origem). Com um `@` só (`/t 500 @itau`), sai da **favorita**. Data opcional no fim (`/t 500 @itau ontem`). Não é receita nem despesa: fica fora do balancete, da auditoria e do dashboard; aparece no extrato e muda o saldo das duas contas |
+| `/t 500 @nubank @itau` | transfere R$ 500 da conta `@nubank` para a `@itau` (o primeiro `@` é a origem). Com um `@` só (`/t 500 @itau`), sai da **favorita**. Data opcional no fim (`/t 500 @itau 15/09`). Não é receita nem despesa: fica fora do balancete, da auditoria e do dashboard; aparece no extrato e muda o saldo das duas contas |
 | `/balancete @nubank`, `/extrato 2 @nubank` | o mesmo relatório, só dessa conta (sem `@`, somam todas). `/auditoria` é sempre consolidada |
 | `/desfazer` | desfaz o último lançamento |
 | `/ajuda` (`/h`) | lista os comandos |

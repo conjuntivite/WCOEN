@@ -175,7 +175,7 @@ export const AJUDA = [
     `💸 ${bold('LANÇAMENTOS')}`,
     `🔴 Despesa\n${cmd('/d mercado 45,90')}`,
     `🟢 Receita\n${cmd('/r plantão 70')}`,
-    `📅 Data opcional\n${cmd('/d mercado 45 ontem')}\n${cmd('/d mercado 45 15/09')}`,
+    `📅 Data opcional\n${cmd('/d mercado 45 15/09')}\n${cmd('/d mercado 45 15/09/2026')}`,
     `🏦 Outra conta (a favorita é a padrão)\n${cmd('/d mercado 45 @nubank')}`,
     `📸 Foto de nota (IA lê, você confirma)\n${cmd('/nota')} ${italic('na legenda da foto')}\n${italic('confira a prévia e envie')} ${cmd('/ok')}`,
   ].join('\n\n'),
@@ -201,9 +201,9 @@ export const USO = {
   balancete: uso('/balancete', '/balancete mensal', '/balancete semanal', '/balancete anual', '/balancete @conta'),
   auditoria: uso('/auditoria mensal', '/auditoria semanal', '/auditoria anual'),
   extrato: uso('/extrato', '/extrato 2', '/extrato @conta'),
-  despesa: uso('/d mercado 45,90', '/d mercado 45,90 ontem', '/d mercado 45,90 15/09', '/d mercado 45,90 @conta'),
-  receita: uso('/r plantão 70', '/r plantão 70 ontem', '/r plantão 70 15/09', '/r plantão 70 @conta'),
-  transferencia: uso('/t 500 @nubank @itau', '/t 500 @itau', '/t 500 @nubank @itau ontem'),
+  despesa: uso('/d mercado 45,90', '/d mercado 45,90 15/09', '/d mercado 45,90 @conta'),
+  receita: uso('/r plantão 70', '/r plantão 70 15/09', '/r plantão 70 @conta'),
+  transferencia: uso('/t 500 @nubank @itau', '/t 500 @itau', '/t 500 @nubank @itau 15/09'),
 }
 
 // `gravando`: o comando era um lançamento (nada foi gravado) ou só o filtro de um relatório

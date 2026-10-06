@@ -3,7 +3,6 @@ import { parse } from '../src/parser'
 
 const desp = (conta: string, valor: number) => ({ tipo: 'lancamento', natureza: 'despesa', conta, valor })
 const rec = (conta: string, valor: number) => ({ tipo: 'lancamento', natureza: 'receita', conta, valor })
-const ontem = { tipo: 'relativa', diasAtras: 1 }
 
 describe('parse: lançamentos (/d e /r: descrição, valor, data)', () => {
   it.each([
@@ -16,9 +15,6 @@ describe('parse: lançamentos (/d e /r: descrição, valor, data)', () => {
     ['/d mercado R$45,90', desp('mercado', 4590)],
     ['/r salário 3000', rec('salário', 300000)],
     ['/receita Freela 1.500,50', rec('freela', 150050)],
-    ['/r salário 3000 ontem', { ...rec('salário', 300000), data: ontem }],
-    ['/d mercado 45,90 hoje', { ...desp('mercado', 4590), data: { tipo: 'relativa', diasAtras: 0 } }],
-    ['/d mercado 45 anteontem', { ...desp('mercado', 4500), data: { tipo: 'relativa', diasAtras: 2 } }],
     ['/r plantão 450 15/09', { ...rec('plantão', 45000), data: { tipo: 'dia', dia: 15, mes: 9 } }],
     ['/r plantão 450 15/09/2026', { ...rec('plantão', 45000), data: { tipo: 'dia', dia: 15, mes: 9, ano: 2026 } }],
     ['/d conta de luz 120 5/9', { ...desp('conta de luz', 12000), data: { tipo: 'dia', dia: 5, mes: 9 } }],
@@ -30,7 +26,7 @@ describe('parse: lançamentos (/d e /r: descrição, valor, data)', () => {
     expect(parse('/d mercado 45,90')).not.toHaveProperty('data')
   })
 
-  it.each([['/d'], ['/d mercado'], ['/d 45'], ['/d 45 mercado'], ['/d mercado ontem'], ['/d mercado 0'], ['/d mercado -5'], ['/d mercado 45 32/13'], ['/d mercado 45 amanhã'], ['/d mercado 45 15/09/1999'], [`/d ${'palavra '.repeat(10)}45`]])(
+  it.each([['/d'], ['/d mercado'], ['/d 45'], ['/d 45 mercado'], ['/d mercado ontem'], ['/d mercado 0'], ['/d mercado -5'], ['/d mercado 45 32/13'], ['/d mercado 45 amanhã'], ['/d mercado 45 hoje'], ['/d mercado 45 ontem'], ['/d mercado 45 anteontem'], ['/d mercado 45 ontem @nubank'], ['/d mercado 45 15/09/1999'], [`/d ${'palavra '.repeat(10)}45`]])(
     'uso incorreto de /d: %j',
     (entrada) => {
       expect(parse(entrada)).toEqual({ tipo: 'uso', comando: 'despesa' })
@@ -153,8 +149,8 @@ describe('parse: conta corrente (@apelido)', () => {
   })
 
   it('@ convive com a data, antes ou depois dela', () => {
-    expect(parse('/d mercado 45 ontem @nubank')).toEqual({ ...desp('mercado', 4500), data: { tipo: 'relativa', diasAtras: 1 }, contaCorrente: 'nubank' })
-    expect(parse('/d mercado 45 @nubank ontem')).toEqual({ ...desp('mercado', 4500), data: { tipo: 'relativa', diasAtras: 1 }, contaCorrente: 'nubank' })
+    expect(parse('/d mercado 45 15/09 @nubank')).toEqual({ ...desp('mercado', 4500), data: { tipo: 'dia', dia: 15, mes: 9 }, contaCorrente: 'nubank' })
+    expect(parse('/d mercado 45 @nubank 15/09')).toEqual({ ...desp('mercado', 4500), data: { tipo: 'dia', dia: 15, mes: 9 }, contaCorrente: 'nubank' })
   })
 
   it('sem @, o resultado é o de antes (sem a chave contaCorrente)', () => {
@@ -209,8 +205,9 @@ describe('parse: transferência (/t)', () => {
   })
 
   it('data opcional, antes ou depois dos @', () => {
-    expect(parse('/t 500 @a @b ontem')).toEqual({ tipo: 'transferencia', valor: 50000, origem: 'a', destino: 'b', data: { tipo: 'relativa', diasAtras: 1 } })
-    expect(parse('/t 500 ontem @a @b')).toEqual({ tipo: 'transferencia', valor: 50000, origem: 'a', destino: 'b', data: { tipo: 'relativa', diasAtras: 1 } })
+    expect(parse('/t 500 @a @b 15/09/2026')).toEqual({ tipo: 'transferencia', valor: 50000, origem: 'a', destino: 'b', data: { tipo: 'dia', dia: 15, mes: 9, ano: 2026 } })
+    expect(parse('/t 500 15/09/2026 @a @b')).toEqual({ tipo: 'transferencia', valor: 50000, origem: 'a', destino: 'b', data: { tipo: 'dia', dia: 15, mes: 9, ano: 2026 } })
+    expect(parse('/t 500 @a @b ontem')).toEqual({ tipo: 'uso', comando: 'transferencia' })
     expect(parse('/t 500 @itau 15/09')).toEqual({ tipo: 'transferencia', valor: 50000, destino: 'itau', data: { tipo: 'dia', dia: 15, mes: 9, ano: undefined } })
   })
 
