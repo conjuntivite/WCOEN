@@ -92,7 +92,7 @@ export function resumoPeriodos(rel: string, blocos: BlocoPeriodo[], filtro?: str
 // `saldos`: saldo atual e saldo ao fim de cada dia (chave = dataCompleta); ausente quando a conta filtrada está desativada
 export type SaldosExtrato = { agora: Date; atual: number; porDia: Record<string, number> }
 
-export function extrato(pagina: number, total: number, itens: Lancamento[], geral: { receitas: number; despesas: number } | null, filtro?: string, nomes: Record<string, string> = {}, saldos?: SaldosExtrato): string {
+export function extrato(pagina: number, total: number, itens: Lancamento[], geral: { receitas: number; despesas: number } | null, filtro?: string, nomes: Record<string, string> = {}, saldos?: SaldosExtrato, apelidos: Record<string, string> = {}): string {
   // itens já vêm do mais recente ao mais antigo: um bloco por dia, com o saldo ao fim dele
   const dias: { chave: string; itens: Lancamento[] }[] = []
   for (const l of itens) {
@@ -103,7 +103,9 @@ export function extrato(pagina: number, total: number, itens: Lancamento[], gera
   const blocos = dias.map((d) => {
     const titulo = `📅 ${bold(`${saldos && d.chave === dataCompleta(saldos.agora) ? 'HOJE · ' : ''}${d.chave.slice(0, 5)}`)}`
     const saldoDoDia = saldos ? `\n💰 Saldo do dia: ${bold(formatBRL(saldos.porDia[d.chave]))}` : ''
-    const linhas = d.itens.map((l) => `🕐 ${bold(rotuloHora(l.enviadoEm))}\n${icone(l.tipo)} ${italic(descricaoDe(l, nomes))}\n${sinal(l.tipo, l.valor)}`)
+    // `apelidos` vazio = não mostra a conta; a transferência já diz origem → destino
+    const conta = (l: Lancamento) => (l.tipo !== 'transferencia' && apelidos[l.contaCorrenteId] ? `\n🏦 ${italic(`@${limpar(apelidos[l.contaCorrenteId])}`)}` : '')
+    const linhas = d.itens.map((l) => `🕐 ${bold(rotuloHora(l.enviadoEm))}\n${icone(l.tipo)} ${italic(descricaoDe(l, nomes))}\n${sinal(l.tipo, l.valor)}${conta(l)}`)
     return `${titulo}${saldoDoDia}\n\n${linhas.join('\n\n')}`
   })
   const rodape = pagina < total ? `➡️ ${italic(`Digite ${bold(`/extrato ${pagina + 1}`)} para continuar.`)}` : total > 1 ? `✅ ${italic('Fim do extrato.')}` : ''

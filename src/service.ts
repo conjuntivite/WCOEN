@@ -203,6 +203,7 @@ export class Service {
     if (pagina > total) return ui.paginaInexistente(total)
     const itens = todos.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
     const nomes = await this.nomesSeHouverTransferencia(itens)
+    const apelidos = await this.contasCC.apelidos()
 
     // saldo ao fim de cada dia: parte do saldo atual e desfaz os lançamentos do mais recente para o mais antigo
     const escopo = await this.saldoDoEscopo(f)
@@ -216,7 +217,7 @@ export class Service {
         corrente -= efeito(l, escopo.ids)
       }
     }
-    return ui.extrato(pagina, total, itens, pagina === 1 ? { receitas: somaTipo(todos, 'receita'), despesas: somaTipo(todos, 'despesa') } : null, f.nome, nomes, saldos)
+    return ui.extrato(pagina, total, itens, pagina === 1 ? { receitas: somaTipo(todos, 'receita'), despesas: somaTipo(todos, 'despesa') } : null, f.nome, nomes, saldos, Object.keys(apelidos).length >= 2 ? apelidos : {}) // com uma conta só, o apelido seria repetição
   }
 
   private async auditoria(rel: Relatorio): Promise<string> {

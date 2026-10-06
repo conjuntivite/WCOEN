@@ -97,6 +97,10 @@ export async function criarContasCorrentes(pool: Pool) {
       const r = await pool.query<{ id: string; nome: string }>('SELECT id, nome FROM contas_correntes WHERE conta_id = $1', [contaId])
       return Object.fromEntries(r.rows.map((x) => [x.id, x.nome]))
     },
+    async apelidos() {
+      const r = await pool.query<{ id: string; apelido: string }>('SELECT id, apelido FROM contas_correntes WHERE conta_id = $1', [contaId])
+      return Object.fromEntries(r.rows.map((x) => [x.id, x.apelido]))
+    },
     async porId(id) {
       const r = await pool.query<Row>('SELECT * FROM contas_correntes WHERE conta_id = $1 AND id = $2', [contaId, id])
       return r.rows[0] ? paraConta(r.rows[0]) : null
