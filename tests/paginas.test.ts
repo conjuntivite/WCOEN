@@ -20,10 +20,16 @@ describe('marca e prévia do bot nas telas de entrada', () => {
   ])('%s: logo, tagline e prévia da mensagem do bot', (_n, html) => {
     expect(html).toContain('WCOEN')
     expect(html).toContain('Seu controle financeiro pelo WhatsApp')
-    expect(html).toContain('src="/ds/wcoen-mark-reverso.svg"') // logo do Trade UI; a vitrine é escura
+    expect(html).toContain('src="/ds/wcoen-lockup-dark.svg"') // logo completa (com o "O" sorrindo); a vitrine é escura
     expect(html).toContain('href="/ds/wcoen-icon-light.svg"') // favicon
     expect(html).toContain('BALANCETE DO DIA')
     expect(html).toMatch(/role="img"[^>]*aria-label="Exemplo de mensagem do bot/)
+  })
+
+  it('menu: logo completa por tema e o ícone para o menu recolhido', () => {
+    const html = paginaPainel('ana@x.com', '', 'desconectado')
+    for (const arquivo of ['wcoen-lockup-light.svg', 'wcoen-lockup-dark.svg', 'wcoen-icon-light.svg']) expect(html).toContain(`src="/ds/${arquivo}"`)
+    expect(html).toContain('aria-label="WCOEN, início"') // as imagens são decorativas; o nome vem do link
   })
 })
 

@@ -33,9 +33,9 @@ p{margin:0 0 var(--space-3)}a{color:var(--info);font-weight:600}a:hover{color:va
 .sub{color:var(--fg-secondary);font-size:14px}
 .ic{width:1.15em;height:1.15em;flex:none;vertical-align:-.2em}
 .marca{display:inline-flex;align-items:center;gap:var(--space-2);font-weight:600;font-size:20px;letter-spacing:-.02em;color:inherit;text-decoration:none}
-.logo{width:36px;height:auto;flex:none}
+.logo{display:block;height:32px;width:auto;flex:none}.marca.grande .logo{height:56px}.barra-mobile .logo{height:28px}
+.logo-icone{display:none;height:36px;width:auto}
 .logo-escuro,:root[data-theme=dark] .logo-claro{display:none}:root[data-theme=dark] .logo-escuro{display:block}
-.marca.grande{font-size:32px;line-height:40px}.marca.grande .logo{width:56px}
 /* entrar / cadastro */
 .auth{min-height:100vh}
 .vitrine{background:var(--bg-brand-deep);color:var(--offwhite);padding:var(--space-6) var(--space-5) var(--space-6)}
@@ -112,7 +112,7 @@ details{margin-top:var(--space-4)}summary{cursor:pointer;color:var(--fg-secondar
 .conteudo{min-width:0}
 @media (min-width:860px){
 html[data-menu=estreito] .app{grid-template-columns:72px minmax(0,1fr)}
-html[data-menu=estreito] .rotulo,html[data-menu=estreito] .menu .marca span{display:none}
+html[data-menu=estreito] .rotulo,html[data-menu=estreito] .menu .logo{display:none}html[data-menu=estreito] .menu .logo-icone{display:block} /* a logo completa não cabe em 72px */
 html[data-menu=estreito] .menu-topo{flex-direction:column;justify-content:center}
 html[data-menu=estreito] .item{justify-content:center;padding:var(--space-2)}
 }
@@ -238,9 +238,10 @@ const BTN_PEQUENO = 'tu-btn tu-btn--pill tu-btn--secondary tu-btn--md'
 const ic = (nome: keyof typeof ICONES, classe = '') =>
   `<svg class="ic${classe ? ` ${classe}` : ''}" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ICONES[nome]}</svg>`
 
-// símbolo do Trade UI (design-system/brand/wcoen, servido em /ds): o normal no tema claro, o reverso no escuro
+// logo completa do Trade UI (design-system/brand/wcoen, servida sem fundo em /ds): clara no tema claro, escura no escuro;
+// o ícone só aparece no menu recolhido. As imagens são decorativas: o nome acessível vem do aria-label do link.
 const marca = (href = '/', grande = false) =>
-  `<a class="marca${grande ? ' grande' : ''}" href="${href}" aria-label="WCOEN, início"><img class="logo logo-claro" src="/ds/wcoen-mark.svg" alt=""><img class="logo logo-escuro" src="/ds/wcoen-mark-reverso.svg" alt=""><span>WCOEN</span></a>`
+  `<a class="marca${grande ? ' grande' : ''}" href="${href}" aria-label="WCOEN, início"><img class="logo logo-claro" src="/ds/wcoen-lockup-light.svg" alt=""><img class="logo logo-escuro" src="/ds/wcoen-lockup-dark.svg" alt=""><img class="logo-icone" src="/ds/wcoen-icon-light.svg" alt=""></a>`
 
 const layout = (titulo: string, corpo: string, script = '') =>
   `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="color-scheme" content="light dark"><link rel="icon" type="image/svg+xml" href="/ds/wcoen-icon-dark.svg" media="(prefers-color-scheme:dark)"><link rel="icon" type="image/svg+xml" href="/ds/wcoen-icon-light.svg" media="(prefers-color-scheme:light)"><title>${esc(titulo)} · WCOEN</title><style>${ESTILO}</style><script src="/app.js"></script></head><body><a class="pular" href="#conteudo">Pular para o conteúdo</a>${corpo}${script}</body></html>`

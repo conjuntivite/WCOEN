@@ -299,6 +299,15 @@ describe('estáticos', () => {
     expect(js.headers.get('content-type')).toContain('javascript')
     expect(await js.text()).toContain('localStorage')
   })
+
+  it.each(['light', 'dark'])('logo completa (%s) sai sem o fundo opaco e recortada no desenho', async (tema) => {
+    const r = await get(`/ds/wcoen-lockup-${tema}.svg`)
+    expect(r.headers.get('content-type')).toBe('image/svg+xml')
+    const svg = await r.text()
+    expect(svg).not.toMatch(/<rect width="588" height="200"/) // senão vira uma caixa sobre o menu e a vitrine
+    expect(svg).toContain('viewBox="24 20 520 160"')
+    expect(svg).toContain('<circle') // o "O" sorrindo continua lá
+  })
 })
 
 describe('saúde', () => {

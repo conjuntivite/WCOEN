@@ -26,10 +26,16 @@ export type OpcoesWeb = {
   dominio?: string // usado para montar o link de redefinição de senha; sem isso, cairia no Host da requisição, que o cliente pode forjar
 }
 
-// arquivos estáticos do Trade UI lidos uma vez: símbolos e ícones do WCOEN (design-system/brand) e fontes (design-system/fonts)
+// arquivos estáticos do Trade UI lidos uma vez: logo e ícones do WCOEN (design-system/brand) e fontes (design-system/fonts)
 const arquivo = (caminho: string, tipo: string): [Buffer, string] => [readFileSync(new URL(caminho, import.meta.url)), tipo]
+// a logo completa vem com fundo opaco (cinza/preto) e margem: tira os dois para assentar no menu e na vitrine
+const lockup = (tema: string): [Buffer, string] => {
+  const svg = arquivo(`../design-system/brand/wcoen/wcoen-lockup-${tema}.svg`, '')[0].toString()
+  return [Buffer.from(svg.replace('viewBox="0 0 588 200" width="588" height="200"', 'viewBox="24 20 520 160"').replace(/<rect width="588" height="200" fill="[^"]*"\/>/, '')), 'image/svg+xml']
+}
 const ESTATICOS = new Map<string, [Buffer, string]>([
-  ...['wcoen-mark', 'wcoen-mark-reverso', 'wcoen-icon-light', 'wcoen-icon-dark'].map((n) => [`/ds/${n}.svg`, arquivo(`../design-system/brand/wcoen/${n}.svg`, 'image/svg+xml')] as const),
+  ...['light', 'dark'].map((t) => [`/ds/wcoen-lockup-${t}.svg`, lockup(t)] as const),
+  ...['wcoen-icon-light', 'wcoen-icon-dark'].map((n) => [`/ds/${n}.svg`, arquivo(`../design-system/brand/wcoen/${n}.svg`, 'image/svg+xml')] as const),
   ...['plus-jakarta-sans', 'space-mono'].map((n) => [`/ds/${n}.woff2`, arquivo(`../design-system/fonts/${n}.woff2`, 'font/woff2')] as const),
 ])
 
