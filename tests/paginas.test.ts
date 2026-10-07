@@ -20,6 +20,8 @@ describe('marca e prévia do bot nas telas de entrada', () => {
   ])('%s: logo, tagline e prévia da mensagem do bot', (_n, html) => {
     expect(html).toContain('WCOEN')
     expect(html).toContain('Seu controle financeiro pelo WhatsApp')
+    expect(html).toContain('src="/ds/wcoen-mark-reverso.svg"') // logo do Trade UI; a vitrine é escura
+    expect(html).toContain('href="/ds/wcoen-icon-light.svg"') // favicon
     expect(html).toContain('BALANCETE DO DIA')
     expect(html).toMatch(/role="img"[^>]*aria-label="Exemplo de mensagem do bot/)
   })

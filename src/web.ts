@@ -26,10 +26,10 @@ export type OpcoesWeb = {
   dominio?: string // usado para montar o link de redefinição de senha; sem isso, cairia no Host da requisição, que o cliente pode forjar
 }
 
-// arquivos estáticos lidos uma vez: logo leve (src/assets; o original de design tinha 2 MB) e fontes do Trade UI (design-system/fonts)
+// arquivos estáticos do Trade UI lidos uma vez: símbolos e ícones do WCOEN (design-system/brand) e fontes (design-system/fonts)
 const arquivo = (caminho: string, tipo: string): [Buffer, string] => [readFileSync(new URL(caminho, import.meta.url)), tipo]
 const ESTATICOS = new Map<string, [Buffer, string]>([
-  ...['logo', 'mascote'].map((n) => [`/${n}.svg`, arquivo(`./assets/${n}.svg`, 'image/svg+xml')] as const),
+  ...['wcoen-mark', 'wcoen-mark-reverso', 'wcoen-icon-light', 'wcoen-icon-dark'].map((n) => [`/ds/${n}.svg`, arquivo(`../design-system/brand/wcoen/${n}.svg`, 'image/svg+xml')] as const),
   ...['plus-jakarta-sans', 'space-mono'].map((n) => [`/ds/${n}.woff2`, arquivo(`../design-system/fonts/${n}.woff2`, 'font/woff2')] as const),
 ])
 
