@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { AVATAR_CORES, AVATAR_ICONES, type Conta, type ContaResumo, type Papel, type Perfil } from './contas'
 import type { Convite } from './convites'
 import type { Aviso, Visao } from './sessoes'
@@ -9,169 +10,175 @@ const ENTIDADES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt
 export const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ENTIDADES[c])
 
 // --- identidade visual ---------------------------------------------------
-// Sem fontes nem imagens externas (a CSP só permite o próprio site): pilha do sistema e SVG inline.
+// Design system Trade UI (cópia em design-system/). A CSP só permite o próprio site e CSS inline:
+// os tokens entram no <style> e as fontes são servidas por /ds/*.woff2.
 
-const ESCURO = '--fundo:#0d0a0a;--cartao:#171213;--texto:#f3eaea;--suave:#b5a2a4;--borda:#322627;--marca:#ff4444;--marca-forte:#ff7a7a;--sobre-marca:#1a0505;--marca-suave:#33191a;--erro:#f97066;--erro-suave:#33191a;--alerta:#f5b544;--alerta-suave:#33280f;--foco:#ff7a7a;--receita:#4ade80;--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#008300;--despesa:#fbbf24;--sombra:none;--sombra2:0 10px 30px rgba(0,0,0,.5)'
+const TOKENS = readFileSync(new URL('../design-system/tokens/tokens.css', import.meta.url), 'utf8').replace(/^@import.*$/m, '') // o @import do Google Fonts seria bloqueado pela CSP
+const COMPONENTES = readFileSync(new URL('../design-system/components/trade-ui.css', import.meta.url), 'utf8')
 
 const ESTILO = `
-:root{color-scheme:light dark;--fundo:#f8f5f4;--cartao:#fff;--texto:#1a1213;--suave:#5e5052;--borda:#e6dcdb;--marca:#d10f0f;--marca-forte:#a80b0b;--sobre-marca:#fff;--marca-suave:#fbe9e8;--erro:#b42318;--erro-suave:#fdeceb;--alerta:#9a5b00;--alerta-suave:#fdf3dc;--foco:#d10f0f;--receita:#0f7a43;--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--despesa:#b45309;--sombra:0 1px 2px rgba(40,10,10,.06),0 8px 24px rgba(40,10,10,.07);--e1:4px;--e2:8px;--e3:12px;--e4:16px;--e5:24px;--e6:32px;--raio:16px;--sombra2:0 2px 4px rgba(40,10,10,.08),0 14px 32px rgba(40,10,10,.14);--ease:cubic-bezier(.2,.8,.2,1)}
-@media (prefers-color-scheme:dark){:root:not([data-tema=light]){${ESCURO}}}
-:root[data-tema=dark]{color-scheme:dark;${ESCURO}}:root[data-tema=light]{color-scheme:light}
+@font-face{font-family:"Plus Jakarta Sans";font-weight:200 800;font-display:swap;src:url(/ds/plus-jakarta-sans.woff2) format("woff2")}
+@font-face{font-family:"Space Mono";font-weight:400;font-display:swap;src:url(/ds/space-mono.woff2) format("woff2")}
+${TOKENS}
+${COMPONENTES}
+:root:not([data-theme=dark]){color-scheme:light}
+:root{--ease:cubic-bezier(.2,.8,.2,1);--erro-fundo:color-mix(in srgb,var(--negative) 10%,var(--bg-surface));--alerta-fundo:color-mix(in srgb,var(--warning) 12%,var(--bg-surface))}
 *{box-sizing:border-box}
-body{margin:0;background:var(--fundo);color:var(--texto);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
-h1{font-size:1.75rem;line-height:1.2;margin:0 0 8px;font-weight:700;letter-spacing:-.01em}
-h2{font-size:1.2rem;line-height:1.3;margin:0;font-weight:650}
-p{margin:0 0 12px}a{color:var(--marca);font-weight:600}a:hover{color:var(--marca-forte)}
-:focus-visible{outline:3px solid var(--foco);outline-offset:2px;border-radius:6px}
-.pular{position:absolute;left:-999px;top:8px;background:var(--cartao);padding:8px 12px;border-radius:8px;z-index:10}.pular:focus{left:8px}
-.sub{color:var(--suave);font-size:.94rem}
+body{margin:0;background:var(--bg-page);color:var(--fg-primary);font:400 16px/24px var(--font-sans);-webkit-font-smoothing:antialiased}
+h1{font-size:32px;line-height:40px;margin:0 0 var(--space-2);font-weight:600;letter-spacing:-.02em}
+h2{font-size:20px;line-height:28px;margin:0;font-weight:600;letter-spacing:-.01em}
+p{margin:0 0 var(--space-3)}a{color:var(--info);font-weight:600}a:hover{color:var(--fg-primary)}
+:focus-visible{outline:2px solid var(--fg-primary);outline-offset:2px;border-radius:var(--radius-sm)}
+.pular{position:absolute;left:-999px;top:8px;background:var(--bg-surface);padding:var(--space-2) var(--space-3);border-radius:var(--radius-sm);z-index:10}.pular:focus{left:8px}
+.sub{color:var(--fg-secondary);font-size:14px}
 .ic{width:1.15em;height:1.15em;flex:none;vertical-align:-.2em}
-.marca{display:inline-flex;align-items:center;gap:10px;font-weight:800;font-size:1.25rem;letter-spacing:.02em;color:inherit;text-decoration:none}
+.marca{display:inline-flex;align-items:center;gap:var(--space-2);font-weight:600;font-size:20px;letter-spacing:-.02em;color:inherit;text-decoration:none}
 .logo{width:36px;height:auto;flex:none}
-.logo-cheia{display:block;width:min(280px,80%);height:auto}
+.logo-escuro,:root[data-theme=dark] .logo-claro{display:none}:root[data-theme=dark] .logo-escuro{display:block}
+.marca.grande{font-size:32px;line-height:40px}.marca.grande .logo{width:56px}
 /* entrar / cadastro */
 .auth{min-height:100vh}
-.vitrine{background:linear-gradient(160deg,#2a0808 0%,#0a0505 100%);color:#fff;padding:24px 20px 28px}
-.vitrine .tagline{margin:10px 0 0;color:#f0d4d4;font-size:.98rem}
+.vitrine{background:var(--bg-brand-deep);color:var(--offwhite);padding:var(--space-6) var(--space-5) var(--space-6)}
+.vitrine .tagline{margin:var(--space-2) 0 0;color:color-mix(in srgb,var(--offwhite) 72%,var(--bg-brand-deep));font-size:14px}
 .vitrine .extra{display:none}
-.lado-form{padding:20px 16px 40px;display:flex;justify-content:center;align-items:flex-start}
+.vitrine .logo-claro{display:none}.vitrine .logo-escuro{display:block} /* a vitrine é escura nos dois temas */
+.lado-form{padding:var(--space-5) var(--space-4) var(--space-10);display:flex;justify-content:center;align-items:flex-start}
 .lado-form>div{width:100%;max-width:420px}
-.cartao{background:var(--cartao);border:1px solid var(--borda);border-radius:var(--raio);padding:22px;box-shadow:var(--sombra)}
-.cartao h2{margin-bottom:4px}
-.campo{margin:14px 0}
-label{display:block;font-size:.9rem;font-weight:600;margin-bottom:6px}
-input,select{display:block;width:100%;min-height:48px;padding:10px 14px;border:1.5px solid var(--borda);border-radius:12px;background:var(--fundo);color:var(--texto);font:inherit}
-input:hover,select:hover{border-color:var(--suave)}
-input[aria-invalid=true]{border-color:var(--erro)}
-.erro-campo{display:flex;gap:6px;align-items:flex-start;color:var(--erro);font-size:.88rem;font-weight:600;margin:6px 0 0}
-.aviso{display:flex;gap:8px;align-items:flex-start;background:var(--erro-suave);color:var(--erro);border-radius:12px;padding:10px 12px;font-size:.93rem;font-weight:600;margin:12px 0}
-.aviso.espera{background:var(--alerta-suave);color:var(--alerta)}
-.btn{display:inline-flex;justify-content:center;align-items:center;gap:8px;width:100%;min-height:48px;margin-top:14px;padding:10px 18px;border:0;border-radius:12px;background:var(--marca);color:var(--sobre-marca);font:inherit;font-weight:700;cursor:pointer;transition:background-color .15s,transform .15s}
-.btn:hover{background:var(--marca-forte)}.btn:active{transform:scale(.99)}
-.btn.sec{background:transparent;color:var(--suave);border:1.5px solid var(--borda);font-weight:600}
-.btn.sec:hover{background:var(--marca-suave);color:var(--texto)}
-.btn.pequeno{width:auto;margin:0;min-height:44px;padding:8px 14px}
-.rodape-form{margin:16px 0 0;text-align:center;color:var(--suave);font-size:.94rem}
+.cartao{background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:var(--space-6)}
+.cartao h2{margin-bottom:var(--space-1)}
+.campo{margin:var(--space-4) 0}
+label{display:block;font-size:13px;line-height:16px;font-weight:500;margin-bottom:var(--space-2)}
+input,select{display:block;width:100%;min-height:44px;padding:0 var(--space-4);border:1px solid var(--border-strong);border-radius:var(--radius-md);background:var(--bg-elevated);color:var(--fg-primary);font:inherit;font-variant-numeric:tabular-nums}
+input:hover,select:hover{border-color:var(--fg-secondary)}
+input:focus-visible,select:focus-visible{outline:0;border-color:var(--fg-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--fg-primary) 14%,transparent)}
+input::placeholder{color:var(--fg-muted);opacity:1}
+input[aria-invalid=true]{border-color:var(--negative)}
+.erro-campo{display:flex;gap:var(--space-2);align-items:flex-start;color:var(--negative);font-size:13px;font-weight:600;margin:var(--space-2) 0 0}
+.aviso{display:flex;gap:var(--space-2);align-items:flex-start;background:var(--erro-fundo);color:var(--negative);border-radius:var(--radius-md);padding:var(--space-2) var(--space-3);font-size:14px;font-weight:600;margin:var(--space-3) 0}
+.aviso.espera{background:var(--alerta-fundo);color:var(--warning)}
+.tu-btn--full{margin-top:var(--space-4)}
+.rodape-form{margin:var(--space-4) 0 0;text-align:center;color:var(--fg-secondary);font-size:14px}
 /* prévia do bot */
-.balao{background:#fff;color:#14201c;border-radius:4px 16px 16px 16px;padding:14px 16px;font-size:.92rem;line-height:1.5;box-shadow:0 8px 24px rgba(0,0,0,.18);max-width:320px}
-.balao p{margin:0 0 8px}.balao hr{border:0;border-top:1px solid #d8e2dd;margin:8px 0}
-.legenda{color:#f0d4d4;font-size:.88rem;margin-top:10px}
+.balao{background:var(--bg-elevated);color:var(--fg-primary);border-radius:var(--radius-xs) var(--radius-lg) var(--radius-lg) var(--radius-lg);padding:var(--space-4) var(--space-4);font-size:14px;line-height:1.5;box-shadow:var(--shadow-card);max-width:320px}
+.balao p{margin:0 0 var(--space-2)}.balao hr{border:0;border-top:1px solid var(--border-subtle);margin:var(--space-2) 0}
+.legenda{color:color-mix(in srgb,var(--offwhite) 72%,var(--bg-brand-deep));font-size:13px;margin-top:var(--space-2)}
 /* painel */
-.pagina{max-width:1280px;padding:var(--e4) max(var(--e4),env(safe-area-inset-right)) calc(var(--e6) + env(safe-area-inset-bottom)) max(var(--e4),env(safe-area-inset-left))}
-.pagina>main{display:grid;gap:var(--e4);align-content:start}.pagina>main>.aviso{margin:0}
-.topo-tela h1{margin:0;font-size:clamp(1.5rem,1.2rem + 1vw,2rem)}.topo-tela .sub{margin:var(--e1) 0 0}
-.grade{display:grid;gap:var(--e4);align-items:start}
+.pagina{max-width:1280px;padding:var(--space-4) max(var(--space-4),env(safe-area-inset-right)) calc(var(--space-8) + env(safe-area-inset-bottom)) max(var(--space-4),env(safe-area-inset-left))}
+.pagina>main{display:grid;gap:var(--space-4);align-content:start}.pagina>main>.aviso{margin:0}
+.topo-tela h1{margin:0}.topo-tela .sub{margin:var(--space-1) 0 0}
+.grade{display:grid;gap:var(--space-4);align-items:start}
 .cartao,.kpi,.comandos li,.menu,input,select{transition:background-color .25s,border-color .25s,color .25s,box-shadow .2s var(--ease),transform .2s var(--ease)}
-.painel-passos{display:grid;gap:var(--e4);align-items:start}
-.passo .num{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;border:1.5px solid var(--borda);font-size:.85rem;flex:none}.passo .num .ic{width:14px;height:14px}
-.passo h2{display:flex;align-items:center;gap:10px;margin:0}
-.passo.atual{border-color:var(--marca);box-shadow:var(--sombra2)}.passo.atual .num{background:var(--marca);border-color:var(--marca);color:var(--sobre-marca)}
-.passo.feito .num{background:var(--marca-suave);border-color:var(--marca);color:var(--marca)}
-.passo.travado{border-style:dashed;box-shadow:none;color:var(--suave)}.passo.travado h2{color:var(--suave)}
-.cabeca{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}
-.chip{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;font-weight:700;padding:4px 10px;border-radius:999px;background:var(--fundo);color:var(--suave);white-space:nowrap}
-.chip .ponto{width:8px;height:8px;border-radius:50%;background:currentColor}
-.chip-ok{background:var(--marca-suave);color:var(--marca)}.chip-espera{background:var(--alerta-suave);color:var(--alerta)}
-.qr{background:#fff;border:1px solid var(--borda);border-radius:16px;padding:12px;margin:14px auto;max-width:300px}.qr svg{display:block;width:100%;height:auto}
-.instrucoes{padding-left:1.2rem;margin:8px 0;color:var(--suave);font-size:.94rem}.instrucoes li{margin:2px 0}
-.codigo{font:700 2rem/1.2 ui-monospace,SFMono-Regular,Consolas,monospace;text-align:center;letter-spacing:.15em;background:var(--marca-suave);border-radius:12px;padding:14px;margin:12px 0}
-.carregando{display:flex;align-items:center;gap:12px;color:var(--suave);padding:8px 0}
-.giro{width:22px;height:22px;border-radius:50%;border:3px solid var(--borda);border-top-color:var(--marca);animation:giro .9s linear infinite}
+.painel-passos{display:grid;gap:var(--space-4);align-items:start}
+.passo .num{display:grid;place-items:center;width:28px;height:28px;border-radius:var(--radius-pill);border:1.5px solid var(--border-subtle);font-size:13px;flex:none}.passo .num .ic{width:14px;height:14px}
+.passo h2{display:flex;align-items:center;gap:var(--space-2);margin:0}
+.passo.atual{border-color:var(--action-primary)}.passo.atual .num{background:var(--action-primary);border-color:var(--action-primary);color:var(--action-primary-fg)}
+.passo.feito .num{background:var(--bg-elevated);border-color:var(--action-primary);color:var(--action-primary)}
+.passo.travado{border-style:dashed;box-shadow:none;color:var(--fg-secondary)}.passo.travado h2{color:var(--fg-secondary)}
+.cabeca{display:flex;justify-content:space-between;align-items:center;gap:var(--space-2);margin-bottom:var(--space-2)}
+.chip{display:inline-flex;align-items:center;gap:var(--space-2);font-size:13px;line-height:16px;font-weight:500;padding:var(--space-1) var(--space-3);border-radius:var(--radius-pill);background:var(--bg-page);color:var(--fg-secondary);white-space:nowrap}
+.chip .ponto{width:8px;height:8px;border-radius:var(--radius-pill);background:currentColor}
+.chip-ok{background:color-mix(in srgb,var(--positive) 12%,var(--bg-surface));color:var(--positive)}.chip-espera{background:var(--alerta-fundo);color:var(--warning)}
+.qr{background:var(--white);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:var(--space-3);margin:var(--space-4) auto;max-width:300px}.qr svg{display:block;width:100%;height:auto}
+.instrucoes{padding-left:1.2rem;margin:var(--space-2) 0;color:var(--fg-secondary);font-size:14px}.instrucoes li{margin:var(--space-1) 0}
+.codigo{font:400 32px/40px var(--font-mono);text-align:center;letter-spacing:.15em;background:var(--bg-elevated);border-radius:var(--radius-md);padding:var(--space-4);margin:var(--space-3) 0}
+.carregando{display:flex;align-items:center;gap:var(--space-3);color:var(--fg-secondary);padding:var(--space-2) 0}
+.giro{width:22px;height:22px;border-radius:var(--radius-pill);border:3px solid var(--border-subtle);border-top-color:var(--action-primary);animation:giro .9s linear infinite}
 @keyframes giro{to{transform:rotate(360deg)}}
-.pronto{display:flex;align-items:center;gap:10px;color:var(--marca)}.pronto .ic{width:1.6em;height:1.6em}
-.grupo{margin:8px 0 14px}.grupo strong{color:var(--texto)}
-.comandos{list-style:none;margin:8px 0 4px;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.comandos li{background:var(--fundo);border:1px solid var(--borda);border-radius:12px;padding:10px 12px;min-width:0}
-.comandos .rot{display:block;color:var(--suave);font-size:.8rem;margin-bottom:2px}
-code{font:600 .92rem ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}
-details{margin-top:14px}summary{cursor:pointer;color:var(--suave);font-weight:600;min-height:44px;display:flex;align-items:center}
+.pronto{display:flex;align-items:center;gap:var(--space-2);color:var(--positive)}.pronto .ic{width:1.6em;height:1.6em}
+.grupo{margin:var(--space-2) 0 var(--space-4)}.grupo strong{color:var(--fg-primary)}
+.comandos{list-style:none;margin:var(--space-2) 0 var(--space-1);padding:0;display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2)}
+.comandos li{background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-2) var(--space-3);min-width:0}
+.comandos .rot{display:block;color:var(--fg-secondary);font-size:12px;margin-bottom:var(--space-1)}
+code{font:400 14px/20px var(--font-mono);overflow-wrap:anywhere}
+details{margin-top:var(--space-4)}summary{cursor:pointer;color:var(--fg-secondary);font-weight:600;min-height:44px;display:flex;align-items:center}
 /* menu lateral */
 .app{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100vh;transition:grid-template-columns .2s}
-.menu{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:10px;padding:14px 12px 14px max(12px,env(safe-area-inset-left));background:var(--cartao);border-right:1px solid var(--borda)}
-.menu-topo{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px}
-.menu nav{display:flex;flex-direction:column;gap:4px;flex:1}
-.menu-base{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--borda);padding-top:10px}
-.item,.icone{display:flex;align-items:center;gap:12px;width:100%;min-height:44px;padding:8px 12px;border:0;border-radius:12px;background:transparent;color:var(--suave);font:inherit;font-weight:600;text-align:left;text-decoration:none;cursor:pointer;transition:background-color .15s,color .15s}
+.menu{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:var(--space-2);padding:var(--space-4) var(--space-3) var(--space-4) max(var(--space-3),env(safe-area-inset-left));background:var(--bg-surface);border-right:1px solid var(--border-subtle)}
+.menu-topo{display:flex;align-items:center;justify-content:space-between;gap:var(--space-2);min-height:44px}
+.menu nav{display:flex;flex-direction:column;gap:var(--space-1);flex:1}
+.menu-base{display:flex;flex-direction:column;gap:var(--space-1);border-top:1px solid var(--border-subtle);padding-top:var(--space-2)}
+.item,.icone{display:flex;align-items:center;gap:var(--space-3);width:100%;min-height:44px;padding:var(--space-2) var(--space-3);border:0;border-radius:var(--radius-pill);background:transparent;color:var(--fg-secondary);font:inherit;font-size:14px;font-weight:500;text-align:left;text-decoration:none;cursor:pointer;transition:background-color .15s,color .15s}
 .icone{width:44px;padding:0;justify-content:center;flex:none}
-.item:hover,.icone:hover{background:var(--marca-suave);color:var(--texto)}
-.item[aria-current=page]{background:var(--marca-suave);color:var(--marca)}
+.item:hover,.icone:hover{background:var(--bg-elevated);color:var(--fg-primary)}
+.item[aria-current=page]{background:var(--bg-inverse);color:var(--fg-inverse)}
 .item .ic,.icone .ic{width:1.3em;height:1.3em}
-.ic-sol{display:none}:root[data-tema=dark] .ic-sol{display:inline}:root[data-tema=dark] .ic-lua{display:none}
-.menu .marca{font-size:1.1rem;color:var(--texto);min-width:0}
-.perfil{position:relative;margin:0}.perfil summary{list-style:none;padding:8px 12px}.perfil summary::-webkit-details-marker{display:none}
-.avatar{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--marca);color:var(--sobre-marca);font-size:.85rem;font-weight:700;flex:none}
-.perfil-menu{position:absolute;bottom:calc(100% + 6px);left:0;min-width:240px;max-width:300px;padding:14px;background:var(--cartao);border:1px solid var(--borda);border-radius:14px;box-shadow:0 8px 28px rgba(0,0,0,.18);z-index:20}
-.perfil-menu p{margin:0}.perfil-email{font-weight:600;overflow-wrap:anywhere}.perfil-menu form{margin-top:10px}
+.ic-sol{display:none}:root[data-theme=dark] .ic-sol{display:inline}:root[data-theme=dark] .ic-lua{display:none}
+.menu .marca{font-size:18px;color:var(--fg-primary);min-width:0}
+.perfil{position:relative;margin:0}.perfil summary{list-style:none;padding:var(--space-2) var(--space-3)}.perfil summary::-webkit-details-marker{display:none}
+.avatar{display:grid;place-items:center;width:28px;height:28px;border-radius:var(--radius-pill);background:var(--action-primary);color:var(--action-primary-fg);font-size:13px;font-weight:600;flex:none}
+.perfil-menu{position:absolute;bottom:calc(100% + 6px);left:0;min-width:240px;max-width:300px;padding:var(--space-4);background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);box-shadow:var(--shadow-card);z-index:20}
+.perfil-menu p{margin:0}.perfil-email{font-weight:600;overflow-wrap:anywhere}.perfil-menu form{margin-top:var(--space-2)}
 .barra-mobile,.veu{display:none}
 .conteudo{min-width:0}
 @media (min-width:860px){
 html[data-menu=estreito] .app{grid-template-columns:72px minmax(0,1fr)}
 html[data-menu=estreito] .rotulo,html[data-menu=estreito] .menu .marca span{display:none}
 html[data-menu=estreito] .menu-topo{flex-direction:column;justify-content:center}
-html[data-menu=estreito] .item{justify-content:center;padding:8px}
+html[data-menu=estreito] .item{justify-content:center;padding:var(--space-2)}
 }
 @media (max-width:859px){
 .app{display:block}
-.barra-mobile{display:flex;align-items:center;gap:8px;position:sticky;top:0;z-index:10;padding:max(6px,env(safe-area-inset-top)) 10px 6px max(10px,env(safe-area-inset-left));background:var(--cartao);border-bottom:1px solid var(--borda)}
+.barra-mobile{display:flex;align-items:center;gap:var(--space-2);position:sticky;top:0;z-index:10;padding:max(var(--space-2),env(safe-area-inset-top)) var(--space-2) var(--space-2) max(var(--space-2),env(safe-area-inset-left));background:var(--bg-surface);border-bottom:1px solid var(--border-subtle)}
 .barra-mobile .item{width:44px;padding:0;justify-content:center}
-.menu{position:fixed;left:0;top:0;bottom:0;width:264px;z-index:30;transform:translateX(-100%);visibility:hidden;padding-bottom:max(14px,env(safe-area-inset-bottom));transition:transform .2s ease-in,visibility .2s}
+.menu{position:fixed;left:0;top:0;bottom:0;width:264px;z-index:30;transform:translateX(-100%);visibility:hidden;padding-bottom:max(var(--space-4),env(safe-area-inset-bottom));transition:transform .2s ease-in,visibility .2s}
 #menu-alternar{display:none}
 html[data-gaveta=aberta] .menu{transform:none;visibility:visible;transition-duration:.28s;transition-timing-function:var(--ease)}
-.veu{display:block;position:fixed;inset:0;z-index:25;background:rgba(0,0,0,.45);opacity:0;visibility:hidden;transition:opacity .2s,visibility .2s}
+.veu{display:block;position:fixed;inset:0;z-index:25;background:color-mix(in srgb,var(--ink-950) 45%,transparent);opacity:0;visibility:hidden;transition:opacity .2s,visibility .2s}
 html[data-gaveta=aberta] .veu{opacity:1;visibility:visible}
 }
 /* avatar e perfil */
-.av-vermelho{background:#d10f0f}.av-laranja{background:#c2410c}.av-amarelo{background:#a16207}.av-verde{background:#15803d}.av-azul{background:#1d4ed8}.av-roxo{background:#7e22ce}.av-rosa{background:#be185d}.av-cinza{background:#52525b}
-.avatar[class*=av-]{color:#fff}.avatar .ic{width:15px;height:15px}.avatar.neutro{background:var(--marca-suave);color:var(--texto)}
-.perfil-menu a.item{margin-top:10px;padding-left:0}
-.pilha{display:grid;gap:16px}
-.dados{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:12px 0 0}.dados dt{color:var(--suave)}.dados dd{margin:0;overflow-wrap:anywhere}
-fieldset.opcoes{border:0;padding:0;margin:14px 0}fieldset.opcoes legend{font-size:.9rem;font-weight:600;margin-bottom:6px;padding:0}
-.op{position:relative;display:inline-block;margin:0 6px 6px 0;cursor:pointer}
+.av-vermelho{background:var(--red-700)}.av-laranja{background:color-mix(in srgb,var(--red-700),var(--amber-800))}.av-amarelo{background:var(--amber-800)}.av-verde{background:var(--green-700)}.av-azul{background:var(--blue-700)}.av-roxo{background:var(--purple-700)}.av-rosa{background:var(--risk)}.av-cinza{background:var(--gray-600)}
+.avatar[class*=av-]{color:var(--white)}.avatar .ic{width:15px;height:15px}.avatar.neutro{background:var(--bg-elevated);color:var(--fg-primary)}
+.perfil-menu a.item{margin-top:var(--space-2);padding-left:0}
+.pilha{display:grid;gap:var(--space-4)}
+.dados{display:grid;grid-template-columns:auto 1fr;gap:var(--space-2) var(--space-4);margin:var(--space-3) 0 0}.dados dt{color:var(--fg-secondary)}.dados dd{margin:0;overflow-wrap:anywhere}
+fieldset.opcoes{border:0;padding:0;margin:var(--space-4) 0}fieldset.opcoes legend{font-size:13px;font-weight:600;margin-bottom:var(--space-2);padding:0}
+.op{position:relative;display:inline-block;margin:0 var(--space-2) var(--space-2) 0;cursor:pointer}
 .op input{position:absolute;opacity:0;width:1px;height:1px;min-height:0;padding:0;border:0}
-.op .avatar{width:40px;height:40px;font-size:1rem}.op .avatar .ic{width:20px;height:20px}
-.op input:checked+.avatar{outline:3px solid var(--foco);outline-offset:2px}.op input:focus-visible+.avatar{outline:3px dashed var(--texto);outline-offset:2px}
+.op .avatar{width:40px;height:40px;font-size:16px}.op .avatar .ic{width:20px;height:20px}
+.op input:checked+.avatar{outline:3px solid var(--fg-primary);outline-offset:2px}.op input:focus-visible+.avatar{outline:3px dashed var(--fg-primary);outline-offset:2px}
 .so-leitor{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-.aviso.ok{background:color-mix(in srgb,var(--receita) 12%,var(--cartao));color:var(--receita)}
+.aviso.ok{background:color-mix(in srgb,var(--positive) 12%,var(--bg-surface));color:var(--positive)}
 /* admin */
-.convites{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
-.convite{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border:1px solid var(--borda);border-radius:12px}
+.convites{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2)}
+.convite{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;padding:var(--space-2) var(--space-3);border:1px solid var(--border-subtle);border-radius:var(--radius-md)}
 .convite>div:first-child{flex:1;min-width:160px}
 .convite form{margin:0}
 @media (min-width:860px){
 .auth{display:grid;grid-template-columns:1.05fr 1fr}
-.vitrine{position:sticky;top:0;height:100vh;padding:48px 56px;display:flex;flex-direction:column;justify-content:center}
-.vitrine .extra{display:block;margin-top:40px}
-.vitrine h1{font-size:2.2rem}
-.lado-form{align-items:center;padding:48px}
+.vitrine{position:sticky;top:0;height:100vh;padding:var(--space-12) var(--space-12);display:flex;flex-direction:column;justify-content:center}
+.vitrine .extra{display:block;margin-top:var(--space-10)}
+.vitrine h1{font-size:48px;line-height:52px;margin-bottom:var(--space-3)}
+.lado-form{align-items:center;padding:var(--space-12)}
 }
 /* dashboard */
-.dash{display:grid;gap:16px}
-.kpis{display:grid;gap:12px;grid-template-columns:1fr}
-.kpi{min-width:0;background:var(--cartao);border:1px solid var(--borda);border-radius:var(--raio);padding:16px;box-shadow:var(--sombra)}
-.kpi .rot{color:var(--suave);font-size:.9rem}.kpi .num{white-space:nowrap;font-size:clamp(1.25rem,2vw,1.6rem);font-weight:700;letter-spacing:-.01em}
-.var{display:inline-flex;align-items:center;gap:4px;font-size:.88rem;font-weight:600}.var.bom{color:var(--receita)}.var.ruim{color:var(--erro)}.var.neutro{color:var(--suave)}
+.dash{display:grid;gap:var(--space-4)}
+.kpis{display:grid;gap:var(--space-3);grid-template-columns:1fr}
+.kpi{min-width:0;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-xl);padding:var(--space-6)}
+.kpi.destaque{background:var(--bg-brand);border-color:transparent;color:var(--ink-900);--fg-secondary:var(--gray-600);--fg-muted:var(--gray-600);--positive:var(--green-700);--negative:var(--red-700)} /* limão é igual nos dois temas: texto sempre com as cores do tema claro */
+.kpi .rot{color:var(--fg-secondary);font:400 12px/16px var(--font-mono);letter-spacing:.08em;text-transform:uppercase}.kpi .num{white-space:nowrap;margin:var(--space-2) 0 var(--space-1);font-size:28px;line-height:34px;font-weight:600;letter-spacing:-.01em}.cent{color:var(--fg-muted)}
+.var{display:inline-flex;align-items:center;gap:var(--space-1);font-size:13px;line-height:16px;font-weight:500;font-variant-numeric:tabular-nums}.var.bom{color:var(--positive)}.var.ruim{color:var(--negative)}.var.neutro{color:var(--fg-secondary)}
 .grafico{display:block;width:100%;height:auto;max-height:280px}
-.grafico .b-rec{fill:var(--receita)}.grafico .b-desp{fill:url(#tend-hachura);stroke:var(--despesa);stroke-width:1.5}
-.grafico .h-fundo{fill:var(--cartao)}.grafico .h-traco{stroke:var(--despesa);stroke-width:3}
-.grafico .val,.grafico .eixo{fill:var(--texto);font-size:12px}.grafico .eixo{fill:var(--suave);font-size:13px}.grafico .base{stroke:var(--borda)}
-.dash .legenda{display:flex;gap:16px;flex-wrap:wrap;margin:8px 0 0;padding:0;list-style:none;font-size:.88rem;color:var(--suave)}
-.dash .legenda i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}.dash .legenda .l-rec{background:var(--receita)}.dash .legenda .l-desp{border:1.5px solid var(--despesa);background:repeating-linear-gradient(45deg,var(--despesa) 0 2px,transparent 2px 5px)}
-.cats{list-style:none;margin:0;padding:0;display:grid;gap:12px}.cats li{display:grid;grid-template-columns:1fr auto;gap:2px 12px}.cats .nome{overflow-wrap:anywhere}.cats .valor{font-variant-numeric:tabular-nums;font-weight:600}
-.kpi .rot,.dash h2{display:flex;align-items:center;gap:8px}.dash h2 .ic{color:var(--suave)}
-.grafico .linha{fill:none;stroke:var(--s1);stroke-width:2;stroke-linejoin:round}.grafico .zero{stroke:var(--borda);stroke-dasharray:4 4}.grafico .ponto{fill:var(--s1);stroke:var(--cartao);stroke-width:2}.grafico .ponto.neg{fill:var(--erro)}
+.grafico .b-rec{fill:var(--positive-fill)}.grafico .b-desp{fill:url(#tend-hachura);stroke:var(--negative-fill);stroke-width:1.5}
+.grafico .h-fundo{fill:var(--bg-surface)}.grafico .h-traco{stroke:var(--negative-fill);stroke-width:3}
+.grafico .val,.grafico .eixo{fill:var(--fg-primary);font-size:12px}.grafico .eixo{fill:var(--fg-secondary);font-size:13px}.grafico .base{stroke:var(--border-subtle)}
+.dash .legenda{display:flex;gap:var(--space-4);flex-wrap:wrap;margin:var(--space-2) 0 0;padding:0;list-style:none;font-size:13px;color:var(--fg-secondary)}
+.dash .legenda i{display:inline-block;width:12px;height:12px;border-radius:var(--radius-xs);margin-right:var(--space-2);vertical-align:-1px}.dash .legenda .l-rec{background:var(--positive-fill)}.dash .legenda .l-desp{border:1.5px solid var(--negative-fill);background:repeating-linear-gradient(45deg,var(--negative-fill) 0 2px,transparent 2px 5px)}
+.cats{list-style:none;margin:0;padding:0;display:grid;gap:var(--space-3)}.cats li{display:grid;grid-template-columns:1fr auto;gap:var(--space-1) var(--space-3)}.cats .nome{overflow-wrap:anywhere}.cats .valor{font-variant-numeric:tabular-nums;font-weight:600}
+.kpi .rot,.dash h2{display:flex;align-items:center;gap:var(--space-2)}.dash h2 .ic{color:var(--fg-secondary)}
+.grafico .linha{fill:none;stroke:var(--info-fill);stroke-width:2;stroke-linejoin:round}.grafico .zero{stroke:var(--border-subtle);stroke-dasharray:4 4}.grafico .ponto{fill:var(--info-fill);stroke:var(--bg-surface);stroke-width:2}.grafico .ponto.neg{fill:var(--negative-fill)}
 @media (max-width:480px){.grafico .val,.grafico .eixo{font-size:17px}.tend .val{display:none}} /* no celular o valor de cada barra fica na tabela */
-.grade.tres{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr))}
-.pizza{display:block;width:100%;max-width:190px;margin:4px auto 16px}.pizza .fatia{fill:none;stroke:var(--c);stroke-width:6;transition:stroke-width .15s}.pizza .fatia:hover{stroke-width:7.5}.pizza .trilho-pizza{fill:none;stroke:var(--borda);stroke-width:6}.pizza .centro{fill:var(--texto);font-size:5px;font-weight:700}
-.f1{--c:var(--s1)}.f2{--c:var(--s2)}.f3{--c:var(--s3)}.f4{--c:var(--s4)}.f5{--c:var(--s5)}.f6{--c:var(--s6)}
-.cats .nome{display:flex;align-items:center;gap:8px;min-width:0}.cats i{flex:none;width:12px;height:12px;border-radius:3px;background:var(--c)}.cats small{color:var(--suave);font-weight:500;margin-left:6px}
-.cats .valor.neg{color:var(--erro)}.saldos .nome .ic{color:var(--suave)}.saldos li.sel .nome{font-weight:700}.saldos li.total{border-top:1px solid var(--borda);padding-top:12px;font-weight:700}
-.dash details{margin-top:12px;font-size:.9rem}.dash summary{cursor:pointer;color:var(--suave)}.dash table{width:100%;border-collapse:collapse;margin-top:8px}.dash th,.dash td{text-align:right;padding:6px 8px;border-bottom:1px solid var(--borda)}.dash th:first-child,.dash td:first-child{text-align:left}
-.filtro{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.filtro select{width:auto;min-width:min(100%,220px)}
-@media (min-width:860px){.pagina{padding:var(--e6) max(40px,env(safe-area-inset-right)) 64px max(40px,env(safe-area-inset-left))}}
+.grade.tres{display:grid;gap:var(--space-4);grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr))}
+.pizza{display:block;width:100%;max-width:190px;margin:var(--space-1) auto var(--space-4)}.pizza .fatia{fill:none;stroke:var(--c);stroke-width:6;transition:stroke-width .15s}.pizza .fatia:hover{stroke-width:7.5}.pizza .trilho-pizza{fill:none;stroke:var(--border-subtle);stroke-width:6}.pizza .centro{fill:var(--fg-primary);font-size:5px;font-weight:600}
+.f1{--c:var(--info-fill)}.f2{--c:var(--accent-short-fill)}.f3{--c:var(--warning-fill)}.f4{--c:var(--risk-fill)}.f5{--c:var(--bg-inverse)}.f6{--c:var(--fg-muted)}
+.cats .nome{display:flex;align-items:center;gap:var(--space-2);min-width:0}.cats i{flex:none;width:12px;height:12px;border-radius:var(--radius-xs);background:var(--c)}.cats small{color:var(--fg-secondary);font-weight:500;margin-left:var(--space-2)}
+.cats .valor.neg{color:var(--negative)}.saldos .nome .ic{color:var(--fg-secondary)}.saldos li.sel .nome{font-weight:600}.saldos li.total{border-top:1px solid var(--border-subtle);padding-top:var(--space-3);font-weight:600}
+.dash details{margin-top:var(--space-3);font-size:13px}.dash summary{cursor:pointer;color:var(--fg-secondary)}.dash table{width:100%;border-collapse:collapse;margin-top:var(--space-2)}.dash th,.dash td{text-align:right;padding:var(--space-2) var(--space-2);border-bottom:1px solid var(--border-subtle)}.dash th:first-child,.dash td:first-child{text-align:left}
+.filtro{display:flex;gap:var(--space-2);align-items:center;flex-wrap:wrap}.filtro label{margin:0}.filtro select{width:auto;min-width:min(100%,220px)}
+@media (min-width:860px){.pagina{padding:var(--space-8) max(var(--space-10),env(safe-area-inset-right)) var(--space-16) max(var(--space-10),env(safe-area-inset-left))}}
 @media (min-width:1024px){.grade.duas{grid-template-columns:repeat(12,minmax(0,1fr))}.c5{grid-column:span 5}.c6{grid-column:span 6}.c7{grid-column:span 7}}
 @media (min-width:1180px){.painel-passos{grid-template-columns:repeat(3,minmax(0,1fr))}}
-.vazio{display:grid;justify-items:center;gap:var(--e2);padding:var(--e6) var(--e4);text-align:center;color:var(--suave)}.vazio .ic{width:2rem;height:2rem}.vazio p{margin:0}
+.vazio{display:grid;justify-items:center;gap:var(--space-2);padding:var(--space-8) var(--space-4);text-align:center;color:var(--fg-secondary)}.vazio .ic{width:2rem;height:2rem}.vazio p{margin:0}
 .convite select,.convite input[type=date]{width:auto}
 @media (min-width:640px){.kpis{grid-template-columns:repeat(3,1fr)}}
 @media (max-width:420px){.comandos{grid-template-columns:1fr}}
@@ -190,13 +197,10 @@ fieldset.opcoes{border:0;padding:0;margin:14px 0}fieldset.opcoes legend{font-siz
 :is(.kpis,.grade,.pilha,main)>:nth-child(n+4){animation-delay:120ms}
 .grafico .b-rec,.grafico .b-desp{transform-box:fill-box;transform-origin:50% 100%;animation:cresce .5s var(--ease) .1s backwards}
 @keyframes cresce{from{transform:scaleY(0)}}
-@media (hover:hover){.kpi:hover,.comandos li:hover{transform:translateY(-1px);box-shadow:var(--sombra2)}}
+@media (hover:hover){.kpi:hover,.comandos li:hover{transform:translateY(-1px);box-shadow:var(--shadow-card)}}
 /* acabamento */
-.item[aria-current=page]{position:relative}
-.item[aria-current=page]::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:3px;background:var(--marca)}
-.kpi .rot{text-transform:uppercase;letter-spacing:.06em;font-size:.78rem;font-weight:700}
 .kpi .num,.cats .valor,.dash td{font-variant-numeric:tabular-nums}
-@media (prefers-reduced-motion:reduce){*,::before,::after{transition:none!important;animation:none!important}::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation:none!important}.giro{border-top-color:var(--borda)}}
+@media (prefers-reduced-motion:reduce){*,::before,::after{transition:none!important;animation:none!important}::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation:none!important}.giro{border-top-color:var(--border-subtle)}}
 `
 
 const ICONES = {
@@ -204,8 +208,6 @@ const ICONES = {
   check: '<path d="M20 6 9 17l-5-5"/>',
   sair: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
   alerta: '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
-  cima: '<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>',
-  baixo: '<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>',
   casa: '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
   grafico: '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
   escudo: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
@@ -228,15 +230,20 @@ const ICONES = {
   linha: '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m19 9-5 5-4-4-3 3"/>',
   troca: '<path d="M17 3l4 4-4 4"/><path d="M3 7h18"/><path d="M7 21l-4-4 4-4"/><path d="M21 17H3"/>',
 }
-const ic = (nome: keyof typeof ICONES, classe = '') =>
-  `<svg class="ic${classe ? ` ${classe}` : ''}" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONES[nome]}</svg>`
+// botões = Button do Trade UI (pílula); "pequeno" fica nas listas, ao lado de outros controles
+const BTN = 'tu-btn tu-btn--pill tu-btn--primary tu-btn--lg tu-btn--full'
+const BTN_SEC = 'tu-btn tu-btn--pill tu-btn--secondary tu-btn--lg tu-btn--full'
+const BTN_PEQUENO = 'tu-btn tu-btn--pill tu-btn--secondary tu-btn--md'
 
-// arquivos servidos por /mascote.svg e /logo.svg (src/assets)
-const marca = (href = '/', cheia = false) =>
-  `<a class="marca" href="${href}" aria-label="WCOEN, início">${cheia ? '<img class="logo-cheia" src="/logo.svg" alt="WCOEN">' : '<img class="logo" src="/mascote.svg" alt=""><span>WCOEN</span>'}</a>`
+const ic = (nome: keyof typeof ICONES, classe = '') =>
+  `<svg class="ic${classe ? ` ${classe}` : ''}" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ICONES[nome]}</svg>`
+
+// símbolo do Trade UI (design-system/brand/wcoen, servido em /ds): o normal no tema claro, o reverso no escuro
+const marca = (href = '/', grande = false) =>
+  `<a class="marca${grande ? ' grande' : ''}" href="${href}" aria-label="WCOEN, início"><img class="logo logo-claro" src="/ds/wcoen-mark.svg" alt=""><img class="logo logo-escuro" src="/ds/wcoen-mark-reverso.svg" alt=""><span>WCOEN</span></a>`
 
 const layout = (titulo: string, corpo: string, script = '') =>
-  `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="color-scheme" content="light dark"><link rel="icon" type="image/svg+xml" href="/mascote.svg"><title>${esc(titulo)} · WCOEN</title><style>${ESTILO}</style><script src="/app.js"></script></head><body><a class="pular" href="#conteudo">Pular para o conteúdo</a>${corpo}${script}</body></html>`
+  `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="color-scheme" content="light dark"><link rel="icon" type="image/svg+xml" href="/ds/wcoen-icon-dark.svg" media="(prefers-color-scheme:dark)"><link rel="icon" type="image/svg+xml" href="/ds/wcoen-icon-light.svg" media="(prefers-color-scheme:light)"><title>${esc(titulo)} · WCOEN</title><style>${ESTILO}</style><script src="/app.js"></script></head><body><a class="pular" href="#conteudo">Pular para o conteúdo</a>${corpo}${script}</body></html>`
 
 const topo = (titulo: string, sub = '') => `<header class="topo-tela"><h1>${esc(titulo)}</h1>${sub ? `<p class="sub">${esc(sub)}</p>` : ''}</header>`
 
@@ -271,7 +278,7 @@ const shell = (ativa: Tela, email: string, papel: Papel, principal: string, scri
 export const SCRIPT_APP = `const r = document.documentElement
 const ler = (k) => { try { return localStorage.getItem(k) } catch { return null } }
 const gravar = (k, v) => { try { localStorage.setItem(k, v) } catch {} }
-r.dataset.tema = ler('tema') || (matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light')
+r.dataset.theme = ler('tema') || (matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light')
 if (ler('menu') === 'estreito') r.dataset.menu = 'estreito'
 document.addEventListener('DOMContentLoaded', () => {
   const $ = (id) => document.getElementById(id)
@@ -282,8 +289,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const perfil = document.querySelector('.perfil')
   sinc()
   $('tema-alternar')?.addEventListener('click', () => {
-    r.dataset.tema = r.dataset.tema === 'dark' ? 'light' : 'dark'
-    gravar('tema', r.dataset.tema)
+    r.dataset.theme = r.dataset.theme === 'dark' ? 'light' : 'dark'
+    gravar('tema', r.dataset.theme)
   })
   $('menu-alternar')?.addEventListener('click', () => {
     if (r.dataset.menu === 'estreito') delete r.dataset.menu
@@ -309,7 +316,7 @@ const BALAO = `<div class="balao" role="img" aria-label="Exemplo de mensagem do 
 const telaAuth = (titulo: string, conteudo: string) =>
   layout(
     titulo,
-    `<div class="auth"><aside class="vitrine">${marca('/', true)}<p class="tagline">Seu controle financeiro pelo WhatsApp</p><div class="extra"><h1>Lance no grupo. Acompanhe no automático.</h1><p class="tagline">Despesas e receitas numa mensagem, com balancete, extrato e auditoria na mesma conversa.</p><div style="margin-top:28px">${BALAO}</div></div></aside><main class="lado-form" id="conteudo"><div>${conteudo}</div></main></div>`,
+    `<div class="auth"><aside class="vitrine">${marca('/', true)}<p class="tagline">Seu controle financeiro pelo WhatsApp</p><div class="extra"><h1>Lance no grupo. Acompanhe no automático.</h1><p class="tagline">Despesas e receitas numa mensagem, com balancete, extrato e auditoria na mesma conversa.</p><div style="margin-top:var(--space-6)">${BALAO}</div></div></aside><main class="lado-form" id="conteudo"><div>${conteudo}</div></main></div>`,
   )
 
 type CampoDef = { nome: string; rotulo: string; tipo?: string; valor?: string; extra?: string; erro?: string }
@@ -323,7 +330,7 @@ const vazio = (icone: keyof typeof ICONES, texto: string) => `<div class="vazio"
 export const paginaEntrar = (erro?: string, email = '') =>
   telaAuth(
     'Entrar',
-    `<section class="cartao"><h2>Entrar</h2><p class="sub">Acesse seu painel.</p>${aviso(erro)}<form method="post" action="/entrar">${campo({ nome: 'email', rotulo: 'E-mail', tipo: 'email', valor: email, extra: 'autocomplete="username"' })}${campo({ nome: 'senha', rotulo: 'Senha', tipo: 'password', extra: 'autocomplete="current-password"' })}<button class="btn">Entrar</button></form><p class="rodape-form"><a href="/esqueci-senha">Esqueci minha senha</a></p></section><p class="rodape-form">Ainda não tem conta? <a href="/cadastro">Cadastre-se</a></p>`,
+    `<section class="cartao"><h2>Entrar</h2><p class="sub">Acesse seu painel.</p>${aviso(erro)}<form method="post" action="/entrar">${campo({ nome: 'email', rotulo: 'E-mail', tipo: 'email', valor: email, extra: 'autocomplete="username"' })}${campo({ nome: 'senha', rotulo: 'Senha', tipo: 'password', extra: 'autocomplete="current-password"' })}<button class="${BTN}">Entrar</button></form><p class="rodape-form"><a href="/esqueci-senha">Esqueci minha senha</a></p></section><p class="rodape-form">Ainda não tem conta? <a href="/cadastro">Cadastre-se</a></p>`,
   )
 
 export const paginaEsqueciSenha = (enviado = false, email = '') =>
@@ -331,13 +338,13 @@ export const paginaEsqueciSenha = (enviado = false, email = '') =>
     'Esqueci minha senha',
     enviado
       ? `<section class="cartao"><h2>Verifique seu e-mail</h2><p class="sub">Se esse e-mail existir na nossa base, enviamos um link para redefinir a senha. O link vale por 1 hora.</p></section><p class="rodape-form"><a href="/entrar">Voltar para Entrar</a></p>`
-      : `<section class="cartao"><h2>Esqueci minha senha</h2><p class="sub">Informe seu e-mail para receber um link de redefinição.</p><form method="post" action="/esqueci-senha">${campo({ nome: 'email', rotulo: 'E-mail', tipo: 'email', valor: email, extra: 'autocomplete="username"' })}<button class="btn">Enviar link</button></form></section><p class="rodape-form"><a href="/entrar">Voltar para Entrar</a></p>`,
+      : `<section class="cartao"><h2>Esqueci minha senha</h2><p class="sub">Informe seu e-mail para receber um link de redefinição.</p><form method="post" action="/esqueci-senha">${campo({ nome: 'email', rotulo: 'E-mail', tipo: 'email', valor: email, extra: 'autocomplete="username"' })}<button class="${BTN}">Enviar link</button></form></section><p class="rodape-form"><a href="/entrar">Voltar para Entrar</a></p>`,
   )
 
 export const paginaRedefinirSenha = (token: string, erro?: string) =>
   telaAuth(
     'Redefinir senha',
-    `<section class="cartao"><h2>Redefinir senha</h2><p class="sub">Escolha uma nova senha para sua conta.</p>${aviso(erro)}<form method="post" action="/redefinir-senha"><input type="hidden" name="token" value="${esc(token)}">${campo({ nome: 'senha', rotulo: 'Nova senha (mínimo 8 caracteres)', tipo: 'password', extra: 'minlength="8" autocomplete="new-password"' })}<button class="btn">Redefinir senha</button></form></section>`,
+    `<section class="cartao"><h2>Redefinir senha</h2><p class="sub">Escolha uma nova senha para sua conta.</p>${aviso(erro)}<form method="post" action="/redefinir-senha"><input type="hidden" name="token" value="${esc(token)}">${campo({ nome: 'senha', rotulo: 'Nova senha (mínimo 8 caracteres)', tipo: 'password', extra: 'minlength="8" autocomplete="new-password"' })}<button class="${BTN}">Redefinir senha</button></form></section>`,
   )
 
 export type CampoCadastro = 'email' | 'senha' | 'convite'
@@ -345,7 +352,7 @@ export type CampoCadastro = 'email' | 'senha' | 'convite'
 export const paginaCadastro = (erro?: string, comErro?: CampoCadastro, email = '') =>
   telaAuth(
     'Criar conta',
-    `<section class="cartao"><h2>Criar conta</h2><p class="sub">Você precisa de um código de convite.</p><form method="post" action="/cadastro">${campo({ nome: 'email', rotulo: 'E-mail', tipo: 'email', valor: email, extra: 'autocomplete="username"', erro: comErro === 'email' ? erro : undefined })}${campo({ nome: 'senha', rotulo: 'Senha (mínimo 8 caracteres)', tipo: 'password', extra: 'minlength="8" autocomplete="new-password"', erro: comErro === 'senha' ? erro : undefined })}${campo({ nome: 'convite', rotulo: 'Código de convite', extra: 'autocomplete="off"', erro: comErro === 'convite' ? erro : undefined })}${comErro ? '' : aviso(erro)}<button class="btn">Criar conta</button></form></section><p class="rodape-form">Já tem conta? <a href="/entrar">Entrar</a></p>`,
+    `<section class="cartao"><h2>Criar conta</h2><p class="sub">Você precisa de um código de convite.</p><form method="post" action="/cadastro">${campo({ nome: 'email', rotulo: 'E-mail', tipo: 'email', valor: email, extra: 'autocomplete="username"', erro: comErro === 'email' ? erro : undefined })}${campo({ nome: 'senha', rotulo: 'Senha (mínimo 8 caracteres)', tipo: 'password', extra: 'minlength="8" autocomplete="new-password"', erro: comErro === 'senha' ? erro : undefined })}${campo({ nome: 'convite', rotulo: 'Código de convite', extra: 'autocomplete="off"', erro: comErro === 'convite' ? erro : undefined })}${comErro ? '' : aviso(erro)}<button class="${BTN}">Criar conta</button></form></section><p class="rodape-form">Já tem conta? <a href="/entrar">Entrar</a></p>`,
   )
 
 // --- painel --------------------------------------------------------------
@@ -389,11 +396,18 @@ const variacao = (v: number | null, altaEhBoa: boolean) => {
   if (v === null) return '<span class="var neutro">— sem mês anterior para comparar</span>'
   if (v === 0) return '<span class="var neutro">0% vs. mês anterior</span>'
   const bom = v > 0 === altaEhBoa
-  return `<span class="var ${bom ? 'bom' : 'ruim'}">${ic(v > 0 ? 'cima' : 'baixo')}${v > 0 ? '+' : ''}${v}% vs. mês anterior</span>`
+  return `<span class="var ${bom ? 'bom' : 'ruim'}">${v > 0 ? '+' : '−'}${Math.abs(v)}% <span aria-hidden="true">${v > 0 ? '↗' : '↘'}</span> vs. mês anterior</span>`
 }
 
-const kpi = (icone: keyof typeof ICONES, rotulo: string, valor: number, v: number | null, altaEhBoa: boolean) =>
-  `<div class="kpi"><div class="rot">${ic(icone)}${rotulo}</div><div class="num">${formatBRL(valor)}</div>${variacao(v, altaEhBoa)}</div>`
+// centavos em fg-muted: "R$ 1.250<span class="cent">,00</span>"
+const valorBRL = (centavos: number) => {
+  const texto = formatBRL(centavos)
+  const i = texto.lastIndexOf(',')
+  return `${texto.slice(0, i)}<span class="cent">${texto.slice(i)}</span>`
+}
+
+const kpi = (icone: keyof typeof ICONES, rotulo: string, valor: number, v: number | null, altaEhBoa: boolean, destaque = false) =>
+  `<div class="kpi${destaque ? ' destaque' : ''}"><div class="rot">${ic(icone)}${rotulo}</div><div class="num">${valorBRL(valor)}</div>${variacao(v, altaEhBoa)}</div>`
 
 const cartao = (classe: string, icone: keyof typeof ICONES, titulo: string, corpo: string) => `<section class="cartao${classe ? ` ${classe}` : ''}"><h2>${ic(icone)}${titulo}</h2>${corpo}</section>`
 
@@ -416,13 +430,13 @@ const saldos = (contas: ContaDash[], selecionada: string) => {
 const seletorConta = (contas: ContaDash[], selecionada: string) =>
   contas.length < 2
     ? ''
-    : `<form method="get" action="/dashboard" class="filtro"><label for="cc">Conta</label> <select id="cc" name="cc"><option value="">Todas as contas</option>${contas.map((c) => `<option value="${esc(c.apelido)}"${c.apelido === selecionada ? ' selected' : ''}>${esc(c.nome)}</option>`).join('')}</select> <button class="btn sec pequeno">Aplicar</button></form>`
+    : `<form method="get" action="/dashboard" class="filtro"><label for="cc">Conta</label> <select id="cc" name="cc"><option value="">Todas as contas</option>${contas.map((c) => `<option value="${esc(c.apelido)}"${c.apelido === selecionada ? ' selected' : ''}>${esc(c.nome)}</option>`).join('')}</select> <button class="${BTN_PEQUENO}">Aplicar</button></form>`
 
 // o dashboard é sempre da própria conta: nem o admin enxerga os valores de outras
 export const paginaDashboard = (email: string, ind: Indicadores, admin: boolean, perfil?: Perfil, contas: ContaDash[] = [], selecionada = '') => {
   const corpo = ind.vazio
     ? `<div class="cartao">${vazio('grafico', 'Nenhum lançamento nos últimos 6 meses. Registre uma despesa ou receita no grupo do WhatsApp e ela aparece aqui.')}</div>`
-    : `<div class="kpis">${kpi('carteira', 'Saldo do mês', ind.saldo, ind.variacao.saldo, true)}${kpi('entrada', 'Receitas', ind.mes.receitas, ind.variacao.receitas, true)}${kpi('saida', 'Despesas', ind.mes.despesas, ind.variacao.despesas, false)}</div>
+    : `<div class="kpis">${kpi('carteira', 'Saldo do mês', ind.saldo, ind.variacao.saldo, true, true)}${kpi('entrada', 'Receitas', ind.mes.receitas, ind.variacao.receitas, true)}${kpi('saida', 'Despesas', ind.mes.despesas, ind.variacao.despesas, false)}</div>
 <div class="grade duas">${cartao('c7', 'grafico', `Últimos ${ind.serie.length} meses`, `${svgTendencia(ind.serie)}<ul class="legenda"><li><i class="l-rec"></i>Receitas</li><li><i class="l-desp"></i>Despesas</li></ul>
 <details><summary>Ver dados em tabela</summary><table><thead><tr><th>Mês</th><th>Receitas</th><th>Despesas</th><th>Resultado</th></tr></thead><tbody>${ind.serie.map((s) => `<tr><td>${rotuloMesCurto(s)}/${s.ano}</td><td>${formatBRL(s.receitas)}</td><td>${formatBRL(s.despesas)}</td><td>${formatBRL(s.receitas - s.despesas)}</td></tr>`).join('')}</tbody></table></details>`)}
 ${cartao('c5', 'linha', 'Resultado mês a mês', svgLinhaSaldo(ind.serie))}</div>
@@ -455,11 +469,11 @@ const saldoCampo = (c: ContaCorrenteComSaldo) => formatBRL(c.saldoInicial).repla
 
 const itemContaCorrente = (c: ContaCorrenteComSaldo) => {
   const oculto = `<input type="hidden" name="id" value="${esc(c.id)}">`
-  const acao = (rota: string, rotulo: string) => `<form method="post" action="/contas-correntes/${rota}">${oculto}<button class="btn sec pequeno">${rotulo}</button></form>`
+  const acao = (rota: string, rotulo: string) => `<form method="post" action="/contas-correntes/${rota}">${oculto}<button class="${BTN_PEQUENO}">${rotulo}</button></form>`
   const status = [c.favorita ? '<span class="chip chip-ok">Favorita</span>' : '', !c.ativa ? '<span class="chip">Desativada</span>' : ''].join('')
   const favoritar = c.ativa && !c.favorita ? acao('favoritar', 'Tornar favorita') : ''
   const alternar = c.favorita ? '' : c.ativa ? acao('desativar', 'Desativar') : acao('reativar', 'Reativar')
-  const editar = `<form method="post" action="/contas-correntes/editar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${oculto}<input name="nome" type="text" maxlength="40" required value="${esc(c.nome)}" aria-label="Nome de @${esc(c.apelido)}"><input name="saldo" type="text" inputmode="decimal" value="${esc(saldoCampo(c))}" aria-label="Saldo inicial de @${esc(c.apelido)}"><button class="btn sec pequeno">Salvar</button></form>`
+  const editar = `<form method="post" action="/contas-correntes/editar" style="display:flex;gap:var(--space-2);align-items:center;flex-wrap:wrap">${oculto}<input name="nome" type="text" maxlength="40" required value="${esc(c.nome)}" aria-label="Nome de @${esc(c.apelido)}"><input name="saldo" type="text" inputmode="decimal" value="${esc(saldoCampo(c))}" aria-label="Saldo inicial de @${esc(c.apelido)}"><button class="${BTN_PEQUENO}">Salvar</button></form>`
   return `<li class="convite"><div><strong>${esc(c.nome)}</strong> <code>@${esc(c.apelido)}</code><div class="sub">Saldo atual: ${formatBRL(c.saldo)}</div></div>${status}${editar}${favoritar}${alternar}</li>`
 }
 
@@ -471,7 +485,7 @@ export const paginaContasCorrentes = (email: string, admin: boolean, contas: Con
     'contas-correntes',
     email,
     admin ? 'admin' : 'usuario',
-    `<main id="conteudo">${topo('Contas correntes', 'Os lançamentos vão para a conta favorita, ou para a que você indicar com @apelido')}${aviso(mensagem.erro)}${aviso(mensagem.ok, 'ok')}<div class="grade duas"><div class="cartao c5"><h2>Nova conta</h2><form method="post" action="/contas-correntes">${campo({ nome: 'apelido', rotulo: 'Apelido (usado no WhatsApp, ex.: @nubank)', extra: 'maxlength="20" pattern="[a-z0-9_-]{1,20}" autocapitalize="none"' })}${campo({ nome: 'nome', rotulo: 'Nome', extra: 'maxlength="40"' })}<div class="campo"><label for="saldo">Saldo inicial (opcional)</label><input id="saldo" name="saldo" type="text" inputmode="decimal" placeholder="0,00"></div><button class="btn">Adicionar conta</button></form></div><div class="cartao c7"><h2>Suas contas</h2>${ativas.length ? `<ul class="convites">${ativas.map(itemContaCorrente).join('')}</ul>` : vazio('banco', 'Nenhuma conta ainda.')}${desativadas.length ? `<details class="desativadas"><summary>Mostrar contas desativadas (${desativadas.length})</summary><ul class="convites">${desativadas.map(itemContaCorrente).join('')}</ul></details>` : ''}</div></div></main>`,
+    `<main id="conteudo">${topo('Contas correntes', 'Os lançamentos vão para a conta favorita, ou para a que você indicar com @apelido')}${aviso(mensagem.erro)}${aviso(mensagem.ok, 'ok')}<div class="grade duas"><div class="cartao c5"><h2>Nova conta</h2><form method="post" action="/contas-correntes">${campo({ nome: 'apelido', rotulo: 'Apelido (usado no WhatsApp, ex.: @nubank)', extra: 'maxlength="20" pattern="[a-z0-9_-]{1,20}" autocapitalize="none"' })}${campo({ nome: 'nome', rotulo: 'Nome', extra: 'maxlength="40"' })}<div class="campo"><label for="saldo">Saldo inicial (opcional)</label><input id="saldo" name="saldo" type="text" inputmode="decimal" placeholder="0,00"></div><button class="${BTN}">Adicionar conta</button></form></div><div class="cartao c7"><h2>Suas contas</h2>${ativas.length ? `<ul class="convites">${ativas.map(itemContaCorrente).join('')}</ul>` : vazio('banco', 'Nenhuma conta ainda.')}${desativadas.length ? `<details class="desativadas"><summary>Mostrar contas desativadas (${desativadas.length})</summary><ul class="convites">${desativadas.map(itemContaCorrente).join('')}</ul></details>` : ''}</div></div></main>`,
     '',
     perfil,
   )
@@ -483,7 +497,7 @@ const dataHora = (d: Date) => new Intl.DateTimeFormat('pt-BR', { dateStyle: 'sho
 
 const itemConvite = (c: Convite) => {
   const aberto = !c.usadoEm
-  const revogar = aberto ? `<form method="post" action="/admin/convites/revogar"><input type="hidden" name="id" value="${esc(c.id)}"><button class="btn sec pequeno">Revogar</button></form>` : ''
+  const revogar = aberto ? `<form method="post" action="/admin/convites/revogar"><input type="hidden" name="id" value="${esc(c.id)}"><button class="${BTN_PEQUENO}">Revogar</button></form>` : ''
   return `<li class="convite"><div><code>${esc(c.codigo)}</code>${c.nota ? ` <span class="sub">· ${esc(c.nota)}</span>` : ''}<div class="sub">${dataHora(c.criadoEm)}</div></div><span class="chip ${aberto ? 'chip-ok' : ''}">${aberto ? 'Aberto' : 'Usado'}</span>${revogar}</li>`
 }
 
@@ -495,21 +509,21 @@ const dataBR = (iso: string) => iso.split('-').reverse().join('/')
 const itemConta = (c: ContaResumo, editavel: boolean) => {
   const status = !c.ativa ? '<span class="chip">Desativada</span>' : c.vencida ? '<span class="chip">Vencida</span>' : '<span class="chip chip-ok">Ativa</span>'
   const conexao = c.conectada ? `<span class="sub">· conectada${c.grupoNome ? ` (${esc(c.grupoNome)})` : ''}</span>` : ''
-  const alternar = `<form method="post" action="/admin/contas/${c.ativa ? 'desativar' : 'reativar'}"><input type="hidden" name="id" value="${esc(c.id)}"><button class="btn sec pequeno">${c.ativa ? 'Desativar' : 'Reativar'}</button></form>`
+  const alternar = `<form method="post" action="/admin/contas/${c.ativa ? 'desativar' : 'reativar'}"><input type="hidden" name="id" value="${esc(c.id)}"><button class="${BTN_PEQUENO}">${c.ativa ? 'Desativar' : 'Reativar'}</button></form>`
   const redefinir = c.ativa
-    ? `<form method="post" action="/admin/contas/redefinir"><input type="hidden" name="id" value="${esc(c.id)}"><button class="btn sec pequeno">Enviar link de redefinição</button></form>`
+    ? `<form method="post" action="/admin/contas/redefinir"><input type="hidden" name="id" value="${esc(c.id)}"><button class="${BTN_PEQUENO}">Enviar link de redefinição</button></form>`
     : ''
   const atual = c.papel === 'admin' ? 'admin' : c.validadeAte ? 'validade' : 'usuario'
   const opcao = (v: string, rotulo: string) => `<option value="${v}"${v === atual ? ' selected' : ''}>${rotulo}</option>`
   const permissao = editavel
-    ? `<form method="post" action="/admin/contas/papel" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input type="hidden" name="id" value="${esc(c.id)}"><select name="papel" aria-label="Permissão de ${esc(c.email)}">${opcao('admin', 'Administrador')}${opcao('usuario', 'Usuário')}${opcao('validade', 'Usuário com validade')}</select><input type="date" name="ate" value="${esc(c.validadeAte ?? '')}" aria-label="Último dia de acesso"><button class="btn sec pequeno">Salvar</button></form>`
+    ? `<form method="post" action="/admin/contas/papel" style="display:flex;gap:var(--space-2);align-items:center;flex-wrap:wrap"><input type="hidden" name="id" value="${esc(c.id)}"><select name="papel" aria-label="Permissão de ${esc(c.email)}">${opcao('admin', 'Administrador')}${opcao('usuario', 'Usuário')}${opcao('validade', 'Usuário com validade')}</select><input type="date" name="ate" value="${esc(c.validadeAte ?? '')}" aria-label="Último dia de acesso"><button class="${BTN_PEQUENO}">Salvar</button></form>`
     : ''
   const papel = `<span class="chip">${c.papel === 'admin' ? 'Administrador' : 'Usuário'}</span>${c.validadeAte ? `<span class="sub">Até ${dataBR(c.validadeAte)}</span>` : ''}`
   return `<li class="convite"><div><code>${esc(c.email)}</code> <span class="sub">· ${dataHoraCurta(c.criadaEm)}</span>${conexao}</div>${status}${papel}${permissao}${alternar}${redefinir}</li>`
 }
 
 export const paginaAdmin = (email: string, convites: Convite[], contasAdmin: ContaResumo[] = [], mensagem?: string, perfil?: Perfil, fixos: string[] = []) =>
-  shell('admin', email, 'admin', `<main id="conteudo">${topo('Administração', 'Convites e contas')}${aviso(mensagem)}<div class="grade duas"><div class="cartao c5"><h2>Novo convite</h2><p class="sub">Gera um código de uso único para um cadastro.</p><form method="post" action="/admin/convites"><div class="campo"><label for="nota">Nota (opcional)</label><input id="nota" name="nota" type="text" maxlength="80" placeholder="Ex.: para o João"></div><button class="btn">Gerar convite</button></form></div><div class="pilha c7"><div class="cartao"><h2>Convites</h2>${convites.length ? `<ul class="convites">${convites.map(itemConvite).join('')}</ul>` : vazio('escudo', 'Nenhum convite ainda.')}</div><div class="cartao"><h2>Contas</h2>${contasAdmin.length ? `<ul class="convites">${contasAdmin.map((c) => itemConta(c, c.email !== email && !fixos.includes(c.email))).join('')}</ul>` : vazio('escudo', 'Nenhuma conta cadastrada ainda.')}</div></div></div></main>`, '', perfil)
+  shell('admin', email, 'admin', `<main id="conteudo">${topo('Administração', 'Convites e contas')}${aviso(mensagem)}<div class="grade duas"><div class="cartao c5"><h2>Novo convite</h2><p class="sub">Gera um código de uso único para um cadastro.</p><form method="post" action="/admin/convites"><div class="campo"><label for="nota">Nota (opcional)</label><input id="nota" name="nota" type="text" maxlength="80" placeholder="Ex.: para o João"></div><button class="${BTN}">Gerar convite</button></form></div><div class="pilha c7"><div class="cartao"><h2>Convites</h2>${convites.length ? `<ul class="convites">${convites.map(itemConvite).join('')}</ul>` : vazio('escudo', 'Nenhum convite ainda.')}</div><div class="cartao"><h2>Contas</h2>${contasAdmin.length ? `<ul class="convites">${contasAdmin.map((c) => itemConta(c, c.email !== email && !fixos.includes(c.email))).join('')}</ul>` : vazio('escudo', 'Nenhuma conta cadastrada ainda.')}</div></div></div></main>`, '', perfil)
 
 const AVISOS: Record<Aviso, string> = {
   qr_expirado: 'O QR expirou. Clique em Conectar para gerar outro.',
@@ -531,11 +545,11 @@ const CHIPS: Record<Visao['estado'], [string, string]> = {
 }
 const chip = (estado: Visao['estado']) => `<span class="chip ${CHIPS[estado][0]}"><span class="ponto"></span>${CHIPS[estado][1]}</span>`
 
-const botao = (acao: string, rotulo: string, classe = '', icone = '') => `<form method="post" action="${acao}"><button class="btn ${classe}">${icone}${rotulo}</button></form>`
+const botao = (acao: string, rotulo: string, classe = BTN, icone = '') => `<form method="post" action="${acao}"><button class="${classe}">${icone}${rotulo}</button></form>`
 
 const seletorGrupo = (grupos: DadosFragmento['grupos'], atual?: string) =>
   grupos.length
-    ? `<form method="post" action="/painel/grupo"><div class="campo"><label for="grupo">Grupo do WhatsApp</label><select id="grupo" name="grupo" required>${grupos.map((g) => `<option value="${esc(g.id)}"${g.id === atual ? ' selected' : ''}>${esc(g.nome)}</option>`).join('')}</select></div><button class="btn">Usar este grupo</button></form>`
+    ? `<form method="post" action="/painel/grupo"><div class="campo"><label for="grupo">Grupo do WhatsApp</label><select id="grupo" name="grupo" required>${grupos.map((g) => `<option value="${esc(g.id)}"${g.id === atual ? ' selected' : ''}>${esc(g.nome)}</option>`).join('')}</select></div><button class="${BTN}">Usar este grupo</button></form>`
     : '<p class="sub">Nenhum grupo encontrado. Crie um grupo no WhatsApp e recarregue a página.</p>'
 
 const COMANDOS: [string, string][] = [
@@ -558,16 +572,16 @@ export function fragmentoPainel({ visao: v, conta, grupos, qrSvg }: DadosFragmen
   const gid = conta.grupoId ?? ''
   let conectar: string
   if (v.estado === 'desconectado') {
-    conectar = `${aviso(v.aviso ? AVISOS[v.aviso] : undefined)}<p class="sub">Você vai vincular este WhatsApp como um aparelho conectado. O bot só responde no grupo que você escolher.</p>${botao('/painel/conectar', 'Conectar WhatsApp', '', ic('celular'))}`
+    conectar = `${aviso(v.aviso ? AVISOS[v.aviso] : undefined)}<p class="sub">Você vai vincular este WhatsApp como um aparelho conectado. O bot só responde no grupo que você escolher.</p>${botao('/painel/conectar', 'Conectar WhatsApp', BTN, ic('celular'))}`
   } else if (v.estado === 'conectando') {
     conectar = '<div class="carregando"><span class="giro" aria-hidden="true"></span><span>Aguarde alguns segundos.</span></div>'
   } else if (v.estado === 'aguardando_qr') {
     const pareamento = v.codigo
       ? `<p class="sub">No WhatsApp, abra <b>Aparelhos conectados → Conectar com número de telefone</b> e digite:</p><p class="codigo">${esc(`${v.codigo.slice(0, 4)}-${v.codigo.slice(4)}`)}</p>`
-      : `<details><summary>Estou no celular: usar código em vez do QR</summary><form method="post" action="/painel/parear">${campo({ nome: 'telefone', rotulo: 'Seu número com DDI e DDD', tipo: 'tel', extra: 'placeholder="5511999999999" inputmode="numeric" autocomplete="tel"' })}<button class="btn sec">Gerar código</button></form></details>`
+      : `<details><summary>Estou no celular: usar código em vez do QR</summary><form method="post" action="/painel/parear">${campo({ nome: 'telefone', rotulo: 'Seu número com DDI e DDD', tipo: 'tel', extra: 'placeholder="5511999999999" inputmode="numeric" autocomplete="tel"' })}<button class="${BTN_SEC}">Gerar código</button></form></details>`
     conectar = `<ol class="instrucoes"><li>Abra o WhatsApp no celular</li><li>Toque em <b>Aparelhos conectados</b></li><li>Toque em <b>Conectar um aparelho</b> e aponte para o QR</li></ol><div class="qr" role="img" aria-label="QR Code para conectar o WhatsApp">${qrSvg ?? ''}</div>${pareamento}`
   } else {
-    conectar = `<p class="pronto">${ic('check')}WhatsApp conectado</p><p class="sub">Este WhatsApp está vinculado ao bot.</p>${botao('/painel/desconectar', 'Desconectar', 'sec')}`
+    conectar = `<p class="pronto">${ic('check')}WhatsApp conectado</p><p class="sub">Este WhatsApp está vinculado ao bot.</p>${botao('/painel/desconectar', 'Desconectar', BTN_SEC)}`
   }
   const grupo = !conectado
     ? '<p class="sub">Conecte o WhatsApp primeiro.</p>'
@@ -607,8 +621,8 @@ export const paginaPerfil = (conta: Conta, papel: Papel, estado: Visao['estado']
   const cabeca = `${topo('Perfil', 'Sua conta e preferências')}${aviso(mensagem.erro)}${aviso(mensagem.ok, 'ok')}`
   const corAtual = conta.avatarCor ?? 'vermelho'
   const iconeAtual = conta.avatarIcone ?? 'inicial'
-  const identidade = `<section class="cartao c6"><h2>Identidade</h2><form method="post" action="/perfil"><div class="campo"><label for="nome">Nome de exibição</label><input id="nome" name="nome" type="text" maxlength="40" autocomplete="name" placeholder="Como você quer aparecer" value="${esc(conta.nome ?? '')}"></div><fieldset class="opcoes"><legend>Cor do avatar</legend>${AVATAR_CORES.map((c) => opcaoCor(c, corAtual)).join('')}</fieldset><fieldset class="opcoes"><legend>Ícone do avatar</legend>${AVATAR_ICONES.map((i) => opcaoIcone(i, iconeAtual)).join('')}</fieldset><button class="btn">Salvar perfil</button></form></section>`
+  const identidade = `<section class="cartao c6"><h2>Identidade</h2><form method="post" action="/perfil"><div class="campo"><label for="nome">Nome de exibição</label><input id="nome" name="nome" type="text" maxlength="40" autocomplete="name" placeholder="Como você quer aparecer" value="${esc(conta.nome ?? '')}"></div><fieldset class="opcoes"><legend>Cor do avatar</legend>${AVATAR_CORES.map((c) => opcaoCor(c, corAtual)).join('')}</fieldset><fieldset class="opcoes"><legend>Ícone do avatar</legend>${AVATAR_ICONES.map((i) => opcaoIcone(i, iconeAtual)).join('')}</fieldset><button class="${BTN}">Salvar perfil</button></form></section>`
   const whatsapp = `<section class="cartao"><div class="cabeca"><h2>WhatsApp</h2>${chip(estado)}</div><p class="sub">${conta.grupoNome ? `Grupo: <strong>${esc(conta.grupoNome)}</strong>` : 'Nenhum grupo escolhido.'}</p><p><a href="/painel">Abrir o painel</a></p></section>`
-  const seguranca = `<section class="cartao"><h2>Segurança</h2><form method="post" action="/perfil/senha">${campo({ nome: 'atual', rotulo: 'Senha atual', tipo: 'password', extra: 'autocomplete="current-password"' })}${campo({ nome: 'nova', rotulo: 'Nova senha (mínimo 8 caracteres)', tipo: 'password', extra: 'minlength="8" autocomplete="new-password"' })}${campo({ nome: 'confirmacao', rotulo: 'Confirme a nova senha', tipo: 'password', extra: 'minlength="8" autocomplete="new-password"' })}<button class="btn">Trocar senha</button></form><hr style="border:0;border-top:1px solid var(--borda);margin:20px 0"><p class="sub">Encerra a sessão em todos os outros aparelhos e navegadores. Esta continua aberta.</p><form method="post" action="/perfil/sair-aparelhos"><button class="btn sec">Sair dos outros aparelhos</button></form></section>`
+  const seguranca = `<section class="cartao"><h2>Segurança</h2><form method="post" action="/perfil/senha">${campo({ nome: 'atual', rotulo: 'Senha atual', tipo: 'password', extra: 'autocomplete="current-password"' })}${campo({ nome: 'nova', rotulo: 'Nova senha (mínimo 8 caracteres)', tipo: 'password', extra: 'minlength="8" autocomplete="new-password"' })}${campo({ nome: 'confirmacao', rotulo: 'Confirme a nova senha', tipo: 'password', extra: 'minlength="8" autocomplete="new-password"' })}<button class="${BTN}">Trocar senha</button></form><hr style="border:0;border-top:1px solid var(--border-subtle);margin:var(--space-5) 0"><p class="sub">Encerra a sessão em todos os outros aparelhos e navegadores. Esta continua aberta.</p><form method="post" action="/perfil/sair-aparelhos"><button class="${BTN_SEC}">Sair dos outros aparelhos</button></form></section>`
   return shell('perfil', conta.email, papel, `<main id="conteudo">${cabeca}<div class="grade duas">${identidade}<div class="pilha c6"><section class="cartao"><h2>Conta</h2>${dados}</section>${whatsapp}${seguranca}</div></div></main>`, '', perfilDe(conta))
 }

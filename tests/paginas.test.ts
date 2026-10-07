@@ -20,6 +20,8 @@ describe('marca e prévia do bot nas telas de entrada', () => {
   ])('%s: logo, tagline e prévia da mensagem do bot', (_n, html) => {
     expect(html).toContain('WCOEN')
     expect(html).toContain('Seu controle financeiro pelo WhatsApp')
+    expect(html).toContain('src="/ds/wcoen-mark-reverso.svg"') // logo do Trade UI; a vitrine é escura
+    expect(html).toContain('href="/ds/wcoen-icon-light.svg"') // favicon
     expect(html).toContain('BALANCETE DO DIA')
     expect(html).toMatch(/role="img"[^>]*aria-label="Exemplo de mensagem do bot/)
   })
@@ -131,7 +133,7 @@ describe('regras gerais das páginas', () => {
 
   it('modo escuro, movimento reduzido e anel de foco visível', () => {
     for (const html of todas) {
-      expect(html).toContain('prefers-color-scheme:dark')
+      expect(html).toContain('[data-theme="dark"]')
       expect(html).toContain('prefers-reduced-motion')
       expect(html).toContain(':focus-visible')
     }
@@ -329,12 +331,23 @@ describe('paginaDashboard', () => {
 
   it('mostra os cartões, o gráfico, as categorias e a tabela alternativa', () => {
     const html = paginaDashboard('ana@x.com', ind(), false)
-    expect(html).toContain('R$ 1.250,00') // saldo
-    expect(html).toContain('+50%')
+    expect(html).toContain('R$ 1.250<span class="cent">,00</span>') // saldo, centavos em fg-muted
+    expect(html).toContain('+50% <span aria-hidden="true">↗</span>') // a seta é visual; o sinal já diz o sentido
     expect(html).toContain('role="img"')
     expect(html).toContain('mercado')
     expect(html).toContain('<details')
     expect(html).toContain('href="/painel"')
+  })
+
+  it('variação com sinal e seta; queda usa o sinal de menos', () => {
+    const queda = montarIndicadores([{ ano: 2026, mes: 8, receitas: 100000, despesas: 50000 }, { ano: 2026, mes: 9, receitas: 50000, despesas: 50000 }], { receitas: [], despesas: [] })
+    expect(paginaDashboard('ana@x.com', queda, false)).toContain('−50% <span aria-hidden="true">↘</span>')
+  })
+
+  it('um único card de destaque (marca) por tela: o saldo do mês', () => {
+    const html = paginaDashboard('ana@x.com', ind(), false)
+    expect(html.match(/class="kpi destaque"/g)).toHaveLength(1)
+    expect(html).toMatch(/class="kpi destaque"><div class="rot">[\s\S]*?Saldo do mês/)
   })
 
   it('escapa nome de categoria vindo do usuário', () => {
@@ -502,9 +515,11 @@ describe('layout fluido (largura total, sem centralizar)', () => {
     }
   })
 
-  it('tokens de espaçamento e sombras no :root', () => {
-    expect(telas.painel).toMatch(/--e4:16px/)
-    expect(telas.painel).toMatch(/--sombra2:/)
+  it('tokens do Trade UI (espaçamento e sombra) no :root', () => {
+    expect(telas.painel).toMatch(/--space-4: 16px/)
+    expect(telas.painel).toMatch(/--shadow-card:/)
+    expect(telas.painel).not.toMatch(/@import|family=/) // a CSP bloquearia; as fontes vêm de /ds/
+    expect(telas.painel).toContain('url(/ds/plus-jakarta-sans.woff2)')
   })
 })
 
@@ -561,8 +576,9 @@ describe('movimento e acabamento', () => {
   it('movimento reduzido desliga animações e transições de página', () => {
     expect(html).toMatch(/prefers-reduced-motion:reduce\)\{[^@]*::view-transition-old\(\*\)/)
   })
-  it('item ativo do menu tem barra de destaque', () => {
-    expect(html).toContain('.item[aria-current=page]::before')
+  it('item ativo do menu é pílula invertida, sem barra lateral colorida (Trade UI)', () => {
+    expect(html).toMatch(/\.item\[aria-current=page\]\{[^}]*background:var\(--bg-inverse\)/)
+    expect(html).not.toContain('.item[aria-current=page]::before')
   })
 })
 
