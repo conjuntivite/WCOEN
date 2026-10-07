@@ -131,7 +131,7 @@ describe('regras gerais das páginas', () => {
 
   it('modo escuro, movimento reduzido e anel de foco visível', () => {
     for (const html of todas) {
-      expect(html).toContain('prefers-color-scheme:dark')
+      expect(html).toContain('[data-theme="dark"]')
       expect(html).toContain('prefers-reduced-motion')
       expect(html).toContain(':focus-visible')
     }
@@ -502,9 +502,11 @@ describe('layout fluido (largura total, sem centralizar)', () => {
     }
   })
 
-  it('tokens de espaçamento e sombras no :root', () => {
-    expect(telas.painel).toMatch(/--e4:16px/)
-    expect(telas.painel).toMatch(/--sombra2:/)
+  it('tokens do Trade UI (espaçamento e sombra) no :root', () => {
+    expect(telas.painel).toMatch(/--space-4: 16px/)
+    expect(telas.painel).toMatch(/--shadow-card:/)
+    expect(telas.painel).not.toMatch(/@import|family=/) // a CSP bloquearia; as fontes vêm de /ds/
+    expect(telas.painel).toContain('url(/ds/plus-jakarta-sans.woff2)')
   })
 })
 

@@ -1,0 +1,138 @@
+/* Trade UI — design tokens (gerado de tokens.json). Tema claro é o padrão; use data-theme="dark" no <html> para o escuro. */
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600&family=Space+Mono&display=swap");
+
+:root, [data-theme="light"] {
+  --lime-300: #C2F86C;
+  --green-500: #32D15A;
+  --green-400: #60CF71;
+  --green-700: #17782F;
+  --green-950: #0A2D27;
+  --blue-500: #4789FE;
+  --blue-700: #2561D6;
+  --purple-500: #B547FF;
+  --purple-700: #8A2BD2;
+  --red-500: #F0532A;
+  --red-700: #C13510;
+  --amber-400: #F5B83D;
+  --amber-800: #8A5A00;
+  --magenta-500: #E8336E;
+  --ink-950: #020202;
+  --ink-900: #141414;
+  --gray-600: #5B5D60;
+  --gray-500: #6E7075;
+  --gray-200: #E4E4E4;
+  --gray-100: #F2F2F2;
+  --gray-50: #F8F8F8;
+  --white: #FFFFFF;
+  --offwhite: #FBF4F4;
+  --night-900: #0F0F10;
+  --night-800: #1A1A1C;
+  --night-700: #26262A;
+  --bg-page: var(--gray-100);
+  --bg-surface: var(--gray-50);
+  --bg-elevated: var(--white);
+  --bg-inverse: var(--ink-900);
+  --bg-brand: var(--lime-300);
+  --bg-brand-deep: var(--green-950);
+  --border-subtle: var(--gray-200);
+  --border-strong: var(--gray-500);
+  --fg-primary: var(--ink-900);
+  --fg-secondary: var(--gray-600);
+  --fg-muted: var(--gray-500);
+  --fg-inverse: var(--white);
+  --fg-on-brand: var(--ink-900);
+  --action-primary: var(--ink-900);
+  --action-primary-fg: var(--white);
+  --action-accent: var(--lime-300);
+  --positive: var(--green-700);
+  --positive-fill: var(--green-400);
+  --negative: var(--red-700);
+  --negative-fill: var(--red-500);
+  --warning: var(--amber-800);
+  --warning-fill: var(--amber-400);
+  --info: var(--blue-700);
+  --info-fill: var(--blue-500);
+  --accent-short: var(--purple-700);
+  --accent-short-fill: var(--purple-500);
+  --risk: #C2186B;
+  --risk-fill: var(--magenta-500);
+  --shadow-card: 0 1px 2px rgba(20,20,20,0.04), 0 8px 24px rgba(20,20,20,0.06);
+  --shadow-glow: 0 0 0 1px rgba(71,137,254,0.25), 0 0 24px rgba(71,137,254,0.35);
+}
+
+[data-theme="dark"] {
+  --bg-page: #000000;
+  --bg-surface: var(--night-900);
+  --bg-elevated: var(--night-800);
+  --bg-inverse: var(--offwhite);
+  --bg-brand: var(--lime-300);
+  --bg-brand-deep: var(--green-950);
+  --border-subtle: var(--night-700);
+  --border-strong: #6A6C71;
+  --fg-primary: var(--offwhite);
+  --fg-secondary: #A1A3A8;
+  --fg-muted: #8A8C91;
+  --fg-inverse: var(--ink-900);
+  --fg-on-brand: var(--ink-900);
+  --action-primary: var(--green-500);
+  --action-primary-fg: #000000;
+  --action-accent: var(--lime-300);
+  --positive: var(--green-500);
+  --positive-fill: var(--green-500);
+  --negative: #FF6B47;
+  --negative-fill: var(--red-500);
+  --warning: var(--amber-400);
+  --warning-fill: var(--amber-400);
+  --info: #6FA3FF;
+  --info-fill: var(--blue-500);
+  --accent-short: #C67BFF;
+  --accent-short-fill: var(--purple-500);
+  --risk: #FF5C93;
+  --risk-fill: var(--magenta-500);
+  --shadow-card: none;
+  --shadow-glow: 0 0 0 1px rgba(50,209,90,0.35), 0 0 32px rgba(50,209,90,0.30);
+  color-scheme: dark;
+}
+
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-24: 96px;
+  --radius-none: 0px;
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-2xl: 32px;
+  --radius-pill: 9999px;
+  --hatch-opacity: 0.35;
+  --font-sans: "Plus Jakarta Sans", "Geist", system-ui, sans-serif;
+  --font-mono: "Space Mono", "Geist Mono", ui-monospace, monospace;
+}
+
+/* Estilos tipográficos */
+.display-xl { font-family: var(--font-sans); font-size: 64px; line-height: 68px; font-weight: 600; letter-spacing: -0.03em; }
+.display-lg { font-family: var(--font-sans); font-size: 48px; line-height: 52px; font-weight: 600; letter-spacing: -0.02em; }
+.heading-1 { font-family: var(--font-sans); font-size: 32px; line-height: 40px; font-weight: 600; letter-spacing: -0.02em; }
+.heading-2 { font-family: var(--font-sans); font-size: 24px; line-height: 32px; font-weight: 600; letter-spacing: -0.01em; }
+.heading-3 { font-family: var(--font-sans); font-size: 20px; line-height: 28px; font-weight: 600; }
+.heading-4 { font-family: var(--font-sans); font-size: 16px; line-height: 24px; font-weight: 600; }
+.data-xl { font-family: var(--font-sans); font-size: 44px; line-height: 48px; font-weight: 500; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.data-lg { font-family: var(--font-sans); font-size: 28px; line-height: 34px; font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.data-md { font-family: var(--font-sans); font-size: 18px; line-height: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.data-sm { font-family: var(--font-sans); font-size: 13px; line-height: 16px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.body-lg { font-family: var(--font-sans); font-size: 16px; line-height: 24px; font-weight: 400; }
+.body-md { font-family: var(--font-sans); font-size: 14px; line-height: 20px; font-weight: 400; }
+.body-sm { font-family: var(--font-sans); font-size: 12px; line-height: 16px; font-weight: 400; }
+.label { font-family: var(--font-sans); font-size: 13px; line-height: 16px; font-weight: 500; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; line-height: 16px; font-weight: 400; letter-spacing: 0.08em; text-transform: uppercase; }
+.ticker { font-family: var(--font-mono); font-size: 12px; line-height: 16px; font-weight: 400; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; }

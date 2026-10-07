@@ -26,10 +26,12 @@ export type OpcoesWeb = {
   dominio?: string // usado para montar o link de redefinição de senha; sem isso, cairia no Host da requisição, que o cliente pode forjar
 }
 
-// logo leve (src/assets), lida uma vez; o arquivo original de design tinha 2 MB
-const IMAGENS = new Map(
-  ['logo', 'mascote'].map((n) => [`/${n}.svg`, readFileSync(new URL(`./assets/${n}.svg`, import.meta.url))]),
-)
+// arquivos estáticos lidos uma vez: logo leve (src/assets; o original de design tinha 2 MB) e fontes do Trade UI (design-system/fonts)
+const arquivo = (caminho: string, tipo: string): [Buffer, string] => [readFileSync(new URL(caminho, import.meta.url)), tipo]
+const ESTATICOS = new Map<string, [Buffer, string]>([
+  ...['logo', 'mascote'].map((n) => [`/${n}.svg`, arquivo(`./assets/${n}.svg`, 'image/svg+xml')] as const),
+  ...['plus-jakarta-sans', 'space-mono'].map((n) => [`/ds/${n}.woff2`, arquivo(`../design-system/fonts/${n}.woff2`, 'font/woff2')] as const),
+])
 
 const CABECALHOS = {
   'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; style-src 'unsafe-inline'; frame-ancestors 'none'",
@@ -115,10 +117,10 @@ export function criarWeb(op: OpcoesWeb): Server {
     const metodo = req.method ?? 'GET'
     // sem login/banco: usado pelo health check do host e pelo auto-ping que mantém o app acordado
     if (metodo === 'GET' && caminho === '/saude') return void res.writeHead(200).end('ok')
-    const imagem = metodo === 'GET' ? IMAGENS.get(caminho) : undefined
-    if (imagem) {
-      res.writeHead(200, { ...CABECALHOS, 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=86400' })
-      return void res.end(imagem)
+    const estatico = metodo === 'GET' ? ESTATICOS.get(caminho) : undefined
+    if (estatico) {
+      res.writeHead(200, { ...CABECALHOS, 'Content-Type': estatico[1], 'Cache-Control': 'public, max-age=86400' })
+      return void res.end(estatico[0])
     }
     if (metodo === 'POST' && !origemOk(req)) throw new HttpErro(403)
     const conta = await contaDe(req)
