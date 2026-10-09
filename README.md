@@ -1,10 +1,32 @@
 <p align="center">
-  <img src="src/assets/logo.svg" alt="WCOEN" width="420">
+  <img src="design-system/brand/wcoen/wcoen-lockup-light.svg" alt="WCOEN" width="420">
 </p>
 
 # WCOEN
 
 Bot de WhatsApp (Baileys) que registra despesas e receitas num grupo seu e monta o balancete. Dados no seu Postgres (Docker ou Supabase).
+
+O WCOEN roda como serviço (SaaS) para vários clientes. Cada cliente se cadastra no portal web, conecta o próprio
+WhatsApp e escolhe o grupo onde o bot responde. Os lançamentos, contas correntes e relatórios são isolados por
+cliente.
+
+> Arquitetura detalhada: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+
+## Arquitetura em resumo
+
+```
+WhatsApp ──(Baileys, 1 sessão por cliente)──▶ sessoes.ts ──▶ parser.ts ──▶ service.ts ──▶ repo.ts ──▶ PostgreSQL
+                                                     │                            │
+                                                     └──▶ nota.ts (foto) ─────────┴──▶ OpenRouter (IA opcional:
+                                                                                         auditoria e leitura de nota)
+Navegador ──▶ web.ts (portal: cadastro, QR, dashboard, contas correntes, admin) ──▶ contas.ts · convites.ts · contasCorrentes.ts
+```
+
+- **Stack:** Node.js ≥ 20.6 com TypeScript (executado via `tsx`, sem build), `@whiskeysockets/baileys`, `pg`,
+  `nodemailer`/Resend, `qrcode` e o `http` nativo no portal, com HTML gerado no servidor e o design system Trade UI.
+- **Dados:** PostgreSQL 16 (Docker) ou Supabase. As credenciais do WhatsApp ficam cifradas no banco
+  (AES-256-GCM, `CHAVE_CRIPTO`).
+- **Implantação:** `docker compose` (app + Postgres + Caddy com HTTPS automático) ou Render (gratuito) + Supabase.
 
 ## Rodar
 
@@ -120,3 +142,14 @@ normal (esse comportamento de hibernação é observado, não uma garantia docum
 notar quedas, considere um plano pago).
 
 Backup do Supabase: veja Database → Backups no painel do projeto (o plano gratuito guarda alguns dias).
+
+## Documentação
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): componentes, fluxo das mensagens, modelo de dados, segurança e
+  implantação.
+- [`docs/roteiro-manual-portal.md`](docs/roteiro-manual-portal.md): roteiro de teste manual antes de liberar um piloto.
+- [`docs/proximos-passos.md`](docs/proximos-passos.md): ideias e pendências registradas.
+- `docs/superpowers/specs/` e `docs/superpowers/plans/`: spec e plano de cada funcionalidade (bot, portal SaaS,
+  relatórios e auditoria, redefinição de senha e admin, dashboard, visual responsivo, contas correntes, nota por foto,
+  transferência entre contas).
+- `design-system/`: cópia do Trade UI (tokens, componentes, fontes e logos do WCOEN).
