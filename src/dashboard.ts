@@ -14,17 +14,16 @@ export type Indicadores = {
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
 export const rotuloMesCurto = (m: { mes: number }) => MESES[m.mes - 1]
 
-// 5 + "Outras" = 6 fatias, uma por cor da paleta (.f1..f6)
-const MAX_CATEGORIAS = 5
 const pct = (atual: number, anterior: number) => (anterior === 0 ? null : Math.round(((atual - anterior) / Math.abs(anterior)) * 100))
 
+// uma fatia por categoria (já somada por nome no repo), sem juntar as menores em "Outras"
 function agrupar(linhas: { conta: string; total: number }[]): Categoria[] {
-  const top = linhas.slice(0, MAX_CATEGORIAS)
-  const resto = linhas.slice(MAX_CATEGORIAS).reduce((s, l) => s + l.total, 0)
-  const todas = resto > 0 ? [...top, { conta: 'Outras', total: resto }] : top
-  const total = Math.max(1, todas.reduce((s, l) => s + l.total, 0))
-  return todas.map((l) => ({ ...l, pct: Math.round((l.total / total) * 100) }))
+  const total = Math.max(1, linhas.reduce((s, l) => s + l.total, 0))
+  return linhas.map((l) => ({ ...l, pct: Math.round((l.total / total) * 100) }))
 }
+
+// paleta de 6 cores (.f1..f6) repete a partir da 7ª categoria; a legenda em texto desambigua
+export const corFatia = (i: number) => `f${(i % 6) + 1}`
 
 export function montarIndicadores(serie: MesSerie[], balanceteMes: Balancete): Indicadores {
   const mes = serie[serie.length - 1]
@@ -82,7 +81,7 @@ export function svgPizza(fatias: Categoria[], id: string, titulo: string, centro
         .map((f, i) => {
           const v = (f.total / total) * 100
           const cheio = Math.max(0, v - vao)
-          const arco = `<circle class="fatia f${i + 1}" cx="21" cy="21" r="15.915" stroke-dasharray="${n2(cheio)} ${n2(100 - cheio)}" stroke-dashoffset="${n2(25 - feito)}"/>`
+          const arco = `<circle class="fatia ${corFatia(i)}" cx="21" cy="21" r="15.915" stroke-dasharray="${n2(cheio)} ${n2(100 - cheio)}" stroke-dashoffset="${n2(25 - feito)}"/>`
           feito += v
           return arco
         })
