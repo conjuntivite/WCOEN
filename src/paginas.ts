@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { AVATAR_CORES, AVATAR_ICONES, type Conta, type ContaResumo, type Papel, type Perfil } from './contas'
 import type { Convite } from './convites'
 import type { Aviso, Visao } from './sessoes'
-import { curto, rotuloMesCurto, svgLinhaSaldo, svgPizza, svgTendencia, type Categoria, type Indicadores } from './dashboard'
+import { corFatia, curto, rotuloMesCurto, svgLinhaSaldo, svgPizza, svgTendencia, type Categoria, type Indicadores } from './dashboard'
 import { formatBRL } from './money'
 import type { ContaCorrenteComSaldo } from './types'
 
@@ -415,7 +415,7 @@ const cartao = (classe: string, icone: keyof typeof ICONES, titulo: string, corp
 // donut + legenda em texto (nome, valor e %): a cor nunca é a única informação
 const pizza = (cats: Categoria[], id: string, titulo: string, semDados: string) =>
   cats.length
-    ? `${svgPizza(cats, id, titulo, `R$ ${curto(cats.reduce((s, c) => s + c.total, 0))}`)}<ul class="cats">${cats.map((c, i) => `<li><span class="nome"><i class="f${i + 1}" aria-hidden="true"></i>${esc(c.conta)}</span><span class="valor">${formatBRL(c.total)}<small>${c.pct}%</small></span></li>`).join('')}</ul>`
+    ? `${svgPizza(cats, id, titulo, `R$ ${curto(cats.reduce((s, c) => s + c.total, 0))}`)}<ul class="cats">${cats.map((c, i) => `<li><span class="nome"><i class="${corFatia(i)}" aria-hidden="true"></i>${esc(c.conta)}</span><span class="valor">${formatBRL(c.total)}<small>${c.pct}%</small></span></li>`).join('')}</ul>`
     : vazio('pizza', semDados)
 
 type ContaDash = Pick<ContaCorrenteComSaldo, 'apelido' | 'nome' | 'saldo' | 'ativa'>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { montarIndicadores, svgLinhaSaldo, svgPizza, svgTendencia } from '../src/dashboard'
+import { corFatia, montarIndicadores, svgLinhaSaldo, svgPizza, svgTendencia } from '../src/dashboard'
 import type { MesSerie } from '../src/types'
 
 const m = (mes: number, receitas: number, despesas: number): MesSerie => ({ ano: 2026, mes, receitas, despesas })
@@ -21,12 +21,16 @@ describe('montarIndicadores', () => {
     expect(montarIndicadores([m(9, 1000, 200)], vazio).variacao.receitas).toBeNull()
   })
 
-  it('agrupa da 6ª categoria em diante em "Outras", com % sobre o total', () => {
+  it('detalha todas as categorias, sem juntar em "Outras", com % sobre o total', () => {
     const despesas = Array.from({ length: 7 }, (_, k) => ({ conta: `c${k}`, total: (7 - k) * 100 })) // 700..100, total 2800
     const i = montarIndicadores([m(9, 0, 2800)], { receitas: [], despesas })
-    expect(i.categorias).toHaveLength(6)
+    expect(i.categorias).toHaveLength(7)
     expect(i.categorias[0]).toEqual({ conta: 'c0', total: 700, pct: 25 })
-    expect(i.categorias[5]).toEqual({ conta: 'Outras', total: 300, pct: 11 }) // 200 + 100
+    expect(i.categorias[6]).toEqual({ conta: 'c6', total: 100, pct: 4 })
+  })
+
+  it('cor da fatia repete a paleta de 6 a partir da 7ª', () => {
+    expect([0, 5, 6].map(corFatia)).toEqual(['f1', 'f6', 'f1'])
   })
 
   it('agrupa as receitas por categoria do mesmo jeito', () => {
