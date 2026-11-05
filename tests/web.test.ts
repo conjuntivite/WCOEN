@@ -9,6 +9,7 @@ import type { Sessoes, Visao } from '../src/sessoes'
 import type { Mailer } from '../src/mailer'
 import { criarRepo, type Repositorio } from '../src/repo'
 import { criarContasCorrentes, type ContasCorrentes } from '../src/contasCorrentes'
+import { intervaloDoMes, rotuloMes } from '../src/period'
 
 // nome DB_URL (não URL): o global URL é usado nos testes de esqueci-senha pra extrair o token do link
 const DB_URL = process.env.TEST_DATABASE_URL ?? 'postgres://postgres:wcoen@localhost:5432/wcoen_test'
@@ -825,6 +826,32 @@ describe('dashboard por conta corrente', () => {
     expect(html).toContain('Saldo por conta')
     expect(html).toContain('R$ 1.234,56')
     expect(html).not.toContain('Cofre do B')
+  })
+})
+
+describe('dashboard por mês/ano', () => {
+  it('?mes=AAAA-MM lê a série e o balancete daquele mês, mantendo ?cc=', async () => {
+    const { cookie, conta } = await entrar()
+    await post('/contas-correntes', { apelido: 'nubank', nome: 'Nubank' }, { cookie })
+    const nu = (await contasCorrentes.doCliente(conta.id).porApelido('nubank'))!
+    spies.serie.mockResolvedValueOnce([{ ano: 2025, mes: 3, receitas: 100, despesas: 50 }]) // o repo real termina a série no mês pedido
+    const html = await (await get('/dashboard?mes=2025-03&cc=nubank', cookie)).text()
+    expect(html).toContain('type="month"')
+    expect(html).toContain('value="2025-03"')
+    expect(html).toContain('março de 2025')
+    const [ate, n, cc] = spies.serie.mock.lastCall!
+    expect(rotuloMes(ate as Date)).toBe('03/2025')
+    expect([n, cc]).toEqual([6, nu.id])
+    expect(spies.balancete).toHaveBeenLastCalledWith(intervaloDoMes(2025, 3), nu.id)
+  })
+
+  it('mês inválido ou futuro cai no mês atual', async () => {
+    const { cookie } = await entrar()
+    const atual = rotuloMes(new Date())
+    for (const m of ['2025-13', 'abc', '2999-01']) {
+      await get(`/dashboard?mes=${m}`, cookie)
+      expect(rotuloMes(spies.serie.mock.lastCall![0] as Date)).toBe(atual)
+    }
   })
 })
 
