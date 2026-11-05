@@ -160,8 +160,12 @@ export function criarWeb(op: OpcoesWeb): Server {
       }
       if (caminho === '/dashboard') {
         if (!conta) return ir(res, '/entrar')
-        const agora = new Date()
-        const { ano, mes } = mesAtual(agora)
+        // ?mes=AAAA-MM escolhe o mês exibido; inválido ou futuro cai no mês atual
+        const hoje = mesAtual(new Date())
+        const m = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(url.searchParams.get('mes') ?? '')
+        const pedido = m ? { ano: +m[1], mes: +m[2] } : hoje
+        const { ano, mes } = pedido.ano * 12 + pedido.mes > hoje.ano * 12 + hoje.mes ? hoje : pedido
+        const agora = new Date(Date.UTC(ano, mes - 1, 15, 12)) // meio do mês: fim da série de 6 meses
         const leitura = op.repo.leitura(conta.id) // sempre a própria conta; ?conta= é ignorado, até para admin
         // ?cc=apelido filtra por conta corrente; porApelido já é por cliente, então apelido alheio ou inexistente cai em "todas"
         const apelido = url.searchParams.get('cc') ?? ''
@@ -171,7 +175,7 @@ export function criarWeb(op: OpcoesWeb): Server {
           leitura.balancete(intervaloDoMes(ano, mes), selecionada?.id),
           contasCorrentes.listar(conta.id),
         ])
-        return html(res, 200, paginaDashboard(conta.email, montarIndicadores(serie, balancete), isAdmin(conta), perfilDe(conta), todas, selecionada?.apelido ?? ''))
+        return html(res, 200, paginaDashboard(conta.email, montarIndicadores(serie, balancete), isAdmin(conta), perfilDe(conta), todas, selecionada?.apelido ?? '', `${hoje.ano}-${String(hoje.mes).padStart(2, '0')}`))
       }
       if (caminho === '/contas-correntes') {
         if (!conta) return ir(res, '/entrar')

@@ -174,7 +174,7 @@ fieldset.opcoes{border:0;padding:0;margin:var(--space-4) 0}fieldset.opcoes legen
 .cats .nome{display:flex;align-items:center;gap:var(--space-2);min-width:0}.cats i{flex:none;width:12px;height:12px;border-radius:var(--radius-xs);background:var(--c)}.cats small{color:var(--fg-secondary);font-weight:500;margin-left:var(--space-2)}
 .cats .valor.neg{color:var(--negative)}.saldos .nome .ic{color:var(--fg-secondary)}.saldos li.sel .nome{font-weight:600}.saldos li.total{border-top:1px solid var(--border-subtle);padding-top:var(--space-3);font-weight:600}
 .dash details{margin-top:var(--space-3);font-size:13px}.dash summary{cursor:pointer;color:var(--fg-secondary)}.dash table{width:100%;border-collapse:collapse;margin-top:var(--space-2)}.dash th,.dash td{text-align:right;padding:var(--space-2) var(--space-2);border-bottom:1px solid var(--border-subtle)}.dash th:first-child,.dash td:first-child{text-align:left}
-.filtro{display:flex;gap:var(--space-2);align-items:center;flex-wrap:wrap}.filtro label{margin:0}.filtro select{width:auto;min-width:min(100%,220px)}
+.filtro{display:flex;gap:var(--space-2);align-items:center;flex-wrap:wrap}.filtro label{margin:0}.filtro select,.filtro input{width:auto;min-width:min(100%,220px)}
 @media (min-width:860px){.pagina{padding:var(--space-8) max(var(--space-10),env(safe-area-inset-right)) var(--space-16) max(var(--space-10),env(safe-area-inset-left))}}
 @media (min-width:1024px){.grade.duas{grid-template-columns:repeat(12,minmax(0,1fr))}.c5{grid-column:span 5}.c6{grid-column:span 6}.c7{grid-column:span 7}}
 @media (min-width:1180px){.painel-passos{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -427,14 +427,18 @@ const saldos = (contas: ContaDash[], selecionada: string) => {
   return `<ul class="cats saldos">${ativas.map((c) => linha(esc(c.nome), c.saldo, c.apelido === selecionada ? 'sel' : '', ic('banco'))).join('')}${ativas.length > 1 ? linha('Total', ativas.reduce((s, c) => s + c.saldo, 0), 'total') : ''}</ul>`
 }
 
-// filtro por conta corrente (formulário GET, sem JS: a CSP não permite script inline); só aparece com 2+ contas
-const seletorConta = (contas: ContaDash[], selecionada: string) =>
-  contas.length < 2
-    ? ''
-    : `<form method="get" action="/dashboard" class="filtro"><label for="cc">Conta</label> <select id="cc" name="cc"><option value="">Todas as contas</option>${contas.map((c) => `<option value="${esc(c.apelido)}"${c.apelido === selecionada ? ' selected' : ''}>${esc(c.nome)}</option>`).join('')}</select> <button class="${BTN_PEQUENO}">Aplicar</button></form>`
+const aaaaMm = (ano: number, mes: number) => `${ano}-${String(mes).padStart(2, '0')}`
+
+// filtro por mês/ano e conta corrente (formulário GET, sem JS: a CSP não permite script inline); a conta só aparece com 2+ contas
+const filtroDash = (contas: ContaDash[], selecionada: string, mes: string, max: string) =>
+  `<form method="get" action="/dashboard" class="filtro"><label for="mes">Mês</label> <input type="month" id="mes" name="mes" value="${mes}" max="${max}" required>${
+    contas.length < 2
+      ? ''
+      : ` <label for="cc">Conta</label> <select id="cc" name="cc"><option value="">Todas as contas</option>${contas.map((c) => `<option value="${esc(c.apelido)}"${c.apelido === selecionada ? ' selected' : ''}>${esc(c.nome)}</option>`).join('')}</select>`
+  } <button class="${BTN_PEQUENO}">Aplicar</button></form>`
 
 // o dashboard é sempre da própria conta: nem o admin enxerga os valores de outras
-export const paginaDashboard = (email: string, ind: Indicadores, admin: boolean, perfil?: Perfil, contas: ContaDash[] = [], selecionada = '') => {
+export const paginaDashboard = (email: string, ind: Indicadores, admin: boolean, perfil?: Perfil, contas: ContaDash[] = [], selecionada = '', mesMax = aaaaMm(ind.mes.ano, ind.mes.mes)) => {
   const corpo = ind.vazio
     ? `<div class="cartao">${vazio('grafico', 'Nenhum lançamento nos últimos 6 meses. Registre uma despesa ou receita no grupo do WhatsApp e ela aparece aqui.')}</div>`
     : `<div class="kpis">${kpi('carteira', 'Saldo do mês', ind.saldo, ind.variacao.saldo, true, true)}${kpi('entrada', 'Receitas', ind.mes.receitas, ind.variacao.receitas, true)}${kpi('saida', 'Despesas', ind.mes.despesas, ind.variacao.despesas, false)}</div>
@@ -443,7 +447,7 @@ export const paginaDashboard = (email: string, ind: Indicadores, admin: boolean,
 ${cartao('c5', 'linha', 'Resultado mês a mês', svgLinhaSaldo(ind.serie))}</div>
 <div class="grade tres">${cartao('', 'pizza', 'Despesas por categoria', pizza(ind.categorias, 'pz-desp', 'Despesas do mês por categoria', 'Sem despesas neste mês.'))}${cartao('', 'pizza', 'Receitas por categoria', pizza(ind.receitasCat, 'pz-rec', 'Receitas do mês por categoria', 'Sem receitas neste mês.'))}${contas.length ? cartao('', 'banco', 'Saldo por conta', saldos(contas, selecionada)) : ''}</div>`
   const nomeSel = contas.find((c) => c.apelido === selecionada)?.nome
-  return shell('dashboard', email, admin ? 'admin' : 'usuario', `<main id="conteudo" class="dash">${topo('Dashboard', `${nomeMes(ind.mes.ano, ind.mes.mes)}${nomeSel ? ` · ${nomeSel}` : ''}`)}${seletorConta(contas, selecionada)}${corpo}</main>`, '', perfil)
+  return shell('dashboard', email, admin ? 'admin' : 'usuario', `<main id="conteudo" class="dash">${topo('Dashboard', `${nomeMes(ind.mes.ano, ind.mes.mes)}${nomeSel ? ` · ${nomeSel}` : ''}`)}${filtroDash(contas, selecionada, aaaaMm(ind.mes.ano, ind.mes.mes), mesMax)}${corpo}</main>`, '', perfil)
 }
 
 // --- contas correntes ------------------------------------------------------
